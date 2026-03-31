@@ -1,0 +1,7 @@
+{
+  "name": "dots-pi-enhancements",
+  "version": "1.0.0",
+  "description": "Custom pi skills and extensions — built by a small dog and a large dragon",
+  "keywords": ["pi-package"],
+  "license": "MIT"
+}
