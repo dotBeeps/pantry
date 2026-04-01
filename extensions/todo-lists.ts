@@ -13,7 +13,7 @@
  * A small dog and a large dragon made this together.
  */
 
-import { StringEnum } from "@mariozechner/pi-ai";
+import { StringEnum, complete, type Context } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import {
@@ -89,24 +89,50 @@ const GIPHY_API_KEY = "GlVGYHkr3WSBnllca54iNt0yFbjz7L65";
 const GIPHY_SEARCH_URL = "https://api.giphy.com/v1/gifs/search";
 const GIF_SIZE_VARIANT = "fixed_width_small";
 const GIF_CACHE_TTL_MS = 30 * 60 * 1000;
-const MAX_GIF_CELLS_W = 12;
-const MAX_GIF_CELLS_H = 6;
+const DEFAULT_GIF_CELLS_W = 10;
+const DEFAULT_GIF_CELLS_H = 5;
+
+/** Named GIF sizes — maps to max cell dimensions [width, height] */
+const GIF_SIZES: Record<string, [number, number]> = {
+	tiny:   [6,  3],
+	small:  [8,  4],
+	medium: [10, 5],
+	large:  [14, 7],
+	huge:   [20, 10],
+};
 const DEFAULT_FRAME_DELAY_MS = 80;
 const MIN_FRAME_DELAY_MS = 50;
+const VIBE_MODEL = "anthropic/claude-haiku-4-5";
+const VIBE_TIMEOUT_MS = 4000;
 
-const TAG_SEARCH_MAP: Record<string, string> = {
-	bugs: "bug fixing coding",
-	sprint: "running fast",
-	done: "celebration party",
-	blocked: "waiting bored",
-	review: "looking examining",
-	urgent: "alarm hurry",
-	feature: "building creating",
-	refactor: "cleaning organizing",
-	test: "testing science",
-	docs: "writing typing",
-	all: "coding programming",
+// Fallback search terms — used when the AI vibe generator isn't available
+const TAG_SEARCH_FALLBACK: Record<string, string> = {
+	bugs: "cute dog debugging",
+	sprint: "tiny dog running fast",
+	done: "happy dog celebration",
+	blocked: "sleepy puppy waiting",
+	review: "dog examining magnifying glass",
+	urgent: "puppy alarm panic cute",
+	feature: "dog building crafting",
+	refactor: "dog cleaning organizing tidy",
+	test: "dog science experiment",
+	docs: "dog typing writing cute",
+	all: "cute dog coding programming",
 };
+
+// Prompt for AI vibe-matched GIF search.
+// Kept short for Haiku — we want 2-4 word Giphy queries, not essays.
+const VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's mascot GIF.
+The panel belongs to a tiny candy-flavored dog (dot) and a big cozy dragon (Ember).
+Vibes: warm, playful, cozy chaos, smol engineer energy, cute animals doing technical things.
+
+Panel tag: "{tag}"
+Todo items:
+{todos}
+
+Respond with ONLY a 2-5 word Giphy search query. No quotes, no explanation.
+Pick something cute, funny, and loosely related to the work. Prefer animals, especially dogs and dragons.
+Examples of good queries: "tiny dog typing fast", "dragon sleeping on keyboard", "puppy celebrates victory"`;
 
 // ── Kitty Unicode Placeholder Constants ──
 // U+10EEEE is Kitty's designated placeholder character.
@@ -201,6 +227,77 @@ function buildPlaceholderLines(imageId: number, cols: number, rows: number): str
 		lines.push(line);
 	}
 	return lines;
+}
+
+// ── AI Vibe Search Generator ──
+
+// Module-level ref to ExtensionContext for model registry access.
+// Set once during session_start, used by generateVibeQuery().
+let extCtxRef: ExtensionContext | null = null;
+
+// Cache: tag → generated query (avoid repeated API calls for same panel)
+const vibeQueryCache = new Map<string, { query: string; timestamp: number }>();
+
+/**
+ * Ask a lightweight model to generate a Giphy search query based on
+ * the actual todo content and our vibes (smol dog + big dragon + cozy coding).
+ * Falls back to TAG_SEARCH_FALLBACK if the model isn't available or times out.
+ */
+async function generateVibeQuery(tag: string, todos: TodoFile[]): Promise<string> {
+	// Check cache first (reuse for 10 minutes)
+	const cached = vibeQueryCache.get(tag);
+	if (cached && Date.now() - cached.timestamp < 10 * 60 * 1000) return cached.query;
+
+	// Need ExtensionContext for model registry
+	if (!extCtxRef) return getFallbackQuery(tag);
+
+	try {
+		// Resolve model
+		const slashIdx = VIBE_MODEL.indexOf("/");
+		const provider = VIBE_MODEL.slice(0, slashIdx);
+		const modelId = VIBE_MODEL.slice(slashIdx + 1);
+		const model = extCtxRef.modelRegistry.find(provider, modelId);
+		if (!model) return getFallbackQuery(tag);
+
+		// Get auth
+		const auth = await extCtxRef.modelRegistry.getApiKeyAndHeaders(model);
+		if (!auth.ok) return getFallbackQuery(tag);
+
+		// Build prompt with actual todo content
+		const todoSummary = todos.length > 0
+			? todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
+			: "(empty — no todos yet)";
+		const prompt = VIBE_PROMPT
+			.replace("{tag}", tag)
+			.replace("{todos}", todoSummary);
+
+		const aiContext: Context = {
+			messages: [{
+				role: "user",
+				content: [{ type: "text", text: prompt }],
+				timestamp: Date.now(),
+			}],
+		};
+
+		const signal = AbortSignal.timeout(VIBE_TIMEOUT_MS);
+		const response = await complete(model, aiContext, { apiKey: auth.apiKey, headers: auth.headers, signal });
+		const textContent = response.content.find(c => c.type === "text");
+		let query = textContent?.text?.trim().split("\n")[0]?.trim() ?? "";
+
+		// Clean up: remove quotes, limit length
+		query = query.replace(/^["']|["']$/g, "").slice(0, 60);
+		if (!query || query.length < 3) return getFallbackQuery(tag);
+
+		vibeQueryCache.set(tag, { query, timestamp: Date.now() });
+		return query;
+	} catch (err) {
+		console.debug("[todo-gif] Vibe generation failed:", err);
+		return getFallbackQuery(tag);
+	}
+}
+
+function getFallbackQuery(tag: string): string {
+	return TAG_SEARCH_FALLBACK[tag.toLowerCase()] ?? `cute dog ${tag}`;
 }
 
 // ── GIF Fetching & Frame Extraction ──
@@ -360,16 +457,21 @@ class TodoPanelComponent implements Component {
 	// GIF mascot state
 	private mascot: MascotState | null = null;
 	private gifCache: Map<string, GifFrames>;
+	private gifMaxW: number;
+	private gifMaxH: number;
 
 	public onClose?: () => void;
 	public onCycleFocus?: () => void;
 
-	constructor(tag: string, theme: Theme, tui: TUI, cwd: string, gifCache: Map<string, GifFrames>) {
+	constructor(tag: string, theme: Theme, tui: TUI, cwd: string, gifCache: Map<string, GifFrames>, gifSize?: string) {
 		this.tag = tag;
 		this.theme = theme;
 		this.tui = tui;
 		this.cwd = cwd;
 		this.gifCache = gifCache;
+		const [maxW, maxH] = GIF_SIZES[gifSize ?? "medium"] ?? [DEFAULT_GIF_CELLS_W, DEFAULT_GIF_CELLS_H];
+		this.gifMaxW = maxW;
+		this.gifMaxH = maxH;
 		this.refresh();
 		this.loadMascot();
 	}
@@ -382,7 +484,9 @@ class TodoPanelComponent implements Component {
 		const cached = this.gifCache.get(this.tag);
 		if (cached) { this.setupMascot(cached); return; }
 
-		const query = TAG_SEARCH_MAP[this.tag.toLowerCase()] ?? `${this.tag} funny`;
+		// Ask a lightweight model to pick a vibe-matched search query,
+		// falling back to static map if the model isn't available.
+		const query = await generateVibeQuery(this.tag, this.todos);
 		const url = await searchGiphy(query);
 		if (!url) return;
 		const gifBuffer = await downloadGif(url);
@@ -402,8 +506,8 @@ class TodoPanelComponent implements Component {
 		this.disposeMascot();
 
 		const cellDims = getCellDimensions();
-		const cols = Math.min(MAX_GIF_CELLS_W, Math.max(2, Math.floor(gifData.widthPx / cellDims.widthPx)));
-		const rows = Math.min(MAX_GIF_CELLS_H, Math.max(2, calculateImageRows(
+		const cols = Math.min(this.gifMaxW, Math.max(2, Math.floor(gifData.widthPx / cellDims.widthPx)));
+		const rows = Math.min(this.gifMaxH, Math.max(2, calculateImageRows(
 			{ widthPx: gifData.widthPx, heightPx: gifData.heightPx }, cols, cellDims,
 		)));
 		const imageId = allocateMascotId();
@@ -582,6 +686,7 @@ const TodoPanelParams = Type.Object({
 	count: Type.Optional(Type.Number({ description: "Number of panels for suggest_layout" })),
 	offsetX: Type.Optional(Type.Number({ description: "Horizontal offset from anchor position" })),
 	offsetY: Type.Optional(Type.Number({ description: "Vertical offset from anchor position" })),
+	gifSize: Type.Optional(Type.String({ description: "GIF mascot size: tiny, small, medium (default), large, huge" })),
 });
 
 // ── Extension ──
@@ -609,13 +714,13 @@ export default function (pi: ExtensionAPI) {
 		tuiRef?.requestRender();
 	}
 
-	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number): string {
+	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string): string {
 		if (!tuiRef || !themeRef) return "Error: TUI not available (non-interactive mode)";
 		if (panels.has(tag)) { panels.get(tag)!.component.refresh(); tuiRef.requestRender(); return `Panel '${tag}' already open — refreshed`; }
 
 		const parsedAnchor = parseAnchor(anchor);
 		const parsedWidth = parseWidth(width);
-		const component = new TodoPanelComponent(tag, themeRef, tuiRef, cwdRef, gifCache);
+		const component = new TodoPanelComponent(tag, themeRef, tuiRef, cwdRef, gifCache, gifSize);
 		const handle = tuiRef.showOverlay(component, {
 			nonCapturing: true, anchor: parsedAnchor, width: parsedWidth,
 			minWidth: DEFAULT_MIN_WIDTH, maxHeight: DEFAULT_MAX_HEIGHT, margin: 1,
@@ -704,6 +809,7 @@ export default function (pi: ExtensionAPI) {
 	// ── TUI Capture ──
 	function captureTui(ctx: ExtensionContext): void {
 		cwdRef = ctx.cwd;
+		extCtxRef = ctx;
 		if (ctx.hasUI) {
 			ctx.ui.setWidget("__todo_panel_capture", (tui, theme) => {
 				tuiRef = tui; themeRef = theme;
@@ -740,7 +846,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
 			switch (params.action) {
-				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY)) : makeResult("Error: tag required for open", true);
+				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllPanels());
 				case "focus": return makeResult(focusPanel(params.tag));
@@ -775,8 +881,11 @@ export default function (pi: ExtensionAPI) {
 			switch (subcmd) {
 				case "open": {
 					const tag = parts[1];
-					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width]", "warning"); return; }
-					ctx.ui.notify(openPanel(tag, parts[2], parts[3]), "info");
+					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width] [gifSize]", "warning"); return; }
+					// Check if any trailing arg is a known gif size
+					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in GIF_SIZES);
+					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in GIF_SIZES));
+					ctx.ui.notify(openPanel(tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
 					return;
 				}
 				case "close": {
@@ -792,7 +901,7 @@ export default function (pi: ExtensionAPI) {
 				default:
 					ctx.ui.notify([
 						"Todo Panels — floating .pi/todos viewers",
-						"", "  /todos open <tag> [anchor] [width]  Open a panel",
+						"", "  /todos open <tag> [anchor] [width] [gifSize]",
 						"  /todos close [tag]                  Close panel",
 						"  /todos close-all                    Close all",
 						"  /todos focus [tag]                  Focus / cycle (Alt+T)",
@@ -801,7 +910,8 @@ export default function (pi: ExtensionAPI) {
 						"  /todos refresh                      Refresh all",
 						"", "Anchors: top-left, top-center, top-right, left-center,",
 						"         center, right-center, bottom-left, bottom-center, bottom-right",
-						"", "GIF mascots animate automatically for each panel.",
+						"", "GIF sizes: tiny, small, medium (default), large, huge",
+						"", "GIF mascots animate automatically — AI picks search terms!",
 					].join("\n"), "info");
 			}
 		},
