@@ -86,19 +86,26 @@ const VALID_ANCHORS: OverlayAnchor[] = [
 // ── GIF Constants ──
 
 const GIPHY_API_KEY = "GlVGYHkr3WSBnllca54iNt0yFbjz7L65";
-const GIPHY_SEARCH_URL = "https://api.giphy.com/v1/gifs/search";
-const GIF_SIZE_VARIANT = "fixed_width_small";
+const GIPHY_STICKER_URL = "https://api.giphy.com/v1/stickers/search";
+const GIPHY_GIF_URL = "https://api.giphy.com/v1/gifs/search";
+
+// Client-side AI content filter — skip results matching these in title/username/slug
+const AI_BLOCK_WORDS = [
+	"ai", "generated", "midjourney", "dalle", "stable diffusion",
+	"dreamimaginations", "aiart", "artificial", "neural", "deepdream",
+];
+const GIF_SIZE_VARIANT = "fixed_width";
 const GIF_CACHE_TTL_MS = 30 * 60 * 1000;
-const DEFAULT_GIF_CELLS_W = 10;
-const DEFAULT_GIF_CELLS_H = 5;
+const DEFAULT_GIF_CELLS_W = 16;
+const DEFAULT_GIF_CELLS_H = 8;
 
 /** Named GIF sizes — maps to max cell dimensions [width, height] */
 const GIF_SIZES: Record<string, [number, number]> = {
-	tiny:   [6,  3],
-	small:  [8,  4],
-	medium: [10, 5],
-	large:  [14, 7],
-	huge:   [20, 10],
+	tiny:   [8,  4],
+	small:  [12, 6],
+	medium: [16, 8],
+	large:  [22, 11],
+	huge:   [30, 15],
 };
 const DEFAULT_FRAME_DELAY_MS = 80;
 const MIN_FRAME_DELAY_MS = 50;
@@ -107,32 +114,34 @@ const VIBE_TIMEOUT_MS = 4000;
 
 // Fallback search terms — used when the AI vibe generator isn't available
 const TAG_SEARCH_FALLBACK: Record<string, string> = {
-	bugs: "cute dog debugging",
-	sprint: "tiny dog running fast",
-	done: "happy dog celebration",
-	blocked: "sleepy puppy waiting",
-	review: "dog examining magnifying glass",
-	urgent: "puppy alarm panic cute",
-	feature: "dog building crafting",
-	refactor: "dog cleaning organizing tidy",
-	test: "dog science experiment",
-	docs: "dog typing writing cute",
-	all: "cute dog coding programming",
+	bugs: "puppy computer bug sticker",
+	sprint: "dog running fast sticker",
+	done: "happy puppy celebration dance",
+	blocked: "sleepy puppy waiting sticker",
+	review: "dog looking detective sticker",
+	urgent: "puppy panic alarm sticker",
+	feature: "dog building crafting sticker",
+	refactor: "cat cleaning tidy sticker",
+	test: "dog science experiment sticker",
+	docs: "dog typing writing sticker",
+	all: "puppy coding programming sticker",
 };
 
 // Prompt for AI vibe-matched GIF search.
 // Kept short for Haiku — we want 2-4 word Giphy queries, not essays.
-const VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's mascot GIF.
+const VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's animated sticker.
 The panel belongs to a tiny candy-flavored dog (dot) and a big cozy dragon (Ember).
-Vibes: warm, playful, cozy chaos, smol engineer energy, cute animals doing technical things.
+Vibes: cute animals, cozy chaos, warm and playful, smol engineer energy.
 
 Panel tag: "{tag}"
 Todo items:
 {todos}
 
 Respond with ONLY a 2-5 word Giphy search query. No quotes, no explanation.
-Pick something cute, funny, and loosely related to the work. Prefer animals, especially dogs and dragons.
-Examples of good queries: "tiny dog typing fast", "dragon sleeping on keyboard", "puppy celebrates victory"`;
+Pick something cute and loosely related to the work.
+Prefer: dogs, puppies, cats, dragons, animals doing people things.
+Avoid: realistic photos, corporate stock, anything that says AI or generated.
+Examples: "puppy typing fast sticker", "sleepy dog coffee", "cat fixing computer", "dragon cozy fire"`;
 
 // ── Kitty Unicode Placeholder Constants ──
 // U+10EEEE is Kitty's designated placeholder character.
@@ -302,15 +311,49 @@ function getFallbackQuery(tag: string): string {
 
 // ── GIF Fetching & Frame Extraction ──
 
+interface GiphyResult {
+	title: string;
+	username: string;
+	slug: string;
+	images: Record<string, { url?: string }>;
+}
+
+/** Check if a result looks like AI-generated content. */
+function isLikelyAI(result: GiphyResult): boolean {
+	const haystack = `${result.title} ${result.username} ${result.slug}`.toLowerCase();
+	return AI_BLOCK_WORDS.some(w => haystack.includes(w));
+}
+
+/** Pick a random non-AI result from a list. */
+function pickCleanResult(results: GiphyResult[]): string | null {
+	const clean = results.filter(r => !isLikelyAI(r));
+	if (!clean.length) return null;
+	const pick = clean[Math.floor(Math.random() * clean.length)]!;
+	return pick.images?.[GIF_SIZE_VARIANT]?.url ?? null;
+}
+
+/**
+ * Search Giphy for a GIF. Tries stickers first (hand-drawn, toony),
+ * falls back to regular GIFs if stickers return too few results.
+ * Filters out suspected AI-generated content client-side.
+ */
 async function searchGiphy(query: string): Promise<string | null> {
 	try {
-		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "10", rating: "g" });
-		const r = await fetch(`${GIPHY_SEARCH_URL}?${params}`);
-		if (!r.ok) return null;
-		const data = (await r.json()) as { data: Array<{ images: Record<string, { url?: string }> }> };
-		if (!data.data?.length) return null;
-		const idx = Math.floor(Math.random() * Math.min(data.data.length, 10));
-		return data.data[idx]?.images?.[GIF_SIZE_VARIANT]?.url ?? null;
+		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: "g" });
+
+		// Try stickers first — inherently toony/hand-drawn
+		const stickerRes = await fetch(`${GIPHY_STICKER_URL}?${params}`);
+		if (stickerRes.ok) {
+			const stickerData = (await stickerRes.json()) as { data: GiphyResult[] };
+			const url = pickCleanResult(stickerData.data ?? []);
+			if (url) return url;
+		}
+
+		// Fall back to regular GIFs
+		const gifRes = await fetch(`${GIPHY_GIF_URL}?${params}`);
+		if (!gifRes.ok) return null;
+		const gifData = (await gifRes.json()) as { data: GiphyResult[] };
+		return pickCleanResult(gifData.data ?? []);
 	} catch { return null; }
 }
 
@@ -602,26 +645,53 @@ class TodoPanelComponent implements Component {
 		const rp = Math.max(1, innerW - titleW - lp);
 		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
 
+		// ── Build mascot placeholder lines (rendered inline, top-right) ──
+		// The image data is transmitted to Kitty via process.stdout.write() in
+		// setupMascot/setInterval — NOT in render(). Kitty stores it in memory
+		// with a=T,U=1 (virtual placement). The placeholder characters here
+		// tell Kitty where to display the image. The foreground color encodes
+		// the image ID. This is compositor-safe: Intl.Segmenter keeps the
+		// grapheme clusters intact, and visibleWidth() measures each as width 1.
+		const mascotLines = this.mascot
+			? buildPlaceholderLines(this.mascot.imageId, this.mascot.cols, this.mascot.rows)
+			: [];
+		const mascotW = this.mascot?.cols ?? 0;
+		let mascotRow = 0; // tracks which mascot row to render next
+
+		/** Append a content line, merging mascot placeholder into the right side if rows remain. */
+		const pushLine = (content: string, contentMaxW?: number): void => {
+			if (mascotRow < mascotLines.length && mascotW > 0) {
+				// Reserve space: [content...] [1 gap] [mascot] [border]
+				const textW = (contentMaxW ?? innerW) - mascotW - 1;
+				const truncated = truncateToWidth(content, Math.max(4, textW));
+				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
+				lines.push(border("│") + truncated + " ".repeat(gap) + mascotLines[mascotRow]! + border("│"));
+				mascotRow++;
+			} else {
+				lines.push(border("│") + padLine(content) + border("│"));
+			}
+		};
+
 		// ── Todo list ──
 		if (this.todos.length === 0) {
-			lines.push(border("│") + padLine("") + border("│"));
-			lines.push(border("│") + padLine(th.fg("dim", "  No todos" + (this.tag !== "*" && this.tag !== "all" ? ` tagged '${this.tag}'` : "") + ".")) + border("│"));
-			lines.push(border("│") + padLine(th.fg("dim", "  Use the todo tool to create some!")) + border("│"));
-			lines.push(border("│") + padLine("") + border("│"));
+			pushLine("");
+			pushLine(th.fg("dim", "  No todos" + (this.tag !== "*" && this.tag !== "all" ? ` tagged '${this.tag}'` : "") + "."));
+			pushLine(th.fg("dim", "  Use the todo tool to create some!"));
+			pushLine("");
 		} else {
-			lines.push(border("│") + padLine("") + border("│"));
-			const barWidth = Math.min(20, innerW - 10);
+			pushLine("");
+			const barWidth = Math.min(20, innerW - mascotW - 12);
 			if (barWidth >= 5) {
 				const filled = totalCount > 0 ? Math.round((doneCount / totalCount) * barWidth) : 0;
 				const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
-				lines.push(border("│") + padLine("  " + th.fg("success", "█".repeat(filled)) + th.fg("dim", "░".repeat(barWidth - filled)) + th.fg("muted", ` ${pct}%`)) + border("│"));
-				lines.push(border("│") + padLine("") + border("│"));
+				pushLine("  " + th.fg("success", "█".repeat(filled)) + th.fg("dim", "░".repeat(barWidth - filled)) + th.fg("muted", ` ${pct}%`));
+				pushLine("");
 			}
 
 			const maxVisible = 12;
 			const visibleStart = Math.max(0, Math.min(this.scrollOffset, this.todos.length - maxVisible));
 			const visibleEnd = Math.min(this.todos.length, visibleStart + maxVisible);
-			if (visibleStart > 0) lines.push(border("│") + padLine(th.fg("dim", `  ↑ ${visibleStart} more`)) + border("│"));
+			if (visibleStart > 0) pushLine(th.fg("dim", `  ↑ ${visibleStart} more`));
 
 			for (let i = 0; i < visibleEnd - visibleStart; i++) {
 				const todo = this.todos[visibleStart + i]!;
@@ -632,38 +702,27 @@ class TodoPanelComponent implements Component {
 				const titleColor = todo.status === "done"
 					? th.fg("muted", th.strikethrough(todo.title))
 					: isSelected ? th.fg("accent", todo.title) : th.fg("text", todo.title);
-				lines.push(border("│") + padLine(`${pointer}${check} ${titleColor}`) + border("│"));
+				pushLine(`${pointer}${check} ${titleColor}`);
 				if (isSelected && todo.body) {
 					const preview = todo.body.split("\n")[0] ?? "";
-					if (preview.trim()) lines.push(border("│") + padLine("     " + th.fg("dim", truncateToWidth(preview, innerW - 7))) + border("│"));
+					if (preview.trim()) pushLine("     " + th.fg("dim", truncateToWidth(preview, innerW - 7)));
 				}
 			}
 
-			if (visibleEnd < this.todos.length) lines.push(border("│") + padLine(th.fg("dim", `  ↓ ${this.todos.length - visibleEnd} more`)) + border("│"));
-			lines.push(border("│") + padLine("") + border("│"));
+			if (visibleEnd < this.todos.length) pushLine(th.fg("dim", `  ↓ ${this.todos.length - visibleEnd} more`));
+			pushLine("");
+		}
+
+		// ── Flush remaining mascot rows (if mascot is taller than content) ──
+		while (mascotRow < mascotLines.length) {
+			const gap = Math.max(0, innerW - mascotW);
+			lines.push(border("│") + " ".repeat(gap) + mascotLines[mascotRow]! + border("│"));
+			mascotRow++;
 		}
 
 		// ── Help text ──
 		const help = focused ? th.fg("dim", "↑↓ nav · Space toggle · q close · Esc unfocus") : th.fg("dim", `Alt+T focus · /todos help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
-
-		// ── GIF mascot (Unicode placeholders) ──
-		// The image data is transmitted to Kitty via process.stdout.write() in
-		// setupMascot/setInterval — NOT in render(). Kitty stores it in memory
-		// with a=T,U=1 (virtual placement). The placeholder characters below
-		// tell Kitty where to display the image. The foreground color encodes
-		// the image ID. This is compositor-safe: Intl.Segmenter keeps the
-		// grapheme clusters intact, and visibleWidth() measures each as width 1.
-		if (this.mascot) {
-			const mLines = buildPlaceholderLines(this.mascot.imageId, this.mascot.cols, this.mascot.rows);
-			lines.push(border("│") + padLine("") + border("│"));
-			for (const ml of mLines) {
-				const mlW = visibleWidth(ml);
-				const mlLeft = Math.max(0, Math.floor((innerW - mlW) / 2));
-				const mlRight = Math.max(0, innerW - mlW - mlLeft);
-				lines.push(border("│") + " ".repeat(mlLeft) + ml + " ".repeat(mlRight) + border("│"));
-			}
-		}
 
 		// ── Bottom border ──
 		lines.push(border("╰") + border("─".repeat(innerW)) + border("╯"));
