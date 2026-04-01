@@ -23,8 +23,8 @@ import {
 import { Type } from "@sinclair/typebox";
 import { execSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmdirSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { tmpdir, homedir } from "node:os";
 
 // ── Types ──
 
@@ -76,6 +76,45 @@ const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
+const DEFAULT_GIF_RATING = "pg";
+const VALID_RATINGS = ["g", "pg", "pg-13", "r"];
+
+// ── Settings ──
+
+function getSettingsPath(): string {
+	return join(process.env.HOME || process.env.USERPROFILE || homedir(), ".pi", "agent", "settings.json");
+}
+
+function readSetting<T>(key: string, fallback: T): T {
+	try {
+		const path = getSettingsPath();
+		if (!existsSync(path)) return fallback;
+		const settings = JSON.parse(readFileSync(path, "utf-8"));
+		return (typeof settings === "object" && settings !== null && key in settings)
+			? settings[key] as T
+			: fallback;
+	} catch { return fallback; }
+}
+
+function writeSetting(key: string, value: unknown): boolean {
+	try {
+		const path = getSettingsPath();
+		let settings: Record<string, unknown> = {};
+		if (existsSync(path)) {
+			const parsed = JSON.parse(readFileSync(path, "utf-8"));
+			if (typeof parsed === "object" && parsed !== null) settings = parsed;
+		}
+		settings[key] = value;
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
+		return true;
+	} catch { return false; }
+}
+
+function getGifRating(): string {
+	const val = readSetting<string>("todoGifRating", DEFAULT_GIF_RATING);
+	return VALID_RATINGS.includes(val) ? val : DEFAULT_GIF_RATING;
+}
 
 const VALID_ANCHORS: OverlayAnchor[] = [
 	"top-left", "top-center", "top-right",
@@ -339,7 +378,8 @@ function pickCleanResult(results: GiphyResult[]): string | null {
  */
 async function searchGiphy(query: string): Promise<string | null> {
 	try {
-		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: "g" });
+		const rating = getGifRating();
+		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating });
 
 		// Try stickers first — inherently toony/hand-drawn
 		const stickerRes = await fetch(`${GIPHY_STICKER_URL}?${params}`);
