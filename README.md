@@ -76,9 +76,9 @@ Full guide for creating pi extensions — tools, commands, shortcuts, TUI compon
 </details>
 
 <details>
-<summary><strong><code>todo-panels</code></strong> — Open and manage floating todo panels</summary>
+<summary><strong><code>dots-todos</code></strong> — Track tasks with tagged todos and floating panels</summary>
 
-Display `.pi/todos` as persistent floating panels grouped by tag. Panels stay on screen while you work, auto-refresh when todos change, and only capture keyboard input when focused.
+Manage work items in `.pi/todos` and display them as persistent floating panels. Panels stay on screen while you work, auto-refresh when todos change, and only capture keyboard input when focused.
 
 - **Tag-based grouping** — filter todos by tag into separate panels
 - **Focus cycling** — `Alt+T` or `/todos focus` to cycle between panels
@@ -86,7 +86,54 @@ Display `.pi/todos` as persistent floating panels grouped by tag. Panels stay on
 - **Two-tool system** — built-in `todo` for CRUD, `todo_panel` for display
 - **Auto-refresh** — panels update when the `todo` tool modifies files
 
-📂 [`skills/todo-panels/SKILL.md`](skills/todo-panels/SKILL.md)
+📂 [`skills/dots-todos/SKILL.md`](skills/dots-todos/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>pi-tui</code></strong> — Build custom TUI components for pi extensions</summary>
+
+Deep guide to pi's terminal UI component system — the rendering contract, built-in components, overlays, theming, custom editors, and tool rendering.
+
+- **Component contract** — `render(width)`, `handleInput`, `invalidate()` rules
+- **Built-in components** — Text, Box, Container, SelectList, SettingsList, BorderedLoader, DynamicBorder
+- **Overlays** — 9 anchor positions, responsive visibility, programmatic show/hide
+- **Custom editors** — extend `CustomEditor`, not `Editor`, for app keybinding inheritance
+- **Theming** — foreground/background colors, invalidation pattern for theme changes
+- **Tool rendering** — `renderCall` and `renderResult` with `context.lastComponent` reuse
+
+📂 [`skills/pi-tui/SKILL.md`](skills/pi-tui/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>pi-sessions</code></strong> — Sessions, state, compaction, and branching</summary>
+
+How pi stores history, manages branches, and handles compaction — essential for stateful extensions.
+
+- **Session tree model** — JSONL tree with `id`/`parentId` linking, in-place branching
+- **State management** — store in tool `details`, reconstruct from `getBranch()` on session events
+- **Compaction mechanics** — trigger threshold, `reserveTokens` double-duty, custom summaries
+- **Proactive compaction** — fire `ctx.compact()` from `turn_end` for early triggers
+- **Branch summarization** — hooks for custom summaries on `/tree` navigation
+
+📂 [`skills/pi-sessions/SKILL.md`](skills/pi-sessions/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>pi-events</code></strong> — Event hooks for the pi agent lifecycle</summary>
+
+Intercept, transform, and react to everything that happens in pi — tool calls, user input, system prompts, model changes, and message streaming.
+
+- **Decision tree** — "I want to block a tool" → `tool_call` with `{ block: true }`
+- **Tool interception** — block, mutate args, or modify results
+- **Input transform** — rewrite or handle user input before the LLM sees it
+- **Prompt injection** — `before_agent_start` for per-turn context and system prompt modification
+- **Message delivery** — `steer`, `followUp`, `nextTurn` delivery modes
+- **Provider inspection** — `before_provider_request` for debugging serialization
+
+📂 [`skills/pi-events/SKILL.md`](skills/pi-events/SKILL.md)
 
 </details>
 
@@ -119,10 +166,13 @@ Floating panel for live-adjusting context compaction settings. Changes take effe
 | Feature | Details |
 |---------|--------|
 | Settings | auto-compaction toggle, reserveTokens, keepRecentTokens |
+| Trigger modes | Reserve (raw tokens), Percentage (% of context), Fixed (token threshold) |
+| Strategy presets | Default, Code-focused, Task-focused, Minimal — affects manual Compact Now |
 | Scope | Project settings override global settings |
-| Context bar | Live token usage with color-coded progress bar |
+| Context bar | Live token usage with color-coded progress bar + threshold marker (▼) |
+| Compaction stats | Shows last compaction time, token savings, percentage freed |
 | Copy from global | Pull global settings into project config |
-| Compact Now | Trigger compaction manually from the panel |
+| Compact Now | Trigger compaction manually with strategy-aware instructions |
 | Hook | `session_before_compact` — enforces live disable toggle |
 
 📂 [`extensions/digestion-settings.ts`](extensions/digestion-settings.ts)

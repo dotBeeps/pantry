@@ -89,6 +89,8 @@ class PanelRegistry {
 	private _tui: TUI | null = null;
 	private _theme: Theme | null = null;
 	private _cwd: string = process.cwd();
+	private _suspended = false;
+	private _suspendTimer: ReturnType<typeof setTimeout> | null = null;
 
 	get tui(): TUI | null {
 		return this._tui;
@@ -122,16 +124,18 @@ class PanelRegistry {
 		this.focusOrder.push(id);
 	}
 
-	/** Close a panel: dispose → hide → remove → notify. Returns false if not found. */
+	/** Close a panel: dispose → unfocus → hide → remove → notify. Returns false if not found. */
 	close(id: string): boolean {
 		const panel = this.panels.get(id);
 		if (!panel) return false;
 		panel.dispose?.();
+		panel.handle.unfocus();
 		panel.handle.hide();
 		this.panels.delete(id);
 		const idx = this.focusOrder.indexOf(id);
 		if (idx !== -1) this.focusOrder.splice(idx, 1);
 		panel.onClose?.();
+		this._tui?.requestRender();
 		return true;
 	}
 
@@ -139,7 +143,42 @@ class PanelRegistry {
 	closeAll(): number {
 		const ids = [...this.panels.keys()];
 		for (const id of ids) this.close(id);
+		this._clearSuspend();
 		return ids.length;
+	}
+
+	/**
+	 * Suspend panel rendering — all panels return empty output until resumed.
+	 * Used during compaction to prevent overlay content from scrolling the
+	 * terminal past the main TUI while pi rebuilds its layout.
+	 */
+	suspend(): void {
+		this._suspended = true;
+		if (this._suspendTimer) clearTimeout(this._suspendTimer);
+		// Safety net: auto-resume after 60s if session_compact never fires
+		this._suspendTimer = setTimeout(() => this.resume(), 60_000);
+	}
+
+	/** Resume panel rendering. Invalidates all panels for a fresh render pass. */
+	resume(): void {
+		this._clearSuspend();
+		if (!this._suspended) return;
+		this._suspended = false;
+		for (const panel of this.panels.values()) {
+			panel.invalidate();
+		}
+		this._tui?.requestRender();
+	}
+
+	isSuspended(): boolean {
+		return this._suspended;
+	}
+
+	private _clearSuspend(): void {
+		if (this._suspendTimer) {
+			clearTimeout(this._suspendTimer);
+			this._suspendTimer = null;
+		}
 	}
 
 	isOpen(id: string): boolean {
@@ -278,6 +317,8 @@ export default function (pi: ExtensionAPI) {
 		cycleFocus: () => registry.cycleFocus(),
 		unfocusAll: () => registry.unfocusAll(),
 		requestRender: () => registry.requestRender(),
+		suspend: () => registry.suspend(),
+		resume: () => registry.resume(),
 		/** Display-friendly hints for shared panel keys. */
 		keyHints: {
 			/** Focus-cycle key label, e.g. "Alt+T" */
@@ -305,7 +346,7 @@ export default function (pi: ExtensionAPI) {
 			handleInput(data: string): void;
 		} {
 			return {
-				render: (w) => inner.render(w),
+				render: (w) => registry.isSuspended() ? [] : inner.render(w),
 				invalidate: () => inner.invalidate(),
 				handleInput: (data) => registry.handlePanelInput(panelId, data),
 			};
@@ -353,7 +394,17 @@ export default function (pi: ExtensionAPI) {
 		widgetRegistered = true;
 		ctx.ui.setWidget("__panel_manager_capture", (tui, theme) => {
 			registry._init(tui, theme, ctx.cwd);
-			return { render: () => [], invalidate: () => {} };
+			return {
+				render: () => {
+					// Pi is running a render pass — invalidate open panel caches so
+					// they produce fresh output this cycle (handles scroll, collapse, etc.)
+					for (const { id } of registry.list()) {
+						registry.get(id)?.invalidate();
+					}
+					return [];
+				},
+				invalidate: () => {},
+			};
 		});
 	}
 
@@ -373,5 +424,26 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async () => {
 		registry.closeAll();
+	});
+
+	// ── Compaction: suspend panels to prevent terminal scroll ──
+	// During compaction pi rebuilds its TUI. Overlay panels rendering at stale
+	// positions write past the viewport, scrolling the main interface out of view.
+	// Suspend makes all panels return [] from render until pi settles.
+
+	pi.on("session_before_compact", async () => {
+		if (registry.size > 0) registry.suspend();
+	});
+
+	pi.on("session_compact", async () => {
+		// Short delay lets pi finish its post-compaction TUI redraw before
+		// panels re-render with fresh coordinates.
+		setTimeout(() => registry.resume(), 150);
+	});
+
+	// Safety net: if compaction was cancelled (session_compact never fires),
+	// resume on the next turn so panels don't stay invisible.
+	pi.on("turn_end", async () => {
+		if (registry.isSuspended()) registry.resume();
 	});
 }

@@ -816,11 +816,10 @@ export default function (pi: ExtensionAPI) {
 
 	function panelId(tag: string): string { return `todo:${tag}`; }
 
-	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string): string {
+	function openPanel(ctx: ExtensionContext, tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string): string {
 		const panels = getPanels();
-		const tui = panels?.tui;
-		const theme = panels?.theme;
-		if (!tui || !theme) return "Error: TUI not available (non-interactive mode)";
+		if (!panels) return "Error: Panel manager not available";
+		if (!ctx.hasUI) return "Error: TUI not available (non-interactive mode)";
 
 		const pid = panelId(tag);
 		if (panels.isOpen(pid)) {
@@ -831,23 +830,42 @@ export default function (pi: ExtensionAPI) {
 
 		const parsedAnchor = parseAnchor(anchor);
 		const parsedWidth = parseWidth(width);
-		const component = new TodoPanelComponent(tag, theme, tui, panels.cwd, gifCache, gifSize);
-		const wrapped = panels.wrapComponent(pid, component);
-		const handle = tui.showOverlay(wrapped, {
-			nonCapturing: true, anchor: parsedAnchor, width: parsedWidth,
-			minWidth: DEFAULT_MIN_WIDTH, maxHeight: DEFAULT_MAX_HEIGHT, margin: 1,
-			...(offsetX !== undefined ? { offsetX } : {}),
-			...(offsetY !== undefined ? { offsetY } : {}),
-		});
-		component.setHandle(handle);
-		todoComponents.set(tag, component);
-		panels.register(pid, {
-			handle,
-			invalidate: () => component.invalidate(),
-			handleInput: (data) => component.handleInput(data),
-			dispose: () => component.disposeMascot(),
-			onClose: () => todoComponents.delete(tag),
-		});
+
+		// Use ctx.ui.custom() so the TUI has the correct viewport context for overlay positioning.
+		// Calling tui.showOverlay() with a stored ref from setWidget offsets the panel by one terminal height.
+		let component: TodoPanelComponent | null = null;
+		ctx.ui.custom(
+			(tui, theme, _kb, _done) => {
+				component = new TodoPanelComponent(tag, theme, tui, panels.cwd, gifCache, gifSize);
+				todoComponents.set(tag, component);
+				return panels.wrapComponent(pid, component);
+			},
+			{
+				overlay: true,
+				overlayOptions: {
+					nonCapturing: true,
+					anchor: parsedAnchor,
+					width: parsedWidth,
+					minWidth: DEFAULT_MIN_WIDTH,
+					maxHeight: DEFAULT_MAX_HEIGHT,
+					margin: 1,
+					...(offsetX !== undefined ? { offsetX } : {}),
+					...(offsetY !== undefined ? { offsetY } : {}),
+				},
+				onHandle: (handle) => {
+					if (!component) return;
+					component.setHandle(handle);
+					panels.register(pid, {
+						handle,
+						invalidate: () => component!.invalidate(),
+						handleInput: (data) => component!.handleInput(data),
+						dispose: () => component!.disposeMascot(),
+						onClose: () => todoComponents.delete(tag),
+					});
+				},
+			},
+		).catch(() => { todoComponents.delete(tag); });
+
 		return `Opened panel for '${tag}' at ${parsedAnchor}`;
 	}
 
@@ -912,7 +930,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
 			switch (params.action) {
-				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize)) : makeResult("Error: tag required for open", true);
+				case "open": return params.tag ? makeResult(openPanel(ctx, params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllTodoPanels());
 				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }
@@ -951,7 +969,7 @@ export default function (pi: ExtensionAPI) {
 					// Check if any trailing arg is a known gif size
 					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in GIF_SIZES);
 					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in GIF_SIZES));
-					ctx.ui.notify(openPanel(tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
+					ctx.ui.notify(openPanel(ctx, tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
 					return;
 				}
 				case "close": {

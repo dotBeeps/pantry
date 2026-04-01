@@ -1,11 +1,15 @@
 /**
- * Digestion Settings — Live-tweakable floating panel for compaction configuration.
+ * Digestion Settings - Live-tweakable floating panel for compaction configuration.
  *
- * Because when a dragon processes context, it's not "compaction" — it's digestion.
+ * Because when a dragon processes context, it's not "compaction" - it's digestion.
  *
  * Features:
  * - Non-blocking overlay panel showing current compaction settings + context usage
  * - Toggle auto-compaction on/off, adjust reserveTokens and keepRecentTokens
+ * - Trigger modes: Reserve (raw tokens), Percentage (% of context), Fixed (token threshold)
+ * - Strategy presets for manual compaction (Default / Code / Task / Minimal)
+ * - Threshold marker on the context bar showing where compaction triggers
+ * - Last compaction stats - timestamp, token savings, percentage freed
  * - Writes changes to project .pi/settings.json for persistence across sessions
  * - Hooks session_before_compact as a safety net for live enforcement
  * - `/digestion` command to open/close the panel
@@ -19,23 +23,32 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+
 // ── Panel Manager Access ──
-// Panel manager API is published to globalThis by panel-manager.ts extension.
-// No direct imports — avoids jiti module isolation issues.
 const PANELS_KEY = Symbol.for("dot.panels");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
+
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
 // ── Types ──
 
+type TriggerMode = "reserve" | "percentage" | "fixed";
+
 interface CompactionSettings {
 	enabled: boolean;
 	reserveTokens: number;
 	keepRecentTokens: number;
+}
+
+interface DigestSettings {
+	triggerMode: TriggerMode;
+	triggerPercentage: number;
+	triggerFixed: number;
+	strategy: string;
 }
 
 interface ContextUsageInfo {
@@ -44,7 +57,26 @@ interface ContextUsageInfo {
 	percent: number | null;
 }
 
+interface CompactionStats {
+	lastCompactedAt: number | null;
+	tokensBefore: number | null;
+	tokensAfter: number | null;
+}
+
+interface PanelItem {
+	id: string;
+	label: string;
+}
+
+interface StrategyPreset {
+	id: string;
+	label: string;
+	instructions: string;
+}
+
 // ── Constants ──
+
+const SETTINGS_NAMESPACE = "dotsPiEnhancements";
 
 const DEFAULT_SETTINGS: CompactionSettings = {
 	enabled: true,
@@ -52,20 +84,120 @@ const DEFAULT_SETTINGS: CompactionSettings = {
 	keepRecentTokens: 20000,
 };
 
-/** Turn a matchesKey-style code into a display label. */
-function keyLabel(code: string): string {
-	return code.split("+").map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("+");
-}
+const DEFAULT_DIGEST: DigestSettings = {
+	triggerMode: "reserve",
+	triggerPercentage: 80,
+	triggerFixed: 150000,
+	strategy: "default",
+};
 
-/** Preset values for reserveTokens — what you want available for the LLM's response */
-const RESERVE_PRESETS = [4096, 8192, 16384, 32768, 65536];
+const TRIGGER_MODES: TriggerMode[] = ["reserve", "percentage", "fixed"];
+const TRIGGER_MODE_LABELS: Record<TriggerMode, string> = {
+	reserve: "Reserve",
+	percentage: "Percentage",
+	fixed: "Fixed",
+};
 
-/** Preset values for keepRecentTokens — how much recent context to preserve */
-const KEEP_RECENT_PRESETS = [5000, 10000, 20000, 40000, 80000];
+/**
+ * Reserve-mode response-budget presets - filtered at runtime to modelMaxTokens.
+ * In Reserve mode, reserveTokens = how much space to keep for the LLM's response.
+ * In Percentage/Fixed modes, reserveTokens is always SAFE_RESERVE_TOKENS (decoupled).
+ */
+const RESERVE_PRESETS_BASE = [4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576];
+
+/**
+ * Safe reserveTokens written to the settings file for Percentage/Fixed trigger modes.
+ * Pi uses reserveTokens as max_tokens for compaction LLM calls (0.8 × reserveTokens).
+ * This value keeps that budget reasonable and API-safe regardless of context window size.
+ * Actual trigger logic is enforced separately via turn_end + session_before_compact.
+ */
+const SAFE_RESERVE_TOKENS = 16384;
+
+/** Preset values for keepRecentTokens - how much recent context to preserve */
+const KEEP_RECENT_PRESETS = [5000, 10000, 20000, 40000, 80000, 160000];
+
+/** Preset values for percentage mode - trigger when context reaches this % full */
+const PERCENTAGE_PRESETS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95];
+
+/** Strategy presets for manual compaction - customInstructions passed to ctx.compact() */
+const STRATEGY_PRESETS: StrategyPreset[] = [
+	{ id: "default", label: "Default", instructions: "" },
+	{
+		id: "code",
+		label: "Code",
+		instructions:
+			"Focus on code changes, file paths, function signatures, and technical decisions. Keep implementation details. Minimize conversational prose.",
+	},
+	{
+		id: "task",
+		label: "Tasks",
+		instructions:
+			"Focus on user goals, completed tasks, current progress, and planned next steps. Minimize code-level details.",
+	},
+	{
+		id: "minimal",
+		label: "Minimal",
+		instructions:
+			"Extremely brief summary. Only include absolutely essential context needed to continue. Omit anything that can be re-derived from files.",
+	},
+];
+
+// ── Digestion Overlay Animation ──
+
+const DIGESTION_PHASES: Array<{ emoji: string; text: string }> = [
+	{ emoji: "🐉", text: "Starting digestion" },
+	{ emoji: "🔥", text: "Firing up the furnace" },
+	{ emoji: "✨", text: "Condensing the essence" },
+	{ emoji: "💭", text: "Weaving through memories" },
+	{ emoji: "⚗️", text: "Distilling the context" },
+	{ emoji: "📜", text: "Inscribing the summary" },
+];
+const PHASE_INTERVAL_MS = 2800;
 
 /** Key to copy settings from global config (configurable via dotsPiEnhancements.digestionCopyGlobalKey) */
 const COPY_GLOBAL_KEY = readEnhancementSetting<string>("digestionCopyGlobalKey", "g");
 const COPY_GLOBAL_LABEL = keyLabel(COPY_GLOBAL_KEY);
+
+// ── Helpers ──
+
+/** Turn a matchesKey-style code into a display label. */
+function keyLabel(code: string): string {
+	return code
+		.split("+")
+		.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+		.join("+");
+}
+
+function formatTokens(n: number): string {
+	if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+	return String(n);
+}
+
+function cyclePreset(current: number, presets: number[], direction: 1 | -1): number {
+	let closestIdx = 0;
+	let closestDist = Math.abs(current - presets[0]!);
+	for (let i = 1; i < presets.length; i++) {
+		const dist = Math.abs(current - presets[i]!);
+		if (dist < closestDist) {
+			closestIdx = i;
+			closestDist = dist;
+		}
+	}
+	const nextIdx = Math.max(0, Math.min(presets.length - 1, closestIdx + direction));
+	return presets[nextIdx]!;
+}
+
+function formatRelativeTime(timestamp: number): string {
+	const diff = Date.now() - timestamp;
+	const seconds = Math.floor(diff / 1000);
+	if (seconds < 60) return "just now";
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.floor(hours / 24);
+	return `${days}d ago`;
+}
 
 // ── Settings I/O ──
 
@@ -87,33 +219,52 @@ function readSettingsFile(path: string): Record<string, unknown> {
 	}
 }
 
-const SETTINGS_NAMESPACE = "dotsPiEnhancements";
-
 function readEnhancementSetting<T>(key: string, fallback: T): T {
 	try {
 		const settings = readSettingsFile(getGlobalSettingsPath());
 		const ns = settings[SETTINGS_NAMESPACE];
 		if (typeof ns !== "object" || ns === null) return fallback;
-		return key in ns ? (ns as Record<string, unknown>)[key] as T : fallback;
-	} catch { return fallback; }
+		return key in ns ? ((ns as Record<string, unknown>)[key] as T) : fallback;
+	} catch {
+		return fallback;
+	}
 }
 
 function readCompactionSettings(cwd: string): CompactionSettings {
 	const global = readSettingsFile(getGlobalSettingsPath());
 	const project = readSettingsFile(getProjectSettingsPath(cwd));
-
-	// Project overrides global, both override defaults
 	const globalCompaction = (global.compaction ?? {}) as Partial<CompactionSettings>;
 	const projectCompaction = (project.compaction ?? {}) as Partial<CompactionSettings>;
 
 	return {
 		enabled: projectCompaction.enabled ?? globalCompaction.enabled ?? DEFAULT_SETTINGS.enabled,
-		reserveTokens:
-			projectCompaction.reserveTokens ?? globalCompaction.reserveTokens ?? DEFAULT_SETTINGS.reserveTokens,
+		reserveTokens: projectCompaction.reserveTokens ?? globalCompaction.reserveTokens ?? DEFAULT_SETTINGS.reserveTokens,
 		keepRecentTokens:
-			projectCompaction.keepRecentTokens ??
-			globalCompaction.keepRecentTokens ??
-			DEFAULT_SETTINGS.keepRecentTokens,
+			projectCompaction.keepRecentTokens ?? globalCompaction.keepRecentTokens ?? DEFAULT_SETTINGS.keepRecentTokens,
+	};
+}
+
+function readGlobalCompactionSettings(): CompactionSettings {
+	const global = readSettingsFile(getGlobalSettingsPath());
+	const gc = (global.compaction ?? {}) as Partial<CompactionSettings>;
+	return {
+		enabled: gc.enabled ?? DEFAULT_SETTINGS.enabled,
+		reserveTokens: gc.reserveTokens ?? DEFAULT_SETTINGS.reserveTokens,
+		keepRecentTokens: gc.keepRecentTokens ?? DEFAULT_SETTINGS.keepRecentTokens,
+	};
+}
+
+function readDigestSettings(cwd: string): DigestSettings {
+	const global = readSettingsFile(getGlobalSettingsPath());
+	const project = readSettingsFile(getProjectSettingsPath(cwd));
+	const globalNs = (global[SETTINGS_NAMESPACE] ?? {}) as Record<string, unknown>;
+	const projectNs = (project[SETTINGS_NAMESPACE] ?? {}) as Record<string, unknown>;
+
+	return {
+		triggerMode: ((projectNs.digestionTriggerMode ?? globalNs.digestionTriggerMode ?? DEFAULT_DIGEST.triggerMode) as TriggerMode),
+		triggerPercentage: ((projectNs.digestionTriggerPercentage ?? globalNs.digestionTriggerPercentage ?? DEFAULT_DIGEST.triggerPercentage) as number),
+		triggerFixed: ((projectNs.digestionTriggerFixed ?? globalNs.digestionTriggerFixed ?? DEFAULT_DIGEST.triggerFixed) as number),
+		strategy: ((projectNs.digestionStrategy ?? globalNs.digestionStrategy ?? DEFAULT_DIGEST.strategy) as string),
 	};
 }
 
@@ -135,16 +286,6 @@ function writeCompactionSetting(cwd: string, key: keyof CompactionSettings, valu
 	}
 }
 
-function readGlobalCompactionSettings(): CompactionSettings {
-	const global = readSettingsFile(getGlobalSettingsPath());
-	const gc = (global.compaction ?? {}) as Partial<CompactionSettings>;
-	return {
-		enabled: gc.enabled ?? DEFAULT_SETTINGS.enabled,
-		reserveTokens: gc.reserveTokens ?? DEFAULT_SETTINGS.reserveTokens,
-		keepRecentTokens: gc.keepRecentTokens ?? DEFAULT_SETTINGS.keepRecentTokens,
-	};
-}
-
 function writeAllCompactionSettings(cwd: string, settings: CompactionSettings): boolean {
 	try {
 		const path = getProjectSettingsPath(cwd);
@@ -158,26 +299,22 @@ function writeAllCompactionSettings(cwd: string, settings: CompactionSettings): 
 	}
 }
 
-// ── Helpers ──
-
-function formatTokens(n: number): string {
-	if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
-	return String(n);
-}
-
-function cyclePreset(current: number, presets: number[], direction: 1 | -1): number {
-	// Find closest preset index
-	let closestIdx = 0;
-	let closestDist = Math.abs(current - presets[0]!);
-	for (let i = 1; i < presets.length; i++) {
-		const dist = Math.abs(current - presets[i]!);
-		if (dist < closestDist) {
-			closestIdx = i;
-			closestDist = dist;
-		}
+function writeDigestSetting(cwd: string, key: string, value: unknown): boolean {
+	try {
+		const path = getProjectSettingsPath(cwd);
+		const settings = readSettingsFile(path);
+		const ns =
+			typeof settings[SETTINGS_NAMESPACE] === "object" && settings[SETTINGS_NAMESPACE] !== null
+				? (settings[SETTINGS_NAMESPACE] as Record<string, unknown>)
+				: {};
+		ns[key] = value;
+		settings[SETTINGS_NAMESPACE] = ns;
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
+		return true;
+	} catch {
+		return false;
 	}
-	const nextIdx = Math.max(0, Math.min(presets.length - 1, closestIdx + direction));
-	return presets[nextIdx]!;
 }
 
 // ── Panel Component ──
@@ -187,24 +324,22 @@ class CompactionPanelComponent implements Component {
 	private tui: TUI;
 	private cwd: string;
 	private settings: CompactionSettings;
-	private contextUsage: ContextUsageInfo = {
-		tokens: null,
-		contextWindow: null,
-		percent: null,
-	};
+	private contextUsage: ContextUsageInfo = { tokens: null, contextWindow: null, percent: null };
 	private selectedIndex = 0;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 	private handle: OverlayHandle | null = null;
-	/** Live override — if set, session_before_compact uses these instead of file */
-	public liveSettings: CompactionSettings;
+	/** Max output tokens for the current model - caps reserveTokens */
+	private modelMaxTokens: number | null = null;
 
-	private readonly items = [
-		{ id: "enabled", label: "Auto-Compaction" },
-		{ id: "reserveTokens", label: "Reserve Tokens" },
-		{ id: "keepRecentTokens", label: "Keep Recent" },
-		{ id: "compact-now", label: "⚡ Compact Now" },
-	] as const;
+	/** Live override - if set, session_before_compact uses these instead of file */
+	public liveSettings: CompactionSettings;
+	/** Digest-specific settings - trigger mode, percentage, fixed, strategy */
+	public digestSettings: DigestSettings;
+	/** Stats from the most recent compaction */
+	public compactionStats: CompactionStats = { lastCompactedAt: null, tokensBefore: null, tokensAfter: null };
+	/** Reference to ctx.compact - set by the extension after construction */
+	public triggerCompact?: () => void;
 
 	constructor(theme: Theme, tui: TUI, cwd: string) {
 		this.theme = theme;
@@ -212,14 +347,28 @@ class CompactionPanelComponent implements Component {
 		this.cwd = cwd;
 		this.settings = readCompactionSettings(cwd);
 		this.liveSettings = { ...this.settings };
+		this.digestSettings = readDigestSettings(cwd);
 	}
 
 	setHandle(handle: OverlayHandle): void {
 		this.handle = handle;
 	}
 
+	updateModel(maxTokens: number | null): void {
+		if (maxTokens === this.modelMaxTokens) return;
+		this.modelMaxTokens = maxTokens;
+		this.recalculateReserveTokens();
+		this.invalidate();
+		this.tui.requestRender();
+	}
+
 	updateContextUsage(usage: ContextUsageInfo): void {
+		const prevWindow = this.contextUsage.contextWindow;
 		this.contextUsage = usage;
+		// Recalculate reserve tokens when context window first becomes known or changes
+		if (usage.contextWindow !== null && usage.contextWindow !== prevWindow) {
+			this.recalculateReserveTokens();
+		}
 		this.invalidate();
 		this.tui.requestRender();
 	}
@@ -227,8 +376,47 @@ class CompactionPanelComponent implements Component {
 	refresh(): void {
 		this.settings = readCompactionSettings(this.cwd);
 		this.liveSettings = { ...this.settings };
+		this.digestSettings = readDigestSettings(this.cwd);
 		this.invalidate();
 	}
+
+	// ── Items ──
+
+	private getItems(): PanelItem[] {
+		const modeLabel = TRIGGER_MODE_LABELS[this.digestSettings.triggerMode];
+		const items: PanelItem[] = [
+			{ id: "enabled", label: "Auto-Compaction" },
+		];
+
+		switch (this.digestSettings.triggerMode) {
+			case "reserve":
+				items.push({ id: "reserveTokens", label: `Threshold · ${modeLabel}` });
+				break;
+			case "percentage":
+				items.push({ id: "triggerPercentage", label: `Threshold · ${modeLabel}` });
+				break;
+			case "fixed":
+				items.push({ id: "triggerFixed", label: `Threshold · ${modeLabel}` });
+				break;
+		}
+
+		items.push({ id: "keepRecentTokens", label: "Keep Recent" });
+
+		// In Percentage/Fixed modes, reserveTokens controls the summary output budget.
+		// Expose it as a separate field so the user can tune compaction quality.
+		if (this.digestSettings.triggerMode !== "reserve") {
+			items.push({ id: "reserveTokens", label: "Summary Budget" });
+		}
+
+		items.push(
+			{ id: "strategy", label: "Strategy" },
+			{ id: "compact-now", label: "⚡ Compact Now" },
+		);
+
+		return items;
+	}
+
+	// ── Settings Changes ──
 
 	private applyChange(key: keyof CompactionSettings, value: unknown): void {
 		(this.liveSettings as Record<string, unknown>)[key] = value;
@@ -243,12 +431,96 @@ class CompactionPanelComponent implements Component {
 		this.liveSettings = { ...global };
 		writeAllCompactionSettings(this.cwd, global);
 		this.settings = { ...global };
+		// Reset trigger mode to reserve when copying global (global doesn't have trigger modes)
+		this.digestSettings.triggerMode = "reserve";
+		writeDigestSetting(this.cwd, "digestionTriggerMode", "reserve");
 		this.invalidate();
 		this.tui.requestRender();
 	}
 
-	// Reference to ctx.compact — set by the extension after construction
-	public triggerCompact?: () => void;
+	private cycleTriggerMode(direction: 1 | -1): void {
+		const currentIdx = TRIGGER_MODES.indexOf(this.digestSettings.triggerMode);
+		const nextIdx = (currentIdx + direction + TRIGGER_MODES.length) % TRIGGER_MODES.length;
+		this.digestSettings.triggerMode = TRIGGER_MODES[nextIdx]!;
+		writeDigestSetting(this.cwd, "digestionTriggerMode", this.digestSettings.triggerMode);
+		this.recalculateReserveTokens();
+		this.invalidate();
+		this.tui.requestRender();
+	}
+
+	private cycleDigestValue(field: keyof DigestSettings, settingsKey: string, presets: number[], direction: 1 | -1): void {
+		const current = this.digestSettings[field] as number;
+		const newVal = cyclePreset(current, presets, direction);
+		(this.digestSettings as Record<string, unknown>)[field] = newVal;
+		writeDigestSetting(this.cwd, settingsKey, newVal);
+		this.recalculateReserveTokens();
+		this.invalidate();
+		this.tui.requestRender();
+	}
+
+	private cycleStrategy(direction: 1 | -1): void {
+		const currentIdx = STRATEGY_PRESETS.findIndex((s) => s.id === this.digestSettings.strategy);
+		const idx = currentIdx === -1 ? 0 : currentIdx;
+		const nextIdx = (idx + direction + STRATEGY_PRESETS.length) % STRATEGY_PRESETS.length;
+		this.digestSettings.strategy = STRATEGY_PRESETS[nextIdx]!.id;
+		writeDigestSetting(this.cwd, "digestionStrategy", this.digestSettings.strategy);
+		this.invalidate();
+		this.tui.requestRender();
+	}
+
+	/**
+	 * Reserve-mode response-budget presets - filtered to modelMaxTokens.
+	 * These are only used in Reserve mode, where reserveTokens directly sets the
+	 * response budget AND is the trigger threshold (tokens > contextWindow - reserve).
+	 */
+	private getReservePresets(): number[] {
+		const cap = this.modelMaxTokens;
+		if (cap === null) return RESERVE_PRESETS_BASE;
+		const filtered = RESERVE_PRESETS_BASE.filter((v) => v <= cap);
+		return filtered.length > 0 ? filtered : [Math.min(cap, RESERVE_PRESETS_BASE[0]!)];
+	}
+
+	/**
+	 * Compute the effective trigger threshold in tokens, for display purposes.
+	 * Percentage/Fixed modes store their trigger separately from reserveTokens.
+	 */
+	private getEffectiveTriggerTokens(): number | null {
+		const cw = this.contextUsage.contextWindow;
+		if (!cw) return null;
+		switch (this.digestSettings.triggerMode) {
+			case "reserve":
+				return cw - this.liveSettings.reserveTokens;
+			case "percentage":
+				return Math.round(cw * (this.digestSettings.triggerPercentage / 100));
+			case "fixed":
+				return this.digestSettings.triggerFixed;
+		}
+	}
+
+	/** Get fixed-mode presets - 10k steps of 20k up to near the context window (or 2M if unknown) */
+	private getFixedPresets(): number[] {
+		const step = 20000;
+		const start = 10000;
+		const cw = this.contextUsage.contextWindow;
+		const end = cw !== null ? cw - 10000 : 2000000;
+		const presets: number[] = [];
+		for (let v = start; v <= end; v += step) presets.push(v);
+		return presets.length > 0 ? presets : [start];
+	}
+
+	/**
+	 * Ensure reserveTokens is within API limits for Percentage/Fixed modes.
+	 * Only clamps if the stored value exceeds modelMaxTokens - user-set values
+	 * within the safe range are preserved. Reserve mode manages this directly.
+	 */
+	private recalculateReserveTokens(): void {
+		if (this.digestSettings.triggerMode === "reserve") return;
+		if (this.modelMaxTokens !== null && this.liveSettings.reserveTokens > this.modelMaxTokens) {
+			this.applyChange("reserveTokens", Math.min(this.modelMaxTokens, SAFE_RESERVE_TOKENS));
+		}
+	}
+
+	// ── Input ──
 
 	handleInput(data: string): void {
 		if (matchesKey(data, COPY_GLOBAL_KEY)) {
@@ -256,64 +528,75 @@ class CompactionPanelComponent implements Component {
 			return;
 		}
 
+		const items = this.getItems();
+		const currentItem = items[this.selectedIndex];
+		const isThresholdRow =
+			currentItem?.id === "reserveTokens" ||
+			currentItem?.id === "triggerPercentage" ||
+			currentItem?.id === "triggerFixed";
+
+		if (data === "\t" && isThresholdRow) {
+			this.cycleTriggerMode(1);
+			return;
+		}
+
 		if (matchesKey(data, Key.up) && this.selectedIndex > 0) {
 			this.selectedIndex--;
 			this.invalidate();
 			this.tui.requestRender();
-		} else if (matchesKey(data, Key.down) && this.selectedIndex < this.items.length - 1) {
+		} else if (matchesKey(data, Key.down) && this.selectedIndex < items.length - 1) {
 			this.selectedIndex++;
 			this.invalidate();
 			this.tui.requestRender();
 		} else if (matchesKey(data, Key.enter) || matchesKey(data, Key.space)) {
-			this.activateItem();
+			this.activateItem(items);
 		} else if (matchesKey(data, Key.left)) {
-			this.adjustItem(-1);
+			this.adjustItem(items, -1);
 		} else if (matchesKey(data, Key.right)) {
-			this.adjustItem(1);
+			this.adjustItem(items, 1);
 		}
 	}
 
-	private activateItem(): void {
-		const item = this.items[this.selectedIndex];
+	private activateItem(items: PanelItem[]): void {
+		const item = items[this.selectedIndex];
+		if (!item) return;
+
+		if (item.id === "compact-now") {
+			this.triggerCompact?.();
+			return;
+		}
+
+		// For all other items, activate = adjust forward
+		this.adjustItem(items, 1);
+	}
+
+	private adjustItem(items: PanelItem[], direction: 1 | -1): void {
+		const item = items[this.selectedIndex];
+		if (!item) return;
+
 		switch (item.id) {
 			case "enabled":
 				this.applyChange("enabled", !this.liveSettings.enabled);
 				break;
 			case "reserveTokens":
-				this.applyChange("reserveTokens", cyclePreset(this.liveSettings.reserveTokens, RESERVE_PRESETS, 1));
+				this.applyChange("reserveTokens", cyclePreset(this.liveSettings.reserveTokens, this.getReservePresets(), direction));
+				break;
+			case "triggerPercentage":
+				this.cycleDigestValue("triggerPercentage", "digestionTriggerPercentage", PERCENTAGE_PRESETS, direction);
+				break;
+			case "triggerFixed":
+				this.cycleDigestValue("triggerFixed", "digestionTriggerFixed", this.getFixedPresets(), direction);
 				break;
 			case "keepRecentTokens":
-				this.applyChange(
-					"keepRecentTokens",
-					cyclePreset(this.liveSettings.keepRecentTokens, KEEP_RECENT_PRESETS, 1),
-				);
+				this.applyChange("keepRecentTokens", cyclePreset(this.liveSettings.keepRecentTokens, KEEP_RECENT_PRESETS, direction));
 				break;
-			case "compact-now":
-				this.triggerCompact?.();
+			case "strategy":
+				this.cycleStrategy(direction);
 				break;
 		}
 	}
 
-	private adjustItem(direction: 1 | -1): void {
-		const item = this.items[this.selectedIndex];
-		switch (item.id) {
-			case "enabled":
-				this.applyChange("enabled", !this.liveSettings.enabled);
-				break;
-			case "reserveTokens":
-				this.applyChange(
-					"reserveTokens",
-					cyclePreset(this.liveSettings.reserveTokens, RESERVE_PRESETS, direction),
-				);
-				break;
-			case "keepRecentTokens":
-				this.applyChange(
-					"keepRecentTokens",
-					cyclePreset(this.liveSettings.keepRecentTokens, KEEP_RECENT_PRESETS, direction),
-				);
-				break;
-		}
-	}
+	// ── Render ──
 
 	render(width: number): string[] {
 		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
@@ -337,37 +620,89 @@ class CompactionPanelComponent implements Component {
 		const rp = Math.max(1, innerW - titleW - lp);
 		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
 
-		// ── Context Usage Bar ──
+		// ── Context Usage Bar with Threshold Marker ──
 		lines.push(border("│") + padLine("") + border("│"));
 		if (this.contextUsage.tokens !== null && this.contextUsage.contextWindow !== null) {
 			const pct = this.contextUsage.percent ?? 0;
+			const cw = this.contextUsage.contextWindow;
 			const barW = Math.min(20, innerW - 16);
 			if (barW >= 5) {
 				const filled = Math.round((pct / 100) * barW);
 				const barColor = pct > 80 ? "error" : pct > 60 ? "warning" : "success";
-				const bar = th.fg(barColor, "█".repeat(filled)) + th.fg("dim", "░".repeat(barW - filled));
+
+				// Zone overlays anchored to the right of the bar:
+				//   ░ info   = keep-recent (tail that survives compaction verbatim)
+				//   ░ accent = summary budget (space the summary LLM output will occupy)
+				const keepRecentW = Math.round((this.liveSettings.keepRecentTokens / cw) * barW);
+				const summaryW = Math.round((this.liveSettings.reserveTokens / cw) * barW);
+				const keepRecentStart = barW - keepRecentW;
+				const summaryStart = Math.max(0, keepRecentStart - summaryW);
+
+				// Threshold position (foreground marker, takes priority)
+				const thresholdTokens = this.getEffectiveTriggerTokens() ?? (cw - this.liveSettings.reserveTokens);
+				const thresholdPct = Math.max(0, Math.min(100, (thresholdTokens / cw) * 100));
+				const thresholdPos = Math.min(barW - 1, Math.round((thresholdPct / 100) * barW));
+
+				let bar = "";
+				for (let i = 0; i < barW; i++) {
+					const inKept = keepRecentW > 0 && i >= keepRecentStart;
+					const inBudget = summaryW > 0 && i >= summaryStart && i < keepRecentStart;
+					if (i === thresholdPos) {
+						bar += th.fg("warning", "▼");
+					} else if (i < filled) {
+							if (inKept) bar += th.fg("muted", "█");
+						else if (inBudget) bar += th.fg("accent", "█");
+						else bar += th.fg(barColor, "█");
+					} else {
+						if (inKept) bar += th.fg("muted", "░");
+						else if (inBudget) bar += th.fg("accent", "░");
+						else bar += th.fg("dim", "░");
+					}
+				}
+
 				lines.push(border("│") + padLine(`  Context: ${bar} ${pct}%`) + border("│"));
 				lines.push(
 					border("│") +
-						padLine(
-							th.fg(
-								"dim",
-								`  ${formatTokens(this.contextUsage.tokens)} / ${formatTokens(this.contextUsage.contextWindow)} tokens`,
-							),
-						) +
+						padLine(th.fg("dim", `  ${formatTokens(this.contextUsage.tokens)} / ${formatTokens(cw)} tokens`)) +
+						border("│"),
+				);
+				// Legend
+				const legendKept = th.fg("muted", "█") + th.fg("dim", " kept");
+				const legendBudget = th.fg("accent", "█") + th.fg("dim", " budget");
+				const legendTrigger = th.fg("warning", "▼") + th.fg("dim", " trigger");
+				lines.push(
+					border("│") +
+						padLine(`  ${legendKept}  ${legendBudget}  ${legendTrigger}`) +
 						border("│"),
 				);
 			}
 		} else {
-			lines.push(border("│") + padLine(th.fg("dim", "  Context: waiting for data…")) + border("│"));
+			lines.push(border("│") + padLine(th.fg("dim", "  Context: waiting for data...")) + border("│"));
 		}
 
 		// ── Compaction threshold indicator ──
 		if (this.contextUsage.contextWindow !== null) {
-			const threshold = this.contextUsage.contextWindow - this.liveSettings.reserveTokens;
+			const cw = this.contextUsage.contextWindow;
+			const threshold = this.getEffectiveTriggerTokens() ?? (cw - this.liveSettings.reserveTokens);
+			const thresholdPct = Math.round((threshold / cw) * 100);
 			lines.push(
-				border("│") + padLine(th.fg("dim", `  Triggers at: ${formatTokens(threshold)} tokens`)) + border("│"),
+				border("│") +
+					padLine(th.fg("dim", `  Triggers at: ${formatTokens(threshold)} tokens (${thresholdPct}%)`)) +
+					border("│"),
 			);
+		}
+
+		// ── Last Compaction Stats ──
+		if (this.compactionStats.lastCompactedAt !== null) {
+			const timeStr = formatRelativeTime(this.compactionStats.lastCompactedAt);
+			let statsLine = `  Last: ${timeStr}`;
+			if (this.compactionStats.tokensBefore !== null && this.compactionStats.tokensAfter !== null) {
+				const before = this.compactionStats.tokensBefore;
+				const after = this.compactionStats.tokensAfter;
+				const savedPct = before > 0 ? Math.round(((before - after) / before) * 100) : 0;
+				statsLine += ` · ${formatTokens(before)}→${formatTokens(after)} (${savedPct}% freed)`;
+			}
+			lines.push(border("│") + padLine(th.fg("muted", statsLine)) + border("│"));
 		}
 
 		lines.push(border("│") + padLine("") + border("│"));
@@ -375,21 +710,36 @@ class CompactionPanelComponent implements Component {
 		lines.push(border("│") + padLine("") + border("│"));
 
 		// ── Settings Items ──
-		for (let i = 0; i < this.items.length; i++) {
-			const item = this.items[i]!;
+		const items = this.getItems();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i]!;
 			const isSelected = focused && i === this.selectedIndex;
 			const pointer = isSelected ? th.fg("accent", "▸ ") : "  ";
 			const labelColor = isSelected ? "accent" : "text";
+			const label = th.fg(labelColor, item.label);
 
 			let valueStr: string;
 			switch (item.id) {
 				case "enabled":
 					valueStr = this.liveSettings.enabled ? th.fg("success", "● ON") : th.fg("error", "○ OFF");
 					break;
+
 				case "reserveTokens":
 					valueStr =
 						th.fg("muted", "◂ ") +
 						th.fg("text", formatTokens(this.liveSettings.reserveTokens)) +
+						th.fg("muted", " ▸");
+					break;
+				case "triggerPercentage":
+					valueStr =
+						th.fg("muted", "◂ ") +
+						th.fg("text", `${this.digestSettings.triggerPercentage}%`) +
+						th.fg("muted", " ▸");
+					break;
+				case "triggerFixed":
+					valueStr =
+						th.fg("muted", "◂ ") +
+						th.fg("text", formatTokens(this.digestSettings.triggerFixed)) +
 						th.fg("muted", " ▸");
 					break;
 				case "keepRecentTokens":
@@ -398,6 +748,11 @@ class CompactionPanelComponent implements Component {
 						th.fg("text", formatTokens(this.liveSettings.keepRecentTokens)) +
 						th.fg("muted", " ▸");
 					break;
+				case "strategy": {
+					const preset = STRATEGY_PRESETS.find((s) => s.id === this.digestSettings.strategy) ?? STRATEGY_PRESETS[0]!;
+					valueStr = th.fg("muted", "◂ ") + th.fg("text", preset.label) + th.fg("muted", " ▸");
+					break;
+				}
 				case "compact-now":
 					valueStr = "";
 					break;
@@ -405,7 +760,6 @@ class CompactionPanelComponent implements Component {
 					valueStr = "";
 			}
 
-			const label = th.fg(labelColor, item.label);
 			if (valueStr) {
 				lines.push(border("│") + padLine(`${pointer}${label}  ${valueStr}`) + border("│"));
 			} else {
@@ -417,7 +771,10 @@ class CompactionPanelComponent implements Component {
 		lines.push(border("│") + padLine("") + border("│"));
 		const kh = getPanels()?.keyHints;
 		const help = focused
-			? th.fg("dim", `↑↓ nav · ←→/Space adjust · ${COPY_GLOBAL_LABEL} global · ${kh?.focused ?? "Q close · Escape unfocus"}`)
+			? th.fg(
+					"dim",
+					`↑↓ nav · ←→/Space adjust · Tab cycle mode · ${COPY_GLOBAL_LABEL} global · ${kh?.focused ?? "Q close · Escape unfocus"}`,
+				)
 			: th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /digestion help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
@@ -442,13 +799,82 @@ const PANEL_ID = "digestion";
 export default function (pi: ExtensionAPI) {
 	let ctxRef: ExtensionContext | null = null;
 	let panelComponent: CompactionPanelComponent | null = null;
+	let compactionInProgress = false;
+	/** ctx.compact() was called but session_before_compact hasn't fired yet - guards against double-trigger */
+	let pendingCompact = false;
+	let digestionStatusInterval: ReturnType<typeof setInterval> | null = null;
+
+	/**
+	 * Animate the status bar through DIGESTION_PHASES while compaction runs.
+	 * ctx.ui.custom() cannot be called during compaction (displaces the main view),
+	 * so the status bar is the only safe place for live feedback.
+	 */
+	function startDigestionStatus(ctx: ExtensionContext): void {
+		stopDigestionStatus();
+		let phaseIdx = 0;
+		ctx.ui.setStatus("digestion", `${DIGESTION_PHASES[0]!.emoji} ${DIGESTION_PHASES[0]!.text}...`);
+		digestionStatusInterval = setInterval(() => {
+			phaseIdx = (phaseIdx + 1) % DIGESTION_PHASES.length;
+			const phase = DIGESTION_PHASES[phaseIdx]!;
+			ctxRef?.ui.setStatus("digestion", `${phase.emoji} ${phase.text}...`);
+		}, PHASE_INTERVAL_MS);
+	}
+
+	function stopDigestionStatus(): void {
+		if (digestionStatusInterval !== null) {
+			clearInterval(digestionStatusInterval);
+			digestionStatusInterval = null;
+		}
+		ctxRef?.ui.setStatus("digestion", undefined);
+	}
+
+	/**
+	 * Sanitize the settings file at session start to prevent 400 API errors.
+	 * Clamps reserveTokens to the model's output limit if known, or SAFE_RESERVE_TOKENS
+	 * as a conservative fallback. User-set values within the safe range are preserved.
+	 */
+	function ensureSafeReserveTokens(cwd: string, modelMaxTokens: number | null): void {
+		const digest = readDigestSettings(cwd);
+		if (digest.triggerMode === "reserve") return;
+		const settings = readCompactionSettings(cwd);
+		const cap = modelMaxTokens ?? SAFE_RESERVE_TOKENS;
+		if (settings.reserveTokens > cap) {
+			writeCompactionSetting(cwd, "reserveTokens", Math.min(cap, SAFE_RESERVE_TOKENS));
+		}
+	}
+
+	/**
+	 * Check whether our custom trigger condition is met.
+	 * Reads from panelComponent (live) when available, falls back to disk.
+	 * Reserve mode: triggers when tokens > contextWindow - reserveTokens (pi semantics preserved).
+	 * Percentage mode: triggers when tokens > contextWindow × (pct / 100).
+	 * Fixed mode: triggers when tokens > fixedThreshold.
+	 */
+	function shouldTrigger(ctx: ExtensionContext): boolean {
+		const cwd = getPanels()?.cwd ?? process.cwd();
+		const settings = panelComponent?.liveSettings ?? readCompactionSettings(cwd);
+		if (!settings.enabled) return false;
+		const usage = ctx.getContextUsage();
+		if (!usage?.tokens || !usage?.contextWindow) return false;
+		const { tokens, contextWindow } = usage;
+		const digest = panelComponent?.digestSettings ?? readDigestSettings(cwd);
+		switch (digest.triggerMode) {
+			case "reserve":
+				return tokens > contextWindow - settings.reserveTokens;
+			case "percentage":
+				return tokens > contextWindow * (digest.triggerPercentage / 100);
+			case "fixed":
+				return tokens > digest.triggerFixed;
+			default:
+				return false;
+		}
+	}
 
 	// ── Panel Management ──
-	function openPanel(): string {
+	function openPanel(ctx: ExtensionContext): string {
 		const panels = getPanels();
-		const tui = panels?.tui;
-		const theme = panels?.theme;
-		if (!tui || !theme) return "Error: TUI not available (non-interactive mode)";
+		if (!panels) return "Error: Panel manager not available";
+		if (!ctx.hasUI) return "Error: TUI not available (non-interactive mode)";
 
 		if (panels.isOpen(PANEL_ID)) {
 			panelComponent?.refresh();
@@ -456,65 +882,83 @@ export default function (pi: ExtensionAPI) {
 			return "Digestion panel refreshed";
 		}
 
-		const component = new CompactionPanelComponent(theme, tui, panels.cwd);
-		const wrapped = panels.wrapComponent(PANEL_ID, component);
-		const handle = tui.showOverlay(wrapped, {
-			nonCapturing: true,
-			anchor: "top-right",
-			width: "35%",
-			minWidth: 36,
-			maxHeight: "60%",
-			margin: 1,
-		});
-
-		component.setHandle(handle);
-		component.triggerCompact = () => {
-			if (ctxRef) {
-				ctxRef.compact({
-					onComplete: () => ctxRef?.hasUI && ctxRef.ui.notify("Compaction completed!", "info"),
-					onError: (err: Error) =>
-						ctxRef?.hasUI && ctxRef.ui.notify(`Compaction failed: ${err.message}`, "error"),
-				});
-			}
-		};
-
-		// Populate initial context usage
-		if (ctxRef) {
-			const usage = ctxRef.getContextUsage();
-			if (usage) {
-				component.updateContextUsage({
-					tokens: usage.tokens ?? null,
-					contextWindow: usage.contextWindow ?? null,
-					percent: usage.percent ?? null,
-				});
-			}
-		}
-
-		panelComponent = component;
-		panels.register(PANEL_ID, {
-			handle,
-			invalidate: () => component.invalidate(),
-			handleInput: (data) => component.handleInput(data),
-			onClose: () => {
-				panelComponent = null;
+		// Use ctx.ui.custom() so the TUI has the correct viewport context for overlay positioning.
+		// Calling tui.showOverlay() with a stored ref from setWidget offsets the panel by one terminal height.
+		let component: CompactionPanelComponent | null = null;
+		ctx.ui.custom(
+			(tui, theme, _kb, _done) => {
+				component = new CompactionPanelComponent(theme, tui, panels.cwd);
+				panelComponent = component;
+				// ⚡ Compact Now button - manual trigger, always allowed regardless of threshold
+				component.triggerCompact = () => {
+					if (compactionInProgress || pendingCompact) return;
+					pendingCompact = true;
+					const cwd = panels.cwd;
+					const digest = panelComponent?.digestSettings ?? readDigestSettings(cwd);
+					const strategyPreset = STRATEGY_PRESETS.find((s) => s.id === digest.strategy);
+					const instructions = strategyPreset?.instructions || undefined;
+					ctxRef?.compact({
+						...(instructions ? { customInstructions: instructions } : {}),
+						onError: (err: Error) => {
+							pendingCompact = false;
+							ctxRef?.hasUI && ctxRef.ui.notify(`🐉 Digestion failed: ${err.message}`, "error");
+						},
+					});
+				};
+				component.updateModel(ctx.model?.maxTokens ?? null);
+				const usage = ctx.getContextUsage();
+				if (usage) {
+					component.updateContextUsage({
+						tokens: usage.tokens ?? null,
+						contextWindow: usage.contextWindow ?? null,
+						percent: usage.percent ?? null,
+					});
+				}
+				return panels.wrapComponent(PANEL_ID, component);
 			},
-		});
+			{
+				overlay: true,
+				overlayOptions: {
+					nonCapturing: true,
+					anchor: "top-right",
+					width: "35%",
+					minWidth: 36,
+					maxHeight: "60%",
+					margin: 1,
+				},
+				onHandle: (handle) => {
+					if (!component) return;
+					component.setHandle(handle);
+					panels.register(PANEL_ID, {
+						handle,
+						invalidate: () => component!.invalidate(),
+						handleInput: (data: string) => component!.handleInput(data),
+						onClose: () => { panelComponent = null; },
+					});
+				},
+			},
+		).catch(() => { panelComponent = null; });
+
 		return "Digestion settings panel opened";
 	}
 
 	function closePanel(): string {
 		const panels = getPanels();
 		if (!panels?.isOpen(PANEL_ID)) return "No panel open";
-		panels.close(PANEL_ID); // onClose clears panelComponent
+		panels.close(PANEL_ID);
 		return "Digestion panel closed";
 	}
 
-	function togglePanel(): string {
+	function togglePanel(ctx: ExtensionContext): string {
 		if (getPanels()?.isOpen(PANEL_ID)) return closePanel();
-		return openPanel();
+		return openPanel(ctx);
 	}
 
-	// ── Context Usage Updates ──
+	// ── Model + Context Usage Updates ──
+	function updateModel(ctx: ExtensionContext): void {
+		panelComponent?.updateModel(ctx.model?.maxTokens ?? null);
+	}
+
 	function updateContextUsage(ctx: ExtensionContext): void {
 		if (!panelComponent) return;
 		const usage = ctx.getContextUsage();
@@ -530,34 +974,81 @@ export default function (pi: ExtensionAPI) {
 	// ── Events ──
 	pi.on("session_start", async (_event, ctx) => {
 		ctxRef = ctx;
+		updateModel(ctx);
+		ensureSafeReserveTokens(getPanels()?.cwd ?? process.cwd(), ctx.model?.maxTokens ?? null);
 	});
 	pi.on("session_switch", async (_event, ctx) => {
 		panelComponent = null;
+		compactionInProgress = false;
+		pendingCompact = false;
+		stopDigestionStatus();
 		ctxRef = ctx;
+		updateModel(ctx);
+		ensureSafeReserveTokens(getPanels()?.cwd ?? process.cwd(), ctx.model?.maxTokens ?? null);
+	});
+	pi.on("model_select", async (_event, ctx) => {
+		updateModel(ctx);
 	});
 	pi.on("session_shutdown", async () => {
 		panelComponent = null;
 	});
 
-	// Update context usage display after each turn
-	pi.on("turn_end", async (_event, ctx) => updateContextUsage(ctx));
-	pi.on("session_compact", async (_event, ctx) => updateContextUsage(ctx));
+	// Update context usage display after each turn, then check proactive trigger
+	pi.on("turn_end", async (_event, ctx) => {
+		updateContextUsage(ctx);
 
-	// ── Compaction Hook (safety net for live enforcement) ──
-	pi.on("session_before_compact", async () => {
-		if (!panelComponent) return;
+		// Proactive compaction: fire ctx.compact() when our threshold is met.
+		// pendingCompact guards against double-trigger while waiting for session_before_compact.
+		// All UI/flag updates happen in session_before_compact once confirmed.
+		if (compactionInProgress || pendingCompact || !shouldTrigger(ctx)) return;
+		pendingCompact = true;
 
-		// If the panel says compaction is disabled, cancel it
-		if (!panelComponent.liveSettings.enabled) {
+		const cwd = getPanels()?.cwd ?? process.cwd();
+		const digest = panelComponent?.digestSettings ?? readDigestSettings(cwd);
+		const strategyPreset = STRATEGY_PRESETS.find((s) => s.id === digest.strategy);
+		const instructions = strategyPreset?.instructions || undefined;
+
+		ctx.compact({
+			...(instructions ? { customInstructions: instructions } : {}),
+			onError: (err: Error) => {
+				pendingCompact = false;
+				ctx.hasUI && ctx.ui.notify(`🐉 Digestion failed: ${err.message}`, "error");
+			},
+		});
+	});
+
+	// Track compaction stats and update context usage
+	pi.on("session_compact", async (event, ctx) => {
+		compactionInProgress = false;
+		pendingCompact = false;
+		stopDigestionStatus();
+		updateContextUsage(ctx);
+		if (panelComponent) {
+			const usage = ctx.getContextUsage();
+			panelComponent.compactionStats = {
+				lastCompactedAt: Date.now(),
+				tokensBefore: (event as any).compactionEntry?.tokensBefore ?? null,
+				tokensAfter: usage?.tokens ?? null,
+			};
+			panelComponent.invalidate();
+		}
+	});
+
+	// ── Compaction Gatekeeper ──
+	// Fires before any compaction (proactive, manual /compact, or pi's safety-net).
+	// Only cancels if the user explicitly disabled auto-compaction.
+	pi.on("session_before_compact", async (_event, ctx) => {
+		pendingCompact = false;
+		const cwd = getPanels()?.cwd ?? process.cwd();
+		const settings = panelComponent?.liveSettings ?? readCompactionSettings(cwd);
+
+		if (!settings.enabled) {
 			return { cancel: true };
 		}
 
-		// Otherwise let pi handle it with whatever settings it read from the file.
-		// The file should already be updated since we write on every change,
-		// but if pi cached old values, the hook acts as our safety net.
-		// Note: we can't override reserveTokens/keepRecentTokens from the hook
-		// (only cancel or provide custom summary), so the file write is the
-		// primary mechanism for numeric settings. The hook handles the on/off toggle.
+		// Compaction is proceeding — start animated status cycling through DIGESTION_PHASES
+		compactionInProgress = true;
+		startDigestionStatus(ctx);
 		return;
 	});
 
@@ -569,7 +1060,7 @@ export default function (pi: ExtensionAPI) {
 			switch (subcmd) {
 				case "open":
 				case "show":
-					ctx.ui.notify(openPanel(), "info");
+					ctx.ui.notify(openPanel(ctx), "info");
 					return;
 				case "close":
 				case "hide":
@@ -577,22 +1068,38 @@ export default function (pi: ExtensionAPI) {
 					return;
 				case "toggle":
 				case "":
-					ctx.ui.notify(togglePanel(), "info");
+					ctx.ui.notify(togglePanel(ctx), "info");
 					return;
 				case "status": {
-					const settings = readCompactionSettings(getPanels()?.cwd ?? process.cwd());
+					const cwd = getPanels()?.cwd ?? process.cwd();
+					const settings = readCompactionSettings(cwd);
+					const digest = readDigestSettings(cwd);
 					const usage = ctx.getContextUsage();
 					const statusLines = [
 						`Auto-compaction: ${settings.enabled ? "ON" : "OFF"}`,
-						`Reserve tokens: ${formatTokens(settings.reserveTokens)}`,
-						`Keep recent: ${formatTokens(settings.keepRecentTokens)}`,
+						`Trigger mode: ${TRIGGER_MODE_LABELS[digest.triggerMode]}`,
 					];
+					switch (digest.triggerMode) {
+						case "reserve":
+							statusLines.push(`Reserve tokens: ${formatTokens(settings.reserveTokens)}`);
+							break;
+						case "percentage":
+							statusLines.push(`Trigger at: ${digest.triggerPercentage}%`);
+							break;
+						case "fixed":
+							statusLines.push(`Trigger at: ${formatTokens(digest.triggerFixed)} tokens`);
+							break;
+					}
+					statusLines.push(`Keep recent: ${formatTokens(settings.keepRecentTokens)}`);
+					const strategy = STRATEGY_PRESETS.find((s) => s.id === digest.strategy) ?? STRATEGY_PRESETS[0]!;
+					statusLines.push(`Strategy: ${strategy.label}`);
 					if (usage?.tokens != null && usage?.contextWindow != null) {
 						const threshold = usage.contextWindow - settings.reserveTokens;
+						const thresholdPct = Math.round((threshold / usage.contextWindow) * 100);
 						statusLines.push(
 							`Context: ${formatTokens(usage.tokens)} / ${formatTokens(usage.contextWindow)} (${usage.percent ?? 0}%)`,
 						);
-						statusLines.push(`Compaction triggers at: ${formatTokens(threshold)}`);
+						statusLines.push(`Compaction triggers at: ${formatTokens(threshold)} (${thresholdPct}%)`);
 					}
 					ctx.ui.notify(statusLines.join("\n"), "info");
 					return;
@@ -602,12 +1109,23 @@ export default function (pi: ExtensionAPI) {
 						const kh = getPanels()?.keyHints;
 						ctx.ui.notify(
 							[
-								"🐉 Digestion Settings — compaction tuning for dragons",
+								"🐉 Digestion Settings - compaction tuning for dragons",
 								"",
 								"  /digestion               Toggle panel",
 								"  /digestion open          Open panel",
 								"  /digestion close         Close panel",
 								"  /digestion status        Show current settings",
+								"",
+								"Threshold · [mode]  Tab while hovered cycles mode",
+								"  Reserve      Keep N tokens free for LLM response",
+								"  Percentage   Compact when context reaches N% full",
+								"  Fixed        Compact when tokens exceed N",
+								"",
+								"Strategy (affects manual Compact Now):",
+								"  Default      Standard compaction summary",
+								"  Code         Focus on code changes & technical decisions",
+								"  Tasks        Focus on goals, progress & next steps",
+								"  Minimal      Extremely brief, essentials only",
 								"",
 								"When focused: ↑↓ navigate, ←→ or Space to adjust,",
 								`${COPY_GLOBAL_LABEL} to copy from global config,`,

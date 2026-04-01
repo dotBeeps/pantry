@@ -1,11 +1,11 @@
 ---
-name: todo-panels
-description: Open and manage floating todo panels in pi. Use when tracking tasks, showing progress, or displaying grouped todos in persistent overlay panels.
+name: dots-todos
+description: "Track tasks with tagged todos and floating panels. Use when managing work items, tracking progress, showing task lists, or grouping todos by tag in persistent overlay panels."
 ---
 
-# Todo Panels
+# Task Tracking with Todos
 
-Display `.pi/todos` as persistent floating panels. Panels stay on screen while you work and auto-refresh when todos change.
+Manage work items in `.pi/todos` and display them as persistent floating panels. Panels stay on screen while you work and auto-refresh when todos change.
 
 ## Two Tools, One System
 
