@@ -45,12 +45,12 @@ Covers the full authoring workflow following the [agentskills.io](https://agents
 </details>
 
 <details>
-<summary><strong><code>dot-panels</code></strong> — Build panel extensions with the panel-manager API</summary>
+<summary><strong><code>dot-panels</code></strong> — Build panel extensions with the dots-panels API</summary>
 
-Developer-facing guide for building floating overlay panels that integrate with the shared panel-manager infrastructure.
+Developer-facing guide for building floating overlay panels that integrate with the shared dots-panels infrastructure.
 
-- **Step-by-step** panel creation workflow (access API → create component → wrap → show → register)
-- **Panel Manager API** reference — all methods, properties, and `keyHints`
+- **Step-by-step** panel creation workflow (`createPanel()` → configure → show → register)
+- **dots-panels API** reference — `createPanel()`, `suggestLayout()`, all methods, properties, and `keyHints`
 - **Configurable hotkeys** — settings namespace, `keyLabel()` pattern
 - **TUI conventions** — focus-aware borders, cached rendering, hint bars, width safety
 - **Anti-patterns** — no direct imports, no duplicate shortcuts, no hardcoded key labels
@@ -122,6 +122,108 @@ How pi stores history, manages branches, and handles compaction — essential fo
 </details>
 
 <details>
+<summary><strong><code>git</code></strong> — Git conventions and workflow</summary>
+
+Opinionated git workflow for solo and small-team development — branching strategy, merge philosophy, history surgery, and conflict resolution.
+
+- **GitHub Flow** — short-lived feature branches off `main`, naming convention `<type>/<description>`
+- **Merge philosophy** — rebase locally, squash-merge to main, never rebase shared branches
+- **Interactive rebase** — `fixup!`/`autosquash` as the primary cleanup pattern
+- **History surgery** — bisect (with automated scripts), cherry-pick, reflog recovery
+- **Stash** — descriptive messages, partial stashing, pop vs apply
+- **Reset & clean** — soft/mixed/hard decision tree with safety guidance
+- **Conflict resolution** — rerere, ours/theirs, strategy flags
+- **Git archaeology** — blame, pickaxe search (`-S`/`-G`), tracking deleted files
+
+📂 [`skills/git/SKILL.md`](skills/git/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>commit</code></strong> — Conventional Commits with staging and fixup support</summary>
+
+Create well-formatted git commits — replaces the default commit skill with richer staging, amend, and fixup workflows.
+
+- **Conventional Commits** — `<type>(<scope>): <summary>` with imperative mood, ≤72 chars
+- **Smart scope detection** — reads `git log` to match project conventions
+- **Partial staging** — `git add -p` for files with mixed changes
+- **Amend workflow** — `--amend` with pushed-commit safety check
+- **Fixup commits** — `git commit --fixup=<sha>` for later autosquash
+- **Caller arguments** — file paths limit staging, freeform instructions guide the message
+
+📂 [`skills/commit/SKILL.md`](skills/commit/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>git-auth</code></strong> — SSH keys, rbw/Bitwarden, and auth troubleshooting</summary>
+
+SSH key management, rbw (Bitwarden CLI) passphrase automation, and a step-by-step troubleshooting flowchart for auth failures.
+
+- **Quick check** — two commands to verify auth is working
+- **Troubleshooting flowchart** — 5-step diagnostic from "Permission denied" to working auth
+- **rbw integration** — vault unlock, passphrase retrieval, piping to `ssh-add`
+- **SSH config** — templates for single account, multi-account, firewall bypass
+- **ssh-agent management** — lifetime-limited keys, key listing, removal
+- **SSH vs HTTPS** — decision guide with `gh auth setup-git` fallback
+
+📂 [`skills/git-auth/SKILL.md`](skills/git-auth/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>github</code></strong> — GitHub workflows via gh CLI</summary>
+
+Comprehensive `gh` CLI workflows — replaces the default github skill with full coverage of PRs, issues, CI, releases, and the GraphQL API.
+
+- **PR creation** — `--fill`, `--draft`, reviewers, labels, dry run
+- **Code review** — approve, request changes, comment patterns
+- **Merging** — squash/rebase/merge decision tree, auto-merge
+- **CI integration** — watch runs, inspect failures, re-run, CI-then-merge pattern
+- **Issues** — create, list, filter, close, label management, search
+- **Releases** — `--generate-notes`, drafts, pre-releases, asset uploads
+- **JSON/jq** — structured output and filtering for all commands
+- **GraphQL API** — variable safety, pagination, common query patterns
+
+📂 [`skills/github/SKILL.md`](skills/github/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>github-writing</code></strong> — Interview-driven PR and issue drafting</summary>
+
+Collaboratively write high-quality PR descriptions, bug reports, and feature requests with an approval gate — no CLI commands execute until you say go.
+
+- **7-step workflow** — classify → interview → research (read-only) → outline → approval gate → draft → final review
+- **Interview-driven** — 2–4 quick questions to determine focus, audience, key points
+- **Manual sections** — mark `[MANUAL]` for parts you want to write yourself
+- **PR/issue/feature templates** — structured formats with attribution patterns
+- **Attribution** — co-authored-by trailers, issue linking keywords, contributor credits
+- **Anti-patterns** — "fixed stuff" PRs, missing context, no testing notes
+
+📂 [`skills/github-writing/SKILL.md`](skills/github-writing/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>github-markdown</code></strong> — GitHub Flavored Markdown conventions</summary>
+
+Everything GitHub-specific about Markdown — the extensions, quirks, and features that don't exist in standard Markdown.
+
+- **Alert callouts** — `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`
+- **Task lists** — checkbox syntax, nesting, UI toggles
+- **Collapsible sections** — `<details>/<summary>` with Markdown rendering rules
+- **Mermaid diagrams** — supported types, complexity limits
+- **Tables** — alignment, escaping, width guidelines
+- **Cross-references** — issue/PR refs, commit SHAs, mentions, auto-close keywords
+- **HTML subset** — `<kbd>`, `<sup>`, `<br>`, `<details>` and what gets sanitized
+- **Footnotes, emoji, relative links, images** — all the extras
+
+📂 [`skills/github-markdown/SKILL.md`](skills/github-markdown/SKILL.md)
+
+</details>
+
+<details>
 <summary><strong><code>pi-events</code></strong> — Event hooks for the pi agent lifecycle</summary>
 
 Intercept, transform, and react to everything that happens in pi — tool calls, user input, system prompts, model changes, and message streaming.
@@ -140,13 +242,17 @@ Intercept, transform, and react to everything that happens in pi — tool calls,
 ### 🔧 Extensions
 
 <details>
-<summary><strong><code>panel-manager</code></strong> — Shared panel infrastructure</summary>
+<summary><strong><code>dots-panels</code></strong> — Central panel authority</summary>
 
-Singleton extension that owns floating overlay panel lifecycle. Other extensions register panels through its globalThis API.
+Singleton extension that owns the entire floating overlay panel lifecycle — creation, positioning, smart placement, and focus. Other extensions create and register panels through its globalThis API.
 
 | Feature | Details |
 |---------|--------|
+| Primary API | `createPanel()` — the one call to make a panel |
+| Smart placement | `suggestLayout(count)` — calculates optimal positions, no math required |
+| Panel-relative anchoring | Panels stay in position relative to each other |
 | API access | `globalThis[Symbol.for("dot.panels")]` |
+| User command | `/panels` — list, focus, close panels from the terminal |
 | Focus cycling | Configurable hotkey (default Alt+T) |
 | Shared keys | Close (Q), Unfocus (Escape) — all configurable |
 | Key hints | `keyHints` object for dynamic hint bar text |
@@ -154,7 +260,7 @@ Singleton extension that owns floating overlay panel lifecycle. Other extensions
 | Session lifecycle | Auto-closes all panels on switch/shutdown |
 | Settings | `panelFocusKey`, `panelCloseKey`, `panelUnfocusKey` |
 
-📂 [`extensions/panel-manager.ts`](extensions/panel-manager.ts)
+📂 [`extensions/dots-panels.ts`](extensions/dots-panels.ts)
 
 </details>
 
@@ -204,14 +310,14 @@ One tool, three modes — lets agents interview users, gather preferences, or co
 <details>
 <summary><strong><code>todo-lists</code></strong> — Persistent floating todo panels with animated GIF mascots</summary>
 
-Non-blocking overlay panels backed by `.pi/todos`. Each panel shows todos filtered by tag with progress bars, keyboard navigation, focus management, and animated GIF mascots.
+Non-blocking overlay panels backed by `.pi/todos`. Each panel shows todos filtered by tag with progress bars, keyboard navigation, focus management, and animated GIF mascots. Panel layout and positioning are delegated to dots-panels.
 
 | Feature | Details |
 |---------|--------|
 | Backing store | `.pi/todos` (pi's built-in file-based todos) |
 | Panel display | Non-capturing overlays — persistent, don't steal input |
 | Focus | `Alt+T` cycles focus; `Escape` unfocuses; panels capture keys only when focused |
-| Positioning | 9 anchor positions, percentage or fixed width |
+| Positioning | 9 anchor positions, percentage or fixed width — smart placement via dots-panels |
 | GIF mascots | Giphy search by tag name, software animation via Kitty Unicode placeholders |
 | Tag mapping | Smart search queries: "bugs" → "bug fixing coding", "sprint" → "running fast" |
 | Agent tool | `todo_panel` — open, close, focus, suggest_layout |

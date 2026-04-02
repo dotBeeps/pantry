@@ -23,14 +23,20 @@ pi install ../../Development/dots-pi-enhancements
 ```
 extensions/                TypeScript pi extensions (loaded by convention)
   ask.ts                   Interactive user input tool (select/confirm/text)
-  panel-manager.ts         Shared panel infrastructure — singleton registry, focus cycling, hotkeys
+  dots-panels.ts           Central panel authority — creation, positioning, focus, smart placement
   digestion-settings.ts    Compaction tuning panel — trigger modes, strategies, stats, threshold markers
   todo-lists.ts            Floating todo panels with animated GIF mascots
 skills/                    Agent Skills — each subdirectory has a SKILL.md
   agent-init/              Generates AGENTS.md files for projects
-  dot-panels/              How to build panel extensions using the panel-manager API
+  commit/                  Conventional Commits — staging, formatting, amend, fixup
+  dot-panels/              How to build panel extensions using the dots-panels API
   dots-todos/              Task tracking with tagged todos and floating panels
   extension-designer/      Guides creation of pi extensions (tools, TUI, events)
+  git/                     Git conventions — branching, rebase, history surgery, conflicts
+  git-auth/                SSH key management, rbw/Bitwarden integration, auth troubleshooting
+  github/                  GitHub workflows via gh CLI — PRs, issues, CI, releases, reviews
+  github-markdown/         GitHub Flavored Markdown — callouts, task lists, mermaid, tables
+  github-writing/          Interview-driven PR/issue drafting with approval gate
   pi-events/               Event hooks — intercept tools, transform input, inject context
   pi-sessions/             Sessions, state management, compaction, branching
   pi-tui/                  TUI component building — overlays, widgets, theming, custom editors
@@ -143,7 +149,7 @@ Extensions **must not import each other directly** — pi's jiti loader isolates
 Instead, use `globalThis` with `Symbol.for()` for shared APIs:
 
 ```typescript
-// Publisher (panel-manager.ts) — writes API at load time
+// Publisher (dots-panels.ts) — writes API at load time
 const API_KEY = Symbol.for("dot.panels");
 (globalThis as any)[API_KEY] = { register, close, focusPanel, ... };
 
@@ -169,7 +175,7 @@ All package settings live under the `dotsPiEnhancements` key in `~/.pi/agent/set
 
 ### Panel Extensions
 
-Panel-manager owns shared infrastructure (focus cycling, hotkeys, TUI capture). Other extensions register panels through its globalThis API. See the `dot-panels` skill for the full integration guide.
+`dots-panels` is the central panel authority — it owns creation, positioning, smart placement, focus cycling, hotkeys, and TUI capture. Other extensions create panels via `createPanel()` and register through its globalThis API. See the `dot-panels` skill for the full integration guide.
 
 ## Adding Skills or Extensions
 
