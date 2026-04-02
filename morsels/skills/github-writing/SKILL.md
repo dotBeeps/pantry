@@ -30,13 +30,15 @@ Before drafting, determine the active writing style. Check settings first, then 
 
 **Available styles** — read the full style file before drafting:
 
-| Style | File | Voice | Best For |
-|-------|------|-------|----------|
-| **formal** | berrygems/styles/formal.md | Precise, impersonal, technical | Public libs, corporate, security docs |
-| **friendly** | berrygems/styles/friendly.md | Warm, approachable, professional | OSS projects, broad audiences (default) |
-| **personality** | berrygems/styles/personality.md | Character-driven, expressive | Personal projects, branded repos |
-| **narrative** | berrygems/styles/narrative.md | Story-driven, investigative | Complex PRs, release notes, post-mortems |
-| **minimal** | berrygems/styles/minimal.md | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
+| Style | Voice | Best For |
+|-------|-------|----------|
+| **formal** | Precise, impersonal, technical | Public libs, corporate, security docs |
+| **friendly** | Warm, approachable, professional | OSS projects, broad audiences (default) |
+| **personality** | Character-driven, expressive | Personal projects, branded repos |
+| **narrative** | Story-driven, investigative | Complex PRs, release notes, post-mortems |
+| **minimal** | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
+
+Style files live in `berrygems/styles/`. Read the full style file before drafting.
 
 The user can also request a style inline: "write this PR in narrative style" or "keep it minimal." Inline requests override settings.
 

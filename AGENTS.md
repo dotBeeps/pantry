@@ -148,7 +148,7 @@ Skills reference this for `Co-authored-by` trailers and transparency notes. If a
 ```json
 {
   "writingStyle": {
-    "default": "ember",
+    "default": "personality",
     "overrides": {
       "security": "formal",
       "coc": "formal"

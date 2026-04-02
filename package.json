@@ -5,9 +5,7 @@
   "keywords": ["pi-package"],
   "license": "MIT",
   "pi": {
-    "packages": [
-      "berrygems",
-      "morsels"
-    ]
+    "extensions": ["berrygems/extensions"],
+    "skills": ["morsels/skills"]
   }
 }
