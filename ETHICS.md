@@ -2,7 +2,7 @@
 
 **Version:** 0.2.0-draft
 **Date:** 2026-04-02
-**Companion:** [hoard-spec.md](./hoard-spec.md) — the technical specification this contract governs
+**Companion:** [hoard-spec.md](https://github.com/dotBeeps/hoard/blob/hoard-planning/den/plans/hoard-spec.md) — the technical specification this contract governs
 **Binding on:** The dream engine, the daemon, all memory operations, all implicit learning, all accessibility features.
 
 ---
@@ -300,7 +300,7 @@ This contract is versioned alongside the spec. It changes when:
 
 ---
 
-*This contract governs [hoard-spec.md](./hoard-spec.md). Where the spec describes capability, this contract describes how we decide. Both documents should be consulted together.*
+*This contract governs [hoard-spec.md](https://github.com/dotBeeps/hoard/blob/hoard-planning/den/plans/hoard-spec.md). Where the spec describes capability, this contract describes how we decide. Both documents should be consulted together.*
 
 ---
 
