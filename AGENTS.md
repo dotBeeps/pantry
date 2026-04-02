@@ -2,240 +2,177 @@
 
 ## Project Overview
 
-A [pi](https://github.com/badlogic/pi-mono) package containing custom Agent Skills and TUI extensions. Installable via `pi install https://github.com/dotBeeps/dots-pi-enhancements`. No build step — pi loads TypeScript extensions and Markdown skills directly.
+**Hoard** — a monorepo of agent tools for [pi](https://github.com/badlogic/pi-mono). Three components:
 
-## Setup & Development
+- **berrygems/** — Pi extensions (TypeScript). Interactive tools, floating panels, permission guards, tone management.
+- **morsels/** — Pi skills (Markdown). On-demand knowledge packages for git, GitHub, writing, pi internals.
+- **dragon-daemon/** — Go daemon. Memory consolidation, vault maintenance, async operations that outlive sessions.
 
-```bash
-# Install as a pi package (symlinks into pi's package registry)
-pi install https://github.com/dotBeeps/dots-pi-enhancements
-
-# Or for local development — clone and point pi at the directory
-pi install ../../Development/dots-pi-enhancements
-```
-
-- **No build step** — pi loads `.ts` files directly via jiti
-- **Reload after changes** — run `/reload` in pi to pick up extension edits
-- **Settings file** — `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)
+Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discovers `extensions/` and `skills/` in each sub-package.
 
 ## Repository Structure
 
 ```
-extensions/                TypeScript pi extensions (loaded by convention)
-  ask.ts                   Interactive user input tool (select/confirm/text)
-  dots-panels.ts           Central panel authority — creation, positioning, focus, smart placement
-  digestion-settings.ts    Compaction tuning panel — trigger modes, strategies, stats, threshold markers
-  todo-lists.ts            Floating todo panels with animated GIF mascots
-skills/                    Agent Skills — each subdirectory has a SKILL.md
-  agent-init/              Generates AGENTS.md files for projects
-  commit/                  Conventional Commits — staging, formatting, amend, fixup
-  dot-panels/              How to build panel extensions using the dots-panels API
-  dots-todos/              Task tracking with tagged todos and floating panels
-  extension-designer/      Guides creation of pi extensions (tools, TUI, events)
-  git/                     Git conventions — branching, rebase, history surgery, conflicts
-  git-auth/                SSH key management, rbw/Bitwarden integration, auth troubleshooting
-  github/                  GitHub workflows via gh CLI — PRs, issues, CI, releases, reviews
-  github-markdown/         GitHub Flavored Markdown — callouts, task lists, mermaid, tables
-  github-writing/          Interview-driven drafting for all GitHub documents (PRs, READMEs, issues, etc.)
-  pi-events/               Event hooks — intercept tools, transform input, inject context
-  pi-sessions/             Sessions, state management, compaction, branching
-  pi-tui/                  TUI component building — overlays, widgets, theming, custom editors
-  skill-designer/          Guides creation of new Agent Skills
-package.json               pi-package manifest (convention discovery)
+hoard/
+├── berrygems/                 Pi extensions (TypeScript)
+│   ├── extensions/
+│   │   ├── ask.ts                 Interactive user input (select/confirm/text)
+│   │   ├── dots-panels.ts        Central panel authority — creation, positioning, focus
+│   │   ├── digestion-settings.ts  Compaction tuning panel
+│   │   ├── todo-lists.ts         Floating todo panels with GIF mascots
+│   │   └── dragon-guard/         Three-tier permission guard
+│   ├── styles/                    Writing tone files (formal, friendly, etc.)
+│   └── package.json
+├── morsels/                   Pi skills (Markdown)
+│   ├── skills/
+│   │   ├── git/                   Git operations + rebase/bisect references
+│   │   ├── commit/                Conventional Commits + AI attribution
+│   │   ├── git-auth/              SSH + rbw credential management
+│   │   ├── github/                gh CLI operations + GraphQL patterns
+│   │   ├── github-writing/        Interview-driven document authoring
+│   │   ├── github-markdown/       GFM conventions
+│   │   ├── extension-designer/    Build pi extensions
+│   │   ├── skill-designer/        Build agent skills
+│   │   ├── dot-panels/            Build panel extensions
+│   │   ├── dots-todos/            Task tracking with panels
+│   │   ├── pi-events/             Event hooks reference
+│   │   ├── pi-sessions/           Sessions & state management
+│   │   ├── pi-tui/                TUI component building
+│   │   └── agent-init/            Generate AGENTS.md files
+│   └── package.json
+├── dragon-daemon/             Go daemon (planned)
+│   ├── main.go
+│   └── go.mod
+├── package.json               Root manifest (references sub-packages)
+├── AGENTS.md
+└── README.md
 ```
 
-Pi auto-discovers `extensions/` and `skills/` directories — no manifest paths required.
+## Setup & Development
+
+```bash
+# Install as a pi package (both berrygems + morsels)
+pi install https://github.com/dotBeeps/hoard
+
+# Or for local development
+pi install /path/to/hoard
+
+# Build the daemon (when implemented)
+cd dragon-daemon && go build -o dragon-daemon .
+```
+
+- **No build step for berrygems** — pi loads `.ts` files directly via jiti
+- **No build step for morsels** — pi loads Markdown skills directly
+- **Reload after changes** — run `/reload` in pi to pick up extension edits
+- **Settings file** — `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)
 
 ## Pi Platform
 
-This package extends [pi](https://github.com/badlogic/pi-mono), a terminal coding agent harness. Understanding the platform is essential for working on extensions and skills here.
+This project extends [pi](https://github.com/badlogic/pi-mono), a terminal coding agent harness.
 
 ### Monorepo Packages
 
-Pi is built from layered packages — extensions import from these:
-
 | Package | Role | You Import |
 |---|---|---|
-| `@mariozechner/pi-ai` | LLM API, model discovery, streaming | `StringEnum` (required for Google-compatible enums) |
+| `@mariozechner/pi-ai` | LLM API, model discovery, streaming | `StringEnum` |
 | `@mariozechner/pi-tui` | Terminal UI components, keyboard, rendering | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth` |
 | `@mariozechner/pi-agent-core` | Agent loop, state, transport abstraction | (rarely imported directly) |
 | `@mariozechner/pi-coding-agent` | Coding agent CLI — tools, sessions, extensions, skills, compaction | `ExtensionAPI`, `ExtensionContext`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `CustomEditor` |
 | `@sinclair/typebox` | JSON schema definitions | `Type` for tool parameter schemas |
 
-Dependency chain: `pi-ai` → `pi-agent-core` → `pi-coding-agent` (also depends on `pi-tui`).
-
-### Runtime Modes
-
-Pi runs in four modes. Extensions work in all of them but UI availability varies:
-
-| Mode | Trigger | `ctx.hasUI` | UI Methods |
-|---|---|---|---|
-| Interactive | default | `true` | Full TUI — dialogs, widgets, overlays |
-| RPC | `--mode rpc` | `true` | JSON protocol (host handles rendering) |
-| Print | `-p` | `false` | No-op — check `ctx.hasUI` before calling |
-| JSON | `--mode json` | `false` | No-op |
-
 ### Extension Runtime
 
-Extensions are loaded via [jiti](https://github.com/unjs/jiti) — TypeScript runs without compilation. Each extension gets its own module context, which means **modules are isolated between extensions**. This is why direct imports between extensions cause duplicate state. Use `globalThis` + `Symbol.for()` or `pi.events` instead (see Architecture below).
+Extensions loaded via jiti — TypeScript runs without compilation. Each extension gets its own module context (**modules are isolated between extensions**). Use `globalThis` + `Symbol.for()` for cross-extension communication, never direct imports.
 
-Hot-reload with `/reload` — picks up extension file changes without restarting pi.
+Hot-reload with `/reload`.
 
 ### Event Lifecycle
-
-The full event flow for a user prompt:
 
 ```
 session_start → user types → input (can intercept/transform)
   → before_agent_start (inject message, modify system prompt)
   → agent_start
     → turn_start → context (modify messages) → before_provider_request
-      → tool_execution_start → tool_call (can BLOCK or MUTATE args)
-      → tool_execution_update → tool_result (can MODIFY result)
-      → tool_execution_end
+      → tool_call (can BLOCK or MUTATE args)
+      → tool_result (can MODIFY result)
     → turn_end
   → agent_end
 ```
 
-Session events: `session_before_compact`/`compact`, `session_before_switch`/`switch`, `session_before_fork`/`fork`, `session_before_tree`/`tree`, `session_shutdown`. Model events: `model_select`.
+### Sessions & State
 
-### TUI Component Contract
+Sessions are JSONL tree structures. **Store state in tool result `details` or `pi.appendEntry()`, never in external files** (breaks branching). Reconstruct from `ctx.sessionManager.getBranch()` on session events.
 
-Every TUI component implements three methods:
-
-- `render(width: number): string[]` — return lines, each **must not exceed `width`** (use `truncateToWidth`)
-- `handleInput?(data: string): void` — keyboard input (use `matchesKey(data, Key.*)` for detection)
-- `invalidate(): void` — clear cached render state; rebuild themed content here (theme may change)
-
-Overlays render floating components via `ctx.ui.custom(factory, { overlay: true, overlayOptions })`. Nine anchor positions: `center`, `top-left`, `top-center`, etc.
-
-### Sessions, State & Branching
-
-Sessions are **JSONL tree structures** — entries linked by `id`/`parentId`. `/tree` navigates to any point; all history preserved in one file.
-
-**State management rule:** Store state in tool result `details`, never in external files. Reconstruct from `ctx.sessionManager.getBranch()` on session events (`session_start`, `session_switch`, `session_fork`, `session_tree`). External files break branching — state diverges from the conversation tree.
+Exception: the memory vault (`.pi/memory/`, `~/.pi/agent/memory/`) is intentionally external — it's cross-session by design.
 
 ### Compaction
 
-When context grows too long, compaction summarizes older messages.
-
-- **Auto-trigger:** `tokens > contextWindow - reserveTokens` (default `reserveTokens`: 16384)
-- **Manual:** `/compact [custom instructions]`
-- **Hooks:** `session_before_compact` (can cancel or provide custom summary), `session_compact` (after completion)
-- **`reserveTokens` serves double duty:** it's the trigger threshold AND the output budget cap for the compaction LLM call (0.8 × reserveTokens = max_tokens). See `references/pi-internals.md` in extension-designer for details.
-- **`keepRecentTokens`** (default 20000): how many recent tokens to preserve (not summarized)
-
-### Settings System
-
-- **Global:** `~/.pi/agent/settings.json` — applies to all projects
-- **Project:** `.pi/settings.json` — overrides global; nested objects merge (not replace)
-- Extensions read/write these files directly via `node:fs`
-- Compaction config lives under `compaction` key; this package's settings under `dotsPiEnhancements`
-
-### Skills & Packages
-
-**Skills** are on-demand capability packages (Markdown). Pi shows descriptions in the system prompt; agents load the full SKILL.md when relevant. Follow the [Agent Skills standard](https://agentskills.io/specification). Place in `skills/<name>/SKILL.md`.
-
-**Packages** bundle extensions/skills/prompts/themes for distribution. A `pi` key in `package.json` declares resources, or pi auto-discovers from conventional directories. Core pi packages (`pi-ai`, `pi-tui`, etc.) are peer dependencies — never bundle them.
-
-For deep reference, read `/opt/pi-coding-agent/docs/extensions.md`, `tui.md`, `compaction.md`, `session.md`, `settings.md`, `skills.md`, `packages.md`.
+Auto-triggers when `tokens > contextWindow - reserveTokens`. `reserveTokens` serves double duty: trigger threshold AND output budget cap for the compaction LLM call.
 
 ## Architecture
 
 ### Inter-Extension Communication
 
-Extensions **must not import each other directly** — pi's jiti loader isolates module caches per extension entry point, causing duplicate state and shortcut conflicts.
-
-Instead, use `globalThis` with `Symbol.for()` for shared APIs:
-
 ```typescript
-// Publisher (dots-panels.ts) — writes API at load time
+// Publisher (dots-panels.ts)
 const API_KEY = Symbol.for("dot.panels");
 (globalThis as any)[API_KEY] = { register, close, focusPanel, ... };
 
-// Consumer (any other extension) — reads with fallback
-const PANELS_KEY = Symbol.for("dot.panels");
-function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
-const panels = getPanels();
+// Consumer (any extension in berrygems)
+const panels = (globalThis as any)[Symbol.for("dot.panels")];
 panels?.register("my-panel", { handle, invalidate, dispose });
-```
-
-`Symbol.for()` returns the same symbol across isolated module contexts — safe for cross-extension singletons.
-
-For event coordination between extensions, use `pi.events`:
-
-```typescript
-pi.events.emit("panels:ready");           // Publisher
-pi.events.on("panels:ready", () => {});   // Consumer
 ```
 
 ### Settings Namespace
 
-All package settings live under the `dotsPiEnhancements` key in `~/.pi/agent/settings.json`. Each extension documents its own keys — read with a `readSetting(key, fallback)` helper, falling back to defaults.
+All settings under `dotsPiEnhancements` in `~/.pi/agent/settings.json`:
 
 ### AI Contributor Identity
 
-The agent's contributor identity for git attribution lives in `dotsPiEnhancements.contributor`:
-
 ```json
 {
-  "name": "Ember 🐉",
-  "email": "ember-ai@dotbeeps.dev",
-  "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
-  "transparencyFormat": "Authored with Ember 🐉 [{model}]",
-  "includeModel": true
-}
-```
-
-- **`trailerFormat`** — used in commit `Co-authored-by` trailers (see `commit` skill)
-- **`transparencyFormat`** — used in PR/issue bodies for AI transparency (see `github-writing` skill)
-- **`includeModel`** — when true, append `[current-model]` to the name in trailers and transparency notes
-- **`name`** and **`email`** — the identity components, available for skills to compose custom formats
-
-If this setting is absent, skills should not add AI attribution.
-
-### Writing Styles
-
-The `github-writing` skill supports configurable writing styles via `dotsPiEnhancements.writingStyle`:
-
-```json
-{
-  "default": "personality",
-  "overrides": {
-    "security": "formal",
-    "coc": "formal"
+  "contributor": {
+    "name": "Ember 🐉",
+    "email": "ember-ai@dotbeeps.dev",
+    "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
+    "transparencyFormat": "Authored with Ember 🐉 [{model}]",
+    "includeModel": true
   }
 }
 ```
 
-- **`default`** — the style used when no override matches the document type
-- **`overrides`** — per-document-type style overrides (keys: `pr`, `issue`, `readme`, `contributing`, `release`, `security`, `coc`, `template`)
-- Available styles: `formal`, `friendly`, `personality`, `narrative`, `minimal`
-- Style files live in `skills/github-writing/styles/` — add new ones by creating a new `.md` file following the existing format
-- Users can override inline: "write this in narrative style" takes precedence over settings
+Skills reference this for `Co-authored-by` trailers and transparency notes. If absent, skip AI attribution.
 
-### Panel Extensions
+### Writing Tones
 
-`dots-panels` is the central panel authority — it owns creation, positioning, smart placement, focus cycling, hotkeys, and TUI capture. Other extensions create panels via `createPanel()` and register through its globalThis API. See the `dot-panels` skill for the full integration guide.
+```json
+{
+  "writingStyle": {
+    "default": "ember",
+    "overrides": {
+      "security": "formal",
+      "coc": "formal"
+    }
+  }
+}
+```
 
-## Adding Skills or Extensions
-
-Use the `skill-designer` and `extension-designer` skills — they cover scaffolding, structure, quality checklists, and best practices.
+Tone files in `berrygems/styles/`. Controls document writing voice only — does not affect agent personality.
 
 ## Code Style
 
 - **TypeScript** — tabs for indentation, double quotes, semicolons
+- **Go** — standard `gofmt`, no special conventions
 - **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags
 - **Skill frontmatter** — YAML between `---` fences, `name` and `description` required
 
 ## Commits
 
-Use Conventional Commits: `<type>(<scope>): <summary>`
+Conventional Commits: `<type>(<scope>): <summary>`
 
 - `feat` for new skills or extensions
 - `fix` for bug fixes
 - `docs` for README or skill content updates
 - `refactor` for restructuring without behavior change
-- Scope is the skill or extension name: `feat(agent-init): add interview step`
+- Scope is the skill, extension, or component name
 - Summary ≤72 chars, imperative mood, no trailing period
-- Update `README.md` when adding or removing skills/extensions

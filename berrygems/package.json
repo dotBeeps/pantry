@@ -1,0 +1,7 @@
+{
+  "name": "berrygems",
+  "version": "1.0.0",
+  "description": "Tasty pi extensions — panels, guards, tools, and tone. Part of the Hoard.",
+  "keywords": ["pi-package"],
+  "license": "MIT"
+}

@@ -1,7 +1,13 @@
 {
-  "name": "dots-pi-enhancements",
+  "name": "hoard",
   "version": "1.0.0",
-  "description": "Custom pi skills and extensions — built by a small dog and a large dragon",
+  "description": "A dragon's hoard of agent tools — extensions, skills, and a daemon that tends them. Built by a small dog and a large dragon.",
   "keywords": ["pi-package"],
-  "license": "MIT"
+  "license": "MIT",
+  "pi": {
+    "packages": [
+      "berrygems",
+      "morsels"
+    ]
+  }
 }

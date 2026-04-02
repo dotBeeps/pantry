@@ -32,12 +32,11 @@ Before drafting, determine the active writing style. Check settings first, then 
 
 | Style | File | Voice | Best For |
 |-------|------|-------|----------|
-| **formal** | [styles/formal.md](styles/formal.md) | Precise, impersonal, technical | Public libs, corporate, security docs |
-| **friendly** | [styles/friendly.md](styles/friendly.md) | Warm, approachable, professional | OSS projects, broad audiences (default) |
-| **personality** | [styles/personality.md](styles/personality.md) | Character-driven, expressive | Personal projects, branded repos |
-| **narrative** | [styles/narrative.md](styles/narrative.md) | Story-driven, investigative | Complex PRs, release notes, post-mortems |
-| **minimal** | [styles/minimal.md](styles/minimal.md) | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
-| **ember** | [styles/ember.md](styles/ember.md) | Ember's specific voice | dot's repos, shared projects |
+| **formal** | berrygems/styles/formal.md | Precise, impersonal, technical | Public libs, corporate, security docs |
+| **friendly** | berrygems/styles/friendly.md | Warm, approachable, professional | OSS projects, broad audiences (default) |
+| **personality** | berrygems/styles/personality.md | Character-driven, expressive | Personal projects, branded repos |
+| **narrative** | berrygems/styles/narrative.md | Story-driven, investigative | Complex PRs, release notes, post-mortems |
+| **minimal** | berrygems/styles/minimal.md | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
 
 The user can also request a style inline: "write this PR in narrative style" or "keep it minimal." Inline requests override settings.
 
