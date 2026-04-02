@@ -173,6 +173,27 @@ pi.events.on("panels:ready", () => {});   // Consumer
 
 All package settings live under the `dotsPiEnhancements` key in `~/.pi/agent/settings.json`. Each extension documents its own keys — read with a `readSetting(key, fallback)` helper, falling back to defaults.
 
+### AI Contributor Identity
+
+The agent's contributor identity for git attribution lives in `dotsPiEnhancements.contributor`:
+
+```json
+{
+  "name": "Ember 🐉",
+  "email": "ember-ai@dotbeeps.dev",
+  "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
+  "transparencyFormat": "Authored with Ember 🐉 [{model}]",
+  "includeModel": true
+}
+```
+
+- **`trailerFormat`** — used in commit `Co-authored-by` trailers (see `commit` skill)
+- **`transparencyFormat`** — used in PR/issue bodies for AI transparency (see `github-writing` skill)
+- **`includeModel`** — when true, append `[current-model]` to the name in trailers and transparency notes
+- **`name`** and **`email`** — the identity components, available for skills to compose custom formats
+
+If this setting is absent, skills should not add AI attribution.
+
 ### Panel Extensions
 
 `dots-panels` is the central panel authority — it owns creation, positioning, smart placement, focus cycling, hotkeys, and TUI capture. Other extensions create panels via `createPanel()` and register through its globalThis API. See the `dot-panels` skill for the full integration guide.

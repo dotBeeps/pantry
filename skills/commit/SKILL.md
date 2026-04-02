@@ -51,6 +51,34 @@ Run `git log -n 30 --pretty=format:%s` to identify patterns:
 - Do NOT include sign-offs (`Signed-off-by`)
 - Do NOT include breaking-change footers
 
+## AI Attribution
+
+When an AI agent authors or co-authors a commit, add a `Co-authored-by` trailer. Read the contributor identity from settings:
+
+```json
+// ~/.pi/agent/settings.json → dotsPiEnhancements.contributor
+{
+  "name": "Ember 🐉",
+  "email": "ember-ai@dotbeeps.dev",
+  "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
+  "includeModel": true
+}
+```
+
+If `includeModel` is true, append the current model to the trailer:
+
+```
+Co-authored-by: Ember 🐉 [claude-sonnet-4] <ember-ai@dotbeeps.dev>
+```
+
+Add the trailer as the last line of the commit body (after a blank line). If no body exists, add one:
+
+```bash
+git commit -m "feat(panels): add floating API" -m "Co-authored-by: Ember 🐉 [claude-sonnet-4] <ember-ai@dotbeeps.dev>"
+```
+
+If the setting is absent, do not add attribution — the user hasn't configured it.
+
 ## Amending
 
 Modify the most recent commit. Safe only if **not yet pushed**.

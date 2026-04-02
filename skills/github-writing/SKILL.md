@@ -94,15 +94,52 @@ Only after final approval, offer to run the appropriate command:
 
 ## Attribution
 
+### AI Contributor Identity
+
+Read the contributor identity from settings before writing attribution:
+
+```json
+// ~/.pi/agent/settings.json → dotsPiEnhancements.contributor
+{
+  "name": "Ember 🐉",
+  "email": "ember-ai@dotbeeps.dev",
+  "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
+  "transparencyFormat": "Authored with Ember 🐉 [{model}]",
+  "includeModel": true
+}
+```
+
+If the setting is absent, fall back to asking the user or omitting AI attribution.
+
 ### Co-authored-by
 
-For AI-assisted or pair-programmed work, add trailers to the commit message:
+For AI-assisted or pair-programmed commits, add a trailer:
+
+```
+Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>
+```
+
+If `includeModel` is true, include the current model:
+
+```
+Co-authored-by: Ember 🐉 [claude-sonnet-4] <ember-ai@dotbeeps.dev>
+```
+
+For human co-authors, use their name and email:
 
 ```
 Co-authored-by: Name <email@example.com>
 ```
 
-Include in the PR description body when multiple contributors are involved.
+### Transparency in PRs and Issues
+
+When writing PR descriptions or issues that were substantially AI-authored, include a transparency note using `transparencyFormat`. Replace `{model}` with the current model:
+
+```markdown
+> Authored with Ember 🐉 [claude-sonnet-4]
+```
+
+Place at the bottom of the document, before any footers. This is for technical transparency — reviewers and maintainers should know when AI drafted the content.
 
 ### Issue Linking
 
