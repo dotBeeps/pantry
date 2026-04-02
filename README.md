@@ -196,10 +196,12 @@ Collaboratively write any GitHub document — PRs, issues, READMEs, CONTRIBUTING
 
 - **7-step workflow** — classify → interview → research (read-only) → outline → approval gate → draft → final review
 - **12+ document types** — PRs, bugs, features, RFCs, READMEs, CONTRIBUTING, release notes, repo templates, community docs, discussions, wikis, profile READMEs
-- **Interview-driven** — 2–4 quick questions to determine focus, audience, key points
+- **5 writing styles** — formal, friendly, personality, narrative, minimal — configurable per document type via settings or inline request
+- **Interview-driven** — 2–4 quick questions to determine focus, audience, key points, and style
 - **Manual sections** — mark `[MANUAL]` for parts you want to write yourself
 - **Attribution** — co-authored-by trailers, issue linking keywords, contributor credits
 - **Anti-patterns** — "fixed stuff" PRs, READMEs with no quick start, templates that are walls of text
+- **Style guardrails** — each style defines what it allows, what it forbids, and when to use it — personality never excuses imprecision
 - **Reference guides** for every document type — README structure, CONTRIBUTING flow, release notes, YAML issue forms, community docs (CoC, SECURITY, FUNDING, LICENSE)
 
 📂 [`skills/github-writing/SKILL.md`](skills/github-writing/SKILL.md)

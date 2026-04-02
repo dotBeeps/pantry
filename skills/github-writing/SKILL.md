@@ -7,6 +7,41 @@ description: "Write effective GitHub documents: PR descriptions, issues, READMEs
 
 Collaboratively draft high-quality documents for GitHub repositories. **Do not execute any bash or CLI commands until the user explicitly approves the draft.**
 
+## Writing Styles
+
+Before drafting, determine the active writing style. Check settings first, then ask if unclear:
+
+```json
+// ~/.pi/agent/settings.json → dotsPiEnhancements.writingStyle
+{
+  "default": "friendly",
+  "overrides": {
+    "pr": "narrative",
+    "readme": "personality",
+    "security": "formal"
+  }
+}
+```
+
+**Resolution order:**
+1. Check `overrides` for the document type (`pr`, `issue`, `readme`, `contributing`, `release`, `security`, `coc`, `template`)
+2. Fall back to `default`
+3. If no setting exists, ask the user or default to `friendly`
+
+**Available styles** — read the full style file before drafting:
+
+| Style | File | Voice | Best For |
+|-------|------|-------|----------|
+| **formal** | [styles/formal.md](styles/formal.md) | Precise, impersonal, technical | Public libs, corporate, security docs |
+| **friendly** | [styles/friendly.md](styles/friendly.md) | Warm, approachable, professional | OSS projects, broad audiences (default) |
+| **personality** | [styles/personality.md](styles/personality.md) | Character-driven, expressive | Personal projects, branded repos |
+| **narrative** | [styles/narrative.md](styles/narrative.md) | Story-driven, investigative | Complex PRs, release notes, post-mortems |
+| **minimal** | [styles/minimal.md](styles/minimal.md) | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
+
+The user can also request a style inline: "write this PR in narrative style" or "keep it minimal." Inline requests override settings.
+
+Styles control **tone and voice only** — document structure comes from the reference files. Every style enforces technical accuracy; personality never excuses imprecision.
+
 ## Workflow
 
 Follow these steps in order. Do not skip the approval gate.
@@ -44,6 +79,8 @@ Ask 2–4 quick questions (skip what's already obvious):
 - What are the key points to cover?
 - Are there sections you want to write yourself? (mark as `[MANUAL]` in the outline)
 
+Also resolve the writing style if not already clear from settings or user request. If the setting exists and the user hasn't overridden it, confirm briefly: "I'll write this in [style] style — good?" Don't make it a whole conversation.
+
 Keep the interview fast — two focused questions are better than four vague ones.
 
 ### 3. Research (Read-Only)
@@ -80,7 +117,13 @@ The user can:
 
 ### 6. Draft
 
-Write the complete document in a fenced code block for easy review and copying. Use GitHub Flavored Markdown (see `github-markdown` skill for conventions).
+Read the resolved style file from `styles/` and apply its voice, word choice, and structure rules. Write the complete document in a fenced code block for easy review and copying. Use GitHub Flavored Markdown (see `github-markdown` skill for conventions).
+
+**Style enforcement during drafting:**
+- Reread the style's Guardrails section before writing
+- If the style says "never" do something, don't do it
+- If personality/narrative styles feel forced for the content, tell the user and suggest a better fit
+- Technical accuracy overrides style in every case
 
 ### 7. Final Review
 

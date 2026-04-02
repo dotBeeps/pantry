@@ -194,6 +194,26 @@ The agent's contributor identity for git attribution lives in `dotsPiEnhancement
 
 If this setting is absent, skills should not add AI attribution.
 
+### Writing Styles
+
+The `github-writing` skill supports configurable writing styles via `dotsPiEnhancements.writingStyle`:
+
+```json
+{
+  "default": "personality",
+  "overrides": {
+    "security": "formal",
+    "coc": "formal"
+  }
+}
+```
+
+- **`default`** — the style used when no override matches the document type
+- **`overrides`** — per-document-type style overrides (keys: `pr`, `issue`, `readme`, `contributing`, `release`, `security`, `coc`, `template`)
+- Available styles: `formal`, `friendly`, `personality`, `narrative`, `minimal`
+- Style files live in `skills/github-writing/styles/` — add new ones by creating a new `.md` file following the existing format
+- Users can override inline: "write this in narrative style" takes precedence over settings
+
 ### Panel Extensions
 
 `dots-panels` is the central panel authority — it owns creation, positioning, smart placement, focus cycling, hotkeys, and TUI capture. Other extensions create panels via `createPanel()` and register through its globalThis API. See the `dot-panels` skill for the full integration guide.
