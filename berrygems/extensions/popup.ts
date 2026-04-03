@@ -14,22 +14,16 @@ import { Markdown, Text, matchesKey, Key, truncateToWidth, visibleWidth } from "
 import type { TUI, Theme, MarkdownTheme } from "@mariozechner/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
+import {
+	pickBorderPattern, pickFocusPattern,
+	renderHeader, renderFooter, renderBorder,
+} from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
 
 const PANELS_KEY = Symbol.for("dot.panels");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
-}
-
-// ── Border Patterns ──
-
-const BORDER_PATTERNS = ["·~", "⋆·", "≈~", "~·", "⋆~", "·⸱"];
-function pickBorderPattern(): string {
-	return BORDER_PATTERNS[Math.floor(Math.random() * BORDER_PATTERNS.length)]!;
-}
-function themedBorder(pattern: string, width: number): string {
-	return pattern.repeat(Math.ceil(width / pattern.length)).slice(0, width);
 }
 
 // ── Schema ──
@@ -62,6 +56,7 @@ class PopupComponent {
 	private cachedLines: string[] | undefined;
 	private renderedLines: string[] = [];
 	private borderPattern: string;
+	private focusPattern: string;
 	private panelCtx: any;
 	private mdTheme: MarkdownTheme;
 
@@ -69,6 +64,7 @@ class PopupComponent {
 		this.title = options.title ?? "";
 		this.content = options.content;
 		this.borderPattern = pickBorderPattern();
+		this.focusPattern = pickFocusPattern();
 		this.panelCtx = options.panelCtx;
 		this.mdTheme = getMarkdownTheme();
 	}
@@ -126,16 +122,17 @@ class PopupComponent {
 		if (this.cachedLines) return this.cachedLines;
 
 		const theme = this.panelCtx.theme as Theme;
-		const lines: string[] = [];
-		const add = (s: string) => lines.push(truncateToWidth(s, width));
+		const focused = this.panelCtx.isFocused();
 
-		// Header
-		const border = themedBorder(this.borderPattern, width);
-		add(theme.fg("accent", border));
-		if (this.title) {
-			add(theme.fg("text", theme.bold(` ${this.title}`)));
-			add("");
-		}
+		const chromeOpts = {
+			title: this.title || undefined,
+			focused,
+			theme,
+			borderPattern: this.borderPattern,
+			focusPattern: this.focusPattern,
+			footerHint: "",
+			scrollInfo: "",
+		};
 
 		// Render markdown content (full, then slice for scroll)
 		if (this.renderedLines.length === 0) {
@@ -149,22 +146,21 @@ class PopupComponent {
 		this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
 		const visible = this.renderedLines.slice(this.scrollOffset, this.scrollOffset + viewH);
 
-		for (const line of visible) {
-			add(` ${line}`);
-		}
+		const contentLines = visible.map(line => truncateToWidth(` ${line}`, width));
 
-		// Scroll indicator
+		// Scroll info for footer
 		const total = this.renderedLines.length;
 		if (total > viewH) {
-			const pct = total > 0 ? Math.round(((this.scrollOffset + viewH) / total) * 100) : 100;
-			add("");
-			add(theme.fg("dim", ` ↑↓/j/k scroll · PgUp/PgDn jump · g/G top/bottom  ${pct}%`));
+			const pct = Math.round(((this.scrollOffset + viewH) / total) * 100);
+			chromeOpts.footerHint = "↑↓/j/k scroll · PgUp/PgDn jump · g/G top/bottom";
+			chromeOpts.scrollInfo = `${pct}%`;
 		}
 
-		add(theme.fg("accent", border));
+		const header = renderHeader(width, chromeOpts);
+		const footer = renderFooter(width, chromeOpts);
 
-		this.cachedLines = lines;
-		return lines;
+		this.cachedLines = [...header, ...contentLines, ...footer];
+		return this.cachedLines;
 	}
 
 	private viewportHeight(): number {
@@ -264,6 +260,65 @@ export default function popup(pi: ExtensionAPI): void {
 				`${icon} ${action}: ` + theme.fg("accent", d.title ?? d.id),
 				0, 0,
 			);
+		},
+	});
+
+	// ── Close Tool ──
+
+	pi.registerTool({
+		name: "close_popup",
+		label: "Close Popup",
+		description:
+			"Close a popup panel by ID, or close all popup panels. Use when the user is done referencing a popup, or to clean up the screen.",
+		promptSnippet:
+			"Close a popup panel by ID or close all popups",
+		parameters: Type.Object({
+			id: Type.Optional(Type.String({ description: "Panel ID to close. Omit to close all popups." })),
+		}),
+
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const panels = getPanels();
+			if (!panels) {
+				return { content: [{ type: "text" as const, text: "Panel manager not available" }] };
+			}
+
+			if (params.id) {
+				if (!activePopups.has(params.id)) {
+					const available = [...activePopups.keys()];
+					return {
+						content: [{ type: "text" as const, text: `No popup with id "${params.id}". Active: ${available.join(", ") || "(none)"}` }],
+					};
+				}
+				panels.close(params.id);
+				activePopups.delete(params.id);
+				return {
+					content: [{ type: "text" as const, text: `Closed popup: ${params.id}` }],
+					details: { id: params.id, action: "closed" },
+				};
+			}
+
+			// Close all
+			const count = activePopups.size;
+			for (const popupId of activePopups.keys()) {
+				panels.close(popupId);
+			}
+			activePopups.clear();
+			return {
+				content: [{ type: "text" as const, text: `Closed ${count} popup(s)` }],
+				details: { action: "closed-all", count },
+			};
+		},
+
+		renderResult(result, _options, theme, _context) {
+			const d = result.details as any;
+			if (d?.action === "closed-all") {
+				return new Text(theme.fg("muted", `🧹 cleared ${d.count} popup(s)`), 0, 0);
+			}
+			if (d?.action === "closed") {
+				return new Text(theme.fg("muted", `✖ closed: ${d.id}`), 0, 0);
+			}
+			const first = result.content[0];
+			return new Text(first?.type === "text" ? first.text : "", 0, 0);
 		},
 	});
 

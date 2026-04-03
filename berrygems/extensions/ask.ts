@@ -23,26 +23,14 @@ import {
 import { StringEnum } from "@mariozechner/pi-ai";
 import { Type, type Static } from "@sinclair/typebox";
 
+import {
+	pickBorderPattern, pickFocusPattern,
+	renderBorder, repeatPattern,
+	type ChromeOptions,
+} from "../lib/panel-chrome.ts";
+
 // --- Themed Borders ---
-// Randomly selected per component instance. Dog or dragon, you never know.
-
-const BORDER_PATTERNS = [
-	"·~",    // tail wag
-	"⋆·",   // hoard sparkle
-	"≈~",   // scales & smoke
-	"~·",   // smoke & paws
-	"⋆~",   // sparkle smoke
-	"·⸱",   // pawpad dots
-];
-
-/** Pick a random border pattern — call once per component instance, not per render. */
-function pickBorderPattern(): string {
-	return BORDER_PATTERNS[Math.floor(Math.random() * BORDER_PATTERNS.length)]!;
-}
-
-function themedBorder(pattern: string, width: number): string {
-	return pattern.repeat(Math.ceil(width / pattern.length)).slice(0, width);
-}
+// Uses shared panel-chrome lib. Pattern picked once per component instance.
 
 // --- Schema ---
 
@@ -234,6 +222,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 		let editMode: "off" | "custom" | "note" = "off";
 		let cachedLines: string[] | undefined;
 		const borderPattern = pickBorderPattern();
+		const focusPattern = pickFocusPattern();
 
 		const editorTheme: EditorTheme = {
 			borderColor: (s: string) => theme.fg("accent", s),
@@ -327,8 +316,8 @@ async function executeSelect(params: AskInput, ctx: any) {
 			const lines: string[] = [];
 			const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-			const border = themedBorder(borderPattern, width);
-			add(theme.fg("accent", border));
+			const chromeOpts: ChromeOptions = { focused: true, theme, borderPattern, focusPattern };
+			add(renderBorder(width, chromeOpts));
 			add(theme.fg("text", ` ${params.question}`));
 			lines.push("");
 
@@ -375,7 +364,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 				? " Enter to submit • Esc to go back"
 				: " ↑↓ sniff around • Enter to fetch • Tab to add note • Esc to wander off";
 			add(theme.fg("dim", hints));
-			add(theme.fg("accent", border));
+			add(renderBorder(width, chromeOpts));
 
 			cachedLines = lines;
 			return lines;
@@ -461,6 +450,7 @@ async function executeText(params: AskInput, ctx: any) {
 	const result = await ctx.ui.custom<string | null>((tui: any, theme: any, _kb: any, done: any) => {
 		let cachedLines: string[] | undefined;
 		const borderPattern = pickBorderPattern();
+		const focusPattern = pickFocusPattern();
 
 		const editorTheme: EditorTheme = {
 			borderColor: (s: string) => theme.fg("accent", s),
@@ -503,8 +493,8 @@ async function executeText(params: AskInput, ctx: any) {
 			const lines: string[] = [];
 			const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-			const border = themedBorder(borderPattern, width);
-			add(theme.fg("accent", border));
+			const chromeOpts: ChromeOptions = { focused: true, theme, borderPattern, focusPattern };
+			add(renderBorder(width, chromeOpts));
 			add(theme.fg("text", ` ${params.question}`));
 			lines.push("");
 
@@ -514,7 +504,7 @@ async function executeText(params: AskInput, ctx: any) {
 
 			lines.push("");
 			add(theme.fg("dim", " Enter to submit • Shift+Enter for newline • Esc to wander off"));
-			add(theme.fg("accent", border));
+			add(renderBorder(width, chromeOpts));
 
 			cachedLines = lines;
 			return lines;
