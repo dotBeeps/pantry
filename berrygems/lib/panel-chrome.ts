@@ -48,6 +48,10 @@ export interface PanelSkin {
 	/** Bottom-right corner (e.g. "╯"). */
 	bottomRight?: string;
 
+	// ── Layout options ──
+	/** Render title inline in the top border row (e.g. ╭─ Title ──╮). Requires corners. */
+	inlineTitle?: boolean;
+
 	// ── Focused state overrides (falls back to unfocused if omitted) ──
 	/** Top border pattern when focused. */
 	focusTop?: string;
@@ -150,10 +154,10 @@ export const SKINS = {
 		focusLeft: "█ ", focusRight: "",
 	} satisfies PanelSkin,
 
-	/** Smoke and scales — wavy dragon aesthetic. */
+	/** Smoke and scales — asymmetric dragon aesthetic. Light smoke top, heavy waves bottom. */
 	scales: {
 		name: "scales",
-		top: "≈~", bottom: "~≈",
+		top: "≈~", bottom: "≋",
 		left: "≋ ", right: "",
 		bg: "toolPendingBg",
 		focusTop: "▓░", focusBottom: "░▓",
@@ -190,7 +194,7 @@ export const SKINS = {
 
 	// ── Curvy / Rounded ──
 
-	/** Rounded box-drawing corners. Soft and modern. */
+	/** Rounded box-drawing corners. Soft and modern. Inline title in border. */
 	curvy: {
 		name: "curvy",
 		top: "─", bottom: "─",
@@ -198,13 +202,14 @@ export const SKINS = {
 		bg: "toolPendingBg",
 		topLeft: "╭", topRight: "╮",
 		bottomLeft: "╰", bottomRight: "╯",
+		inlineTitle: true,
 		focusTop: "━", focusBottom: "━",
 		focusLeft: "┃ ", focusRight: " ┃",
 		focusTopLeft: "╭", focusTopRight: "╮",
 		focusBottomLeft: "╰", focusBottomRight: "╯",
 	} satisfies PanelSkin,
 
-	/** Double rounded — curvy corners with double-line sides. Fancy. */
+	/** Double rounded — curvy corners with double-line sides. Fancy. Inline title. */
 	curvyCastle: {
 		name: "curvyCastle",
 		top: "═", bottom: "═",
@@ -213,6 +218,7 @@ export const SKINS = {
 		borderColor: "border",
 		topLeft: "╭", topRight: "╮",
 		bottomLeft: "╰", bottomRight: "╯",
+		inlineTitle: true,
 		focusTop: "═", focusBottom: "═",
 		focusLeft: "║ ", focusRight: " ║",
 		focusTopLeft: "╭", focusTopRight: "╮",
@@ -231,14 +237,18 @@ export const SKINS = {
 		focusLeft: " ", focusRight: " ",
 	} satisfies PanelSkin,
 
-	/** Powerline round. Softer variant with rounded powerline glyphs. */
+	/** Powerline round. Cloud/bubble effect — inward curves, rounded corners. */
 	powerlineRound: {
 		name: "powerlineRound",
 		top: "─", bottom: "─",
 		left: " ", right: " ",
 		bg: "toolPendingBg",
+		topLeft: "╭", topRight: "╮",
+		bottomLeft: "╰", bottomRight: "╯",
 		focusTop: "━", focusBottom: "━",
 		focusLeft: " ", focusRight: " ",
+		focusTopLeft: "╭", focusTopRight: "╮",
+		focusBottomLeft: "╰", focusBottomRight: "╯",
 	} satisfies PanelSkin,
 
 	/** Flame edges. Because dragon.  */
@@ -262,14 +272,18 @@ export const SKINS = {
 		focusLeft: "▌", focusRight: "▐",
 	} satisfies PanelSkin,
 
-	/** Diagonal slash edges. Nerdfont slant glyphs.  /  */
+	/** Diagonal slash edges with corner mapping. Nerdfont slant glyphs. */
 	slash: {
 		name: "slash",
 		top: "─", bottom: "─",
 		left: " ", right: " ",
 		bg: "toolPendingBg",
+		topLeft: "", topRight: "",
+		bottomLeft: "", bottomRight: "",
 		focusTop: "━", focusBottom: "━",
 		focusLeft: " ", focusRight: " ",
+		focusTopLeft: "", focusTopRight: "",
+		focusBottomLeft: "", focusBottomRight: "",
 	} satisfies PanelSkin,
 
 	/** Ice crystal edges. Frozen hoard aesthetic. ❈ */
@@ -282,11 +296,11 @@ export const SKINS = {
 		focusLeft: "✨ ", focusRight: " ✨",
 	} satisfies PanelSkin,
 
-	/** Braille dots. Subtle and unique. */
+	/** Braille dots. Subtle and unique. For a very small dot. */
 	braille: {
 		name: "braille",
-		top: "⣿⠀", bottom: "⠀⣿",
-		left: "⣸ ", right: " ⠟",
+		top: "⣀⡀", bottom: "⠃⠆",
+		left: "⢸ ", right: " ⠞",
 		bg: "toolPendingBg",
 		focusTop: "⣿", focusBottom: "⣿",
 		focusLeft: "⣿ ", focusRight: " ⣿",
@@ -414,22 +428,54 @@ export function renderBorder(width: number, options: ChromeOptions, position: "t
 
 /**
  * Render a panel header: top border + optional title.
- * Returns an array of lines to prepend to panel content.
+ * When skin has `inlineTitle` and corners, renders `╭─ Title ──╮`.
+ * Otherwise renders border + title as separate lines.
  */
 export function renderHeader(width: number, options: ChromeOptions): string[] {
 	const lines: string[] = [];
-	const topBorder = renderBorder(width, options, "top");
-	if (topBorder) lines.push(topBorder);
+	const skin = options.skin ?? SKINS.ember;
+	const resolved = resolveSkin(skin, !!options.focused);
+	const { theme } = options;
 
-	if (options.title) {
+	// Inline title: embed in top border row
+	if ((skin as PanelSkin).inlineTitle && options.title && resolved.topLeft && resolved.topRight) {
+		const color = resolved.borderColor;
 		const titleColor = options.focused ? "accent" : "text";
 		const focusMarker = options.focused ? " ⚡" : "";
-		lines.push(padContentLine(
-			options.theme.fg(titleColor, options.theme.bold(` ${options.title}${focusMarker}`)),
-			width,
-			options,
-		));
+		const titleText = ` ${options.title}${focusMarker} `;
+		const pattern = resolved.top;
+
+		const cornerLW = visibleWidth(resolved.topLeft);
+		const cornerRW = visibleWidth(resolved.topRight);
+		// 1 char gap after left corner before title
+		const gapW = pattern.length > 0 ? 1 : 0;
+		const titleW = visibleWidth(titleText);
+		const fillW = Math.max(0, width - cornerLW - cornerRW - gapW - titleW);
+
+		const styledCornerL = theme.fg(color as any, options.focused ? theme.bold(resolved.topLeft) : resolved.topLeft);
+		const styledGap = gapW > 0 ? theme.fg(color as any, options.focused ? theme.bold(repeatPattern(pattern, gapW)) : repeatPattern(pattern, gapW)) : "";
+		const styledTitle = theme.fg(titleColor, theme.bold(titleText));
+		const styledFill = theme.fg(color as any, options.focused ? theme.bold(repeatPattern(pattern, fillW)) : repeatPattern(pattern, fillW));
+		const styledCornerR = theme.fg(color as any, options.focused ? theme.bold(resolved.topRight) : resolved.topRight);
+
+		const row = styledCornerL + styledGap + styledTitle + styledFill + styledCornerR;
+		lines.push(resolved.bg ? theme.bg(resolved.bg as any, row) : row);
 		lines.push(padContentLine("", width, options));
+	} else {
+		// Standard: separate border + title lines
+		const topBorder = renderBorder(width, options, "top");
+		if (topBorder) lines.push(topBorder);
+
+		if (options.title) {
+			const titleColor = options.focused ? "accent" : "text";
+			const focusMarker = options.focused ? " ⚡" : "";
+			lines.push(padContentLine(
+				theme.fg(titleColor, theme.bold(` ${options.title}${focusMarker}`)),
+				width,
+				options,
+			));
+			lines.push(padContentLine("", width, options));
+		}
 	}
 	return lines;
 }
