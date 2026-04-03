@@ -10,7 +10,7 @@
 
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
-import { matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { matchesKey, Key, truncateToWidth } from "@mariozechner/pi-tui";
 import {
 	renderHeader, renderFooter, padContentLine,
 	type ChromeOptions,

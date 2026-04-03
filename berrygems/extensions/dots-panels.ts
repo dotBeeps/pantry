@@ -18,7 +18,7 @@
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
-import { matchesKey, Key } from "@mariozechner/pi-tui";
+import { matchesKey } from "@mariozechner/pi-tui";
 import { readHoardSetting, readHoardKey, keyLabel } from "../lib/settings.ts";
 import { setDefaultSkin, getSkin, listSkins, type SkinName, type PanelSkin } from "../lib/panel-chrome.ts";
 
@@ -540,7 +540,7 @@ class PanelRegistry {
 	 * Called synchronously on SIGWINCH so the stack is empty when pi re-renders.
 	 */
 	private _removeAllForResize(): void {
-		for (const [id, panel] of this.panels) {
+		for (const [, panel] of this.panels) {
 			panel.dispose?.();
 			panel.handle.unfocus();
 			panel.handle.hide();
@@ -574,40 +574,6 @@ class PanelRegistry {
 		}
 	}
 
-	/** Recreate relatively-positioned panels on terminal resize. */
-	private _handleResize(): void {
-		// Collect panels that used relative anchoring (have computedRect)
-		const toRecreate: Array<{ id: string; info: PanelRecreateInfo }> = [];
-		for (const [id, geo] of this.geometries) {
-			if (geo.computedRect && this.recreateInfo.has(id)) {
-				toRecreate.push({ id, info: this.recreateInfo.get(id)! });
-			}
-		}
-		if (toRecreate.length === 0) return;
-
-		// Update geometries for screen-anchored panels (their resolved widths change)
-		const termCols = process.stdout.columns ?? 120;
-		for (const [, geo] of this.geometries) {
-			if (!geo.computedRect) {
-				geo.resolvedWidthCols = Math.max(
-					resolveWidth(geo.width, termCols),
-					DEFAULT_MIN_WIDTH,
-				);
-			}
-		}
-
-		// Sort by dependency: panels referenced by others go first
-		const sorted = this._sortByDependency(toRecreate);
-
-		// Close all quietly, then recreate in order
-		for (const { id } of sorted) {
-			this.close(id);
-		}
-		for (const { id, info } of sorted) {
-			this.createPanel(id, info.factory, info.options);
-		}
-		// Let pi's own render cycle pick up the changes — no forced requestRender
-	}
 
 	/** Sort panels so that dependency targets come before dependents. */
 	private _sortByDependency(items: Array<{ id: string; info: PanelRecreateInfo }>): Array<{ id: string; info: PanelRecreateInfo }> {

@@ -10,13 +10,13 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import type { TUI, MarkdownTheme } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key } from "@mariozechner/pi-tui";
+import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
-	renderHeader, renderFooter, renderBorder, padContentLine,
+	renderHeader, renderFooter, padContentLine,
 } from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
@@ -40,7 +40,6 @@ const PopupParams = Type.Object({
 	skin: Type.Optional(Type.String({ description: "Panel skin name (e.g. 'ember', 'curvy', 'box'). Default: from settings" })),
 });
 
-type PopupInput = Static<typeof PopupParams>;
 
 // ── Popup Component ──
 
@@ -191,7 +190,7 @@ export default function popup(pi: ExtensionAPI): void {
 		],
 		parameters: PopupParams,
 
-		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: ExtensionContext): Promise<any> {
+		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: ExtensionContext): Promise<any> {
 			const panels = getPanels();
 			if (!panels) {
 				return {
@@ -280,7 +279,7 @@ export default function popup(pi: ExtensionAPI): void {
 			id: Type.Optional(Type.String({ description: "Panel ID to close. Omit to close all popups." })),
 		}),
 
-		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: ExtensionContext): Promise<any> {
+		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: ExtensionContext): Promise<any> {
 			const panels = getPanels();
 			if (!panels) {
 				return { content: [{ type: "text" as const, text: "Panel manager not available" }], details: {} };

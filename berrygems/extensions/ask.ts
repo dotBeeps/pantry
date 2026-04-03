@@ -25,7 +25,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 import {
 	getSkin,
-	renderBorder, repeatPattern,
+	renderBorder,
 	type ChromeOptions,
 } from "../lib/panel-chrome.ts";
 

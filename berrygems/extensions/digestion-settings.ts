@@ -22,7 +22,7 @@
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
-import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { matchesKey, Key } from "@mariozechner/pi-tui";
 import {
 	renderHeader, renderFooter, padContentLine,
 	type ChromeOptions,
@@ -37,7 +37,7 @@ function getPanels(): any {
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
-import { readHoardSetting, readHoardKey, readProjectHoardSetting, writeProjectHoardSetting, keyLabel } from "../lib/settings.ts";
+import { readHoardKey, readProjectHoardSetting, writeProjectHoardSetting, keyLabel } from "../lib/settings.ts";
 
 // ── Local Types ──
 

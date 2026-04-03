@@ -28,8 +28,8 @@ import {
 import { Type } from "@sinclair/typebox";
 import { execSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { tmpdir, homedir } from "node:os";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { readHoardSetting } from "../lib/settings.ts";
 
 // ── Types ──
@@ -94,7 +94,6 @@ const AI_BLOCK_WORDS = [
 	"dreamimaginations", "aiart", "artificial", "neural", "deepdream",
 ];
 const GIF_SIZE_VARIANT = "fixed_width";
-const GIF_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_GIF_CELLS_W = 16;
 const DEFAULT_GIF_CELLS_H = 8;
 

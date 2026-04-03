@@ -1,19 +1,22 @@
 /**
  * Lint Panel — Live diagnostics via LSP + floating panel.
  *
- * Connects to typescript-language-server for real-time type errors.
- * Falls back to tsc subprocess when LSP isn't available.
- * Auto-refreshes on file changes via fs.watch.
+ * Language-agnostic: auto-detects project languages, starts the appropriate
+ * LSP servers, and merges diagnostics into a single unified panel.
+ * Falls back to language-specific compiler commands when LSP isn't available.
  *
- * A three-inch dog wrote this inside a dragon's stomach.
+ * Supported: TypeScript (typescript-language-server), Go (gopls).
+ * Extensible via LanguageServerConfig + FallbackConfig.
+ *
+ * A three-inch dog designed this inside a dragon's stomach.
  * She was about 2/3 goop at the time and still wagging.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { matchesKey, Key } from "@mariozechner/pi-tui";
 import type { TUI } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import { execSync } from "node:child_process";
 import { resolve, relative } from "node:path";
@@ -22,7 +25,7 @@ import {
 	renderHeader, renderFooter, padContentLine,
 	type PanelSkin,
 } from "../lib/panel-chrome.ts";
-import { LspClient, type LspDiagnostic, type LspDiagnosticEvent } from "../lib/lsp-client.ts";
+import { LspClient, type LspDiagnostic, type LspDiagnosticEvent, type LspServerConfig } from "../lib/lsp-client.ts";
 
 // ── Panel Manager Access ──
 
@@ -41,6 +44,7 @@ interface Diagnostic {
 	code: string;
 	message: string;
 	severity: "error" | "warning" | "info" | "hint";
+	source: string;
 }
 
 interface FileGroup {
@@ -50,19 +54,35 @@ interface FileGroup {
 	expanded: boolean;
 }
 
-// ── tsc Fallback ──
+// ── Language Detection & Configuration ──
 
-function findTsconfig(cwd: string): string | null {
-	const candidates = [
-		resolve(cwd, "tsconfig.json"),
-		resolve(cwd, "berrygems/tsconfig.json"),
-	];
-	for (const c of candidates) {
-		if (existsSync(c)) return c;
-	}
-	return null;
+interface FallbackConfig {
+	/** Display name for the fallback, e.g. "tsc", "go vet" */
+	name: string;
+	/** Command to run */
+	command: string;
+	/** Args (can reference {cwd} for working directory) */
+	args: string[];
+	/** Parse output into diagnostics */
+	parser: (output: string, cwd: string) => Diagnostic[];
 }
 
+interface LanguageConfig {
+	server: LspServerConfig;
+	fallback?: FallbackConfig;
+}
+
+/** Check if a command exists on PATH. */
+function commandExists(cmd: string): boolean {
+	try {
+		execSync(`which ${cmd}`, { stdio: "pipe", encoding: "utf8" });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Parse tsc output into diagnostics. */
 function parseTscOutput(output: string, cwd: string): Diagnostic[] {
 	const diagnostics: Diagnostic[] = [];
 	for (const line of output.split("\n")) {
@@ -76,28 +96,141 @@ function parseTscOutput(output: string, cwd: string): Diagnostic[] {
 				code: match[4]!,
 				message: match[5]!,
 				severity: "error",
+				source: "tsc",
 			});
 		}
 	}
 	return diagnostics;
 }
 
-function runTsc(cwd: string, tsconfigPath: string): { diagnostics: Diagnostic[]; duration: number } {
+/** Parse go vet / gopls output into diagnostics. */
+function parseGoOutput(output: string, cwd: string): Diagnostic[] {
+	const diagnostics: Diagnostic[] = [];
+	for (const line of output.split("\n")) {
+		// go vet: file.go:line:col: message
+		const match = line.match(/^(.+?\.go):(\d+):(\d+):\s*(.+)$/);
+		if (match) {
+			diagnostics.push({
+				file: resolve(cwd, match[1]!),
+				relPath: relative(cwd, resolve(cwd, match[1]!)),
+				line: parseInt(match[2]!, 10),
+				col: parseInt(match[3]!, 10),
+				code: "",
+				message: match[4]!,
+				severity: "error",
+				source: "go vet",
+			});
+		}
+	}
+	return diagnostics;
+}
+
+/** Find tsconfig.json relative to cwd. */
+function findTsconfig(cwd: string): string | null {
+	const candidates = [
+		resolve(cwd, "tsconfig.json"),
+		resolve(cwd, "berrygems/tsconfig.json"),
+	];
+	for (const c of candidates) {
+		if (existsSync(c)) return c;
+	}
+	return null;
+}
+
+/** Find directories containing Go files. */
+function findGoDirs(cwd: string): string[] {
+	const dirs: string[] = [];
+	const candidates = [".", "dragon-daemon", "cmd", "pkg", "internal"];
+	for (const d of candidates) {
+		const abs = resolve(cwd, d);
+		if (existsSync(resolve(abs, "go.mod"))) {
+			dirs.push(d === "." ? "." : d);
+		}
+	}
+	return dirs;
+}
+
+/** Detect available languages and their configs for a project. */
+function detectLanguages(cwd: string): LanguageConfig[] {
+	const configs: LanguageConfig[] = [];
+
+	// TypeScript
+	const tsconfig = findTsconfig(cwd);
+	if (tsconfig && commandExists("typescript-language-server")) {
+		// Determine watch dirs from tsconfig location
+		const tsconfigRel = relative(cwd, tsconfig);
+		const tsconfigDir = tsconfigRel.includes("/")
+			? tsconfigRel.split("/")[0]!
+			: ".";
+		const watchDirs = tsconfigDir === "."
+			? ["src", "lib", "extensions"]
+			: [`${tsconfigDir}/extensions`, `${tsconfigDir}/lib`];
+
+		configs.push({
+			server: {
+				name: "TypeScript",
+				command: "typescript-language-server",
+				args: ["--stdio"],
+				languageId: "typescript",
+				fileExtensions: [".ts", ".tsx"],
+				watchDirs: watchDirs.filter(d => existsSync(resolve(cwd, d))),
+				initOptions: { tsserver: { path: "" } },
+			},
+			fallback: {
+				name: "tsc",
+				command: "tsc",
+				args: ["--project", tsconfig],
+				parser: parseTscOutput,
+			},
+		});
+	}
+
+	// Go
+	const goDirs = findGoDirs(cwd);
+	if (goDirs.length > 0 && commandExists("gopls")) {
+		configs.push({
+			server: {
+				name: "Go",
+				command: "gopls",
+				args: ["serve"],
+				languageId: "go",
+				fileExtensions: [".go"],
+				watchDirs: goDirs,
+			},
+			fallback: goDirs.length > 0 ? {
+				name: "go vet",
+				command: "go",
+				args: ["vet", "./..."],
+				parser: parseGoOutput,
+			} : undefined,
+		});
+	}
+
+	return configs;
+}
+
+// ── Fallback Runner ──
+
+function runFallback(cwd: string, fallback: FallbackConfig): { diagnostics: Diagnostic[]; duration: number } {
 	const start = Date.now();
 	let output = "";
+
+	// For Go, run in the directory with go.mod
+	const execCwd = fallback.name === "go vet" ? resolve(cwd, "dragon-daemon") : cwd;
+
 	try {
-		execSync(`tsc --project ${tsconfigPath}`, {
-			cwd, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], timeout: 30_000,
+		execSync(`${fallback.command} ${fallback.args.join(" ")}`, {
+			cwd: execCwd, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], timeout: 30_000,
 		});
 	} catch (err: any) {
 		output = (err.stdout ?? "") + (err.stderr ?? "");
 	}
-	return { diagnostics: parseTscOutput(output, cwd), duration: Date.now() - start };
+	return { diagnostics: fallback.parser(output, execCwd), duration: Date.now() - start };
 }
 
 // ── Diagnostic Grouping ──
 
-function groupByFile(diagnostics: Diagnostic[], cwd: string): FileGroup[] {
+function groupByFile(diagnostics: Diagnostic[]): FileGroup[] {
 	const groups = new Map<string, FileGroup>();
 	for (const d of diagnostics) {
 		let group = groups.get(d.file);
@@ -110,27 +243,41 @@ function groupByFile(diagnostics: Diagnostic[], cwd: string): FileGroup[] {
 	return [...groups.values()].sort((a, b) => a.relPath.localeCompare(b.relPath));
 }
 
-// ── LSP Manager (singleton per extension lifecycle) ──
+// ── Multi-Language LSP Manager ──
 
 class LspManager {
-	private client: LspClient | null = null;
+	private clients: Array<{ config: LanguageConfig; client: LspClient }> = [];
 	private watchers: FSWatcher[] = [];
 	private allDiagnostics = new Map<string, LspDiagnostic[]>();
 	private listeners = new Set<() => void>();
 	private cwd: string;
-	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-	private _ready = false;
-	private _starting = false;
-	private _error: string | null = null;
+	private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private _readyServers = new Set<string>();
+	private _startingServers = new Set<string>();
+	private _errors = new Map<string, string>();
+	private _configs: LanguageConfig[] = [];
 
 	constructor(cwd: string) {
 		this.cwd = cwd;
 	}
 
-	get ready(): boolean { return this._ready; }
-	get error(): string | null { return this._error; }
+	get ready(): boolean { return this._readyServers.size > 0; }
+	get starting(): boolean { return this._startingServers.size > 0; }
+	get configs(): LanguageConfig[] { return this._configs; }
 
-	/** Subscribe to diagnostic updates. Returns unsubscribe function. */
+	get statusText(): string {
+		const parts: string[] = [];
+		for (const name of this._readyServers) parts.push(`${name} ✓`);
+		for (const name of this._startingServers) parts.push(`${name} ⏳`);
+		for (const [name] of this._errors) parts.push(`${name} ✗`);
+		return parts.join(" · ") || "No servers";
+	}
+
+	get errorText(): string | null {
+		const errs = [...this._errors.entries()].map(([name, err]) => `${name}: ${err}`);
+		return errs.length > 0 ? errs.join("; ") : null;
+	}
+
 	onUpdate(fn: () => void): () => void {
 		this.listeners.add(fn);
 		return () => this.listeners.delete(fn);
@@ -140,7 +287,6 @@ class LspManager {
 		for (const fn of this.listeners) fn();
 	}
 
-	/** Get all current diagnostics as flat array. */
 	getAllDiagnostics(): Diagnostic[] {
 		const all: Diagnostic[] = [];
 		for (const [, diags] of this.allDiagnostics) {
@@ -150,16 +296,16 @@ class LspManager {
 					relPath: d.relPath,
 					line: d.line,
 					col: d.col,
-					code: d.code ? `TS${d.code}` : "",
+					code: d.code || "",
 					message: d.message,
 					severity: d.severity,
+					source: d.source,
 				});
 			}
 		}
 		return all;
 	}
 
-	/** Get error count. */
 	getErrorCount(): number {
 		let count = 0;
 		for (const [, diags] of this.allDiagnostics) {
@@ -168,7 +314,6 @@ class LspManager {
 		return count;
 	}
 
-	/** Get total diagnostic count. */
 	getTotalCount(): number {
 		let count = 0;
 		for (const [, diags] of this.allDiagnostics) {
@@ -177,101 +322,122 @@ class LspManager {
 		return count;
 	}
 
-	/** Start the LSP server and file watchers. */
+	/** Detect languages and start all available LSP servers. */
 	async start(): Promise<void> {
-		if (this._ready || this._starting) return;
-		this._starting = true;
-		this._error = null;
+		this._configs = detectLanguages(this.cwd);
+
+		if (this._configs.length === 0) {
+			this._errors.set("detect", "No supported languages found");
+			this.notifyListeners();
+			return;
+		}
+
+		const startPromises = this._configs.map(config => this.startServer(config));
+		await Promise.allSettled(startPromises);
+	}
+
+	private async startServer(config: LanguageConfig): Promise<void> {
+		const name = config.server.name;
+		this._startingServers.add(name);
+		this.notifyListeners();
 
 		try {
-			this.client = new LspClient(this.cwd);
+			const client = new LspClient(this.cwd, config.server);
 
-			this.client.on("diagnostics", (event: LspDiagnosticEvent) => {
-				this.allDiagnostics.set(event.uri, event.diagnostics);
+			client.on("diagnostics", (event: LspDiagnosticEvent) => {
+				// Key by source+uri to keep servers' diagnostics separate
+				const key = `${event.source}:${event.uri}`;
+				this.allDiagnostics.set(key, event.diagnostics);
 				this.notifyListeners();
 			});
 
-			this.client.on("error", (err: Error) => {
-				this._error = err.message;
+			client.on("error", (err: Error) => {
+				this._errors.set(name, err.message);
 				this.notifyListeners();
 			});
 
-			this.client.on("exit", (code: number) => {
-				if (!this._ready) return;
-				this._ready = false;
-				this._error = `LSP exited with code ${code}`;
+			client.on("exit", (code: number) => {
+				this._readyServers.delete(name);
+				this._errors.set(name, `exited with code ${code}`);
 				this.notifyListeners();
 			});
 
-			await this.client.start();
-			this._ready = true;
-			this._starting = false;
+			await client.start();
+			this._startingServers.delete(name);
+			this._readyServers.add(name);
+			this.clients.push({ config, client });
 
-			// Open all TS files in berrygems
-			this.client.openDirectory("berrygems/extensions");
-			this.client.openDirectory("berrygems/lib");
+			// Open configured directories
+			for (const dir of config.server.watchDirs) {
+				client.openDirectory(dir);
+			}
 
 			// Watch for file changes
-			this.watchDirectory("berrygems/extensions");
-			this.watchDirectory("berrygems/lib");
+			for (const dir of config.server.watchDirs) {
+				this.watchDirectory(dir, config.server.fileExtensions, client);
+			}
 
 			this.notifyListeners();
 		} catch (err: any) {
-			this._starting = false;
-			this._error = `Failed to start LSP: ${err.message}`;
+			this._startingServers.delete(name);
+			this._errors.set(name, `Failed to start: ${err.message}`);
 			this.notifyListeners();
 		}
 	}
 
-	private watchDirectory(dir: string): void {
+	private watchDirectory(dir: string, extensions: string[], client: LspClient): void {
 		const absDir = resolve(this.cwd, dir);
 		if (!existsSync(absDir)) return;
 
 		try {
 			const watcher = watch(absDir, { recursive: true }, (_event, filename) => {
-				if (!filename?.endsWith(".ts")) return;
-				this.handleFileChange(resolve(absDir, filename));
+				if (!filename || !extensions.some(ext => filename.endsWith(ext))) return;
+				this.handleFileChange(resolve(absDir, filename), client);
 			});
 			this.watchers.push(watcher);
 		} catch {
-			// fs.watch may not support recursive on all platforms
-			// Fall back to non-recursive
 			try {
 				const watcher = watch(absDir, (_event, filename) => {
-					if (!filename?.endsWith(".ts")) return;
-					this.handleFileChange(resolve(absDir, filename));
+					if (!filename || !extensions.some(ext => filename.endsWith(ext))) return;
+					this.handleFileChange(resolve(absDir, filename), client);
 				});
 				this.watchers.push(watcher);
 			} catch { /* give up on watching this dir */ }
 		}
 	}
 
-	private handleFileChange(filePath: string): void {
-		// Debounce: wait 300ms after last change before notifying LSP
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
-		this.debounceTimer = setTimeout(() => {
-			if (this.client?.isReady) {
-				const rel = relative(this.cwd, filePath);
-				this.client.notifySaved(rel);
+	private handleFileChange(filePath: string, client: LspClient): void {
+		const key = filePath;
+		const existing = this.debounceTimers.get(key);
+		if (existing) clearTimeout(existing);
+		this.debounceTimers.set(key, setTimeout(() => {
+			this.debounceTimers.delete(key);
+			if (client.isReady) {
+				client.notifySaved(relative(this.cwd, filePath));
 			}
-		}, 300);
+		}, 300));
 	}
 
-	/** Force a refresh by re-reading all open files. */
+	/** Force a refresh of all servers. */
 	refresh(): void {
-		if (this.client?.isReady) {
-			this.client.openDirectory("berrygems/extensions");
-			this.client.openDirectory("berrygems/lib");
+		for (const { config, client } of this.clients) {
+			if (client.isReady) {
+				for (const dir of config.server.watchDirs) {
+					client.openDirectory(dir);
+				}
+			}
 		}
 	}
 
 	async dispose(): Promise<void> {
 		for (const w of this.watchers) w.close();
 		this.watchers = [];
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
-		await this.client?.dispose();
-		this.client = null;
-		this._ready = false;
+		for (const [, timer] of this.debounceTimers) clearTimeout(timer);
+		this.debounceTimers.clear();
+		await Promise.allSettled(this.clients.map(({ client }) => client.dispose()));
+		this.clients = [];
+		this._readyServers.clear();
+		this._startingServers.clear();
 		this.listeners.clear();
 		this.allDiagnostics.clear();
 	}
@@ -291,7 +457,8 @@ class LintPanelComponent {
 	private selectedIndex = 0;
 	private cache: string[] | null = null;
 	private unsubscribe: (() => void) | null = null;
-	private mode: "lsp" | "tsc" = "lsp";
+	private mode: "lsp" | "fallback" = "lsp";
+	private fallbackName = "";
 
 	constructor(options: { panelCtx: any; cwd: string; lsp: LspManager }) {
 		this.panelCtx = options.panelCtx;
@@ -300,14 +467,14 @@ class LintPanelComponent {
 		this.theme = options.panelCtx.theme;
 		this.tui = options.panelCtx.tui;
 
-		// Subscribe to LSP diagnostic updates
 		this.unsubscribe = this.lsp.onUpdate(() => {
-			this.rebuildFromLsp();
-			this.cache = null;
-			this.tui?.requestRender();
+			if (this.mode === "lsp") {
+				this.rebuildFromLsp();
+				this.cache = null;
+				this.tui?.requestRender();
+			}
 		});
 
-		// Initial rebuild if LSP already has data
 		if (this.lsp.ready) {
 			this.rebuildFromLsp();
 		}
@@ -319,11 +486,9 @@ class LintPanelComponent {
 		this.totalDiagnostics = this.lsp.getTotalCount();
 		this.mode = "lsp";
 
-		// Rebuild groups, preserving expansion state
 		const oldExpanded = new Set(this.groups.filter(g => g.expanded).map(g => g.relPath));
-		this.groups = groupByFile(all, this.cwd);
+		this.groups = groupByFile(all);
 
-		// Restore expansion — auto-expand if few groups
 		if (oldExpanded.size > 0) {
 			for (const g of this.groups) {
 				if (oldExpanded.has(g.relPath)) g.expanded = true;
@@ -333,20 +498,26 @@ class LintPanelComponent {
 		}
 	}
 
-	/** Fallback: run tsc directly. */
-	runTscFallback(): void {
-		const tsconfig = findTsconfig(this.cwd);
-		if (!tsconfig) return;
+	/** Fallback: run all configured fallback commands. */
+	runFallbacks(): void {
+		const configs = this.lsp.configs;
+		const withFallback = configs.filter(c => c.fallback);
+		if (withFallback.length === 0) return;
 
-		this.mode = "tsc";
+		this.mode = "fallback";
+		this.fallbackName = withFallback.map(c => c.fallback!.name).join(" + ");
 		this.cache = null;
 		this.tui?.requestRender();
 
 		setTimeout(() => {
-			const result = runTsc(this.cwd, tsconfig);
-			this.groups = groupByFile(result.diagnostics, this.cwd);
-			this.totalErrors = result.diagnostics.length;
-			this.totalDiagnostics = result.diagnostics.length;
+			const allDiags: Diagnostic[] = [];
+			for (const config of withFallback) {
+				const result = runFallback(this.cwd, config.fallback!);
+				allDiags.push(...result.diagnostics);
+			}
+			this.groups = groupByFile(allDiags);
+			this.totalErrors = allDiags.filter(d => d.severity === "error").length;
+			this.totalDiagnostics = allDiags.length;
 			if (this.groups.length <= 3) {
 				for (const g of this.groups) g.expanded = true;
 			}
@@ -361,9 +532,8 @@ class LintPanelComponent {
 			return;
 		}
 		if (matchesKey(data, "t")) {
-			// Toggle between LSP and tsc mode
 			if (this.mode === "lsp") {
-				this.runTscFallback();
+				this.runFallbacks();
 			} else {
 				this.rebuildFromLsp();
 				this.cache = null;
@@ -429,12 +599,17 @@ class LintPanelComponent {
 		const skin: PanelSkin = this.panelCtx.skin();
 		const focused = this.panelCtx.isFocused();
 
-		const modeLabel = this.mode === "lsp" ? "LSP" : "tsc";
-		const statusIcon = !this.lsp.ready && this.mode === "lsp"
+		const modeLabel = this.mode === "lsp" ? "LSP" : this.fallbackName || "fallback";
+		const isStarting = !this.lsp.ready && this.lsp.starting && this.mode === "lsp";
+		const statusIcon = isStarting
 			? "⏳"
 			: this.totalErrors === 0
 				? "✅"
 				: "⚠️";
+
+		const toggleLabel = this.mode === "lsp"
+			? (this.fallbackName || "fallback")
+			: "lsp";
 
 		const chromeOpts = {
 			theme: th,
@@ -444,30 +619,38 @@ class LintPanelComponent {
 				? `${statusIcon} Lint — Clean`
 				: `${statusIcon} Lint — ${this.totalErrors} error${this.totalErrors === 1 ? "" : "s"}`,
 			footerHint: focused
-				? `r refresh · t ${this.mode === "lsp" ? "tsc" : "lsp"} · j/k · ⏎`
+				? `r refresh · t ${toggleLabel} · j/k · ⏎`
 				: undefined,
 			scrollInfo: this.totalDiagnostics > 0
 				? `${modeLabel} · ${this.totalDiagnostics} total`
-				: modeLabel,
+				: this.lsp.statusText || modeLabel,
 		};
 
 		const lines: string[] = [];
 		lines.push(...renderHeader(width, chromeOpts));
 
-		if (!this.lsp.ready && this.mode === "lsp") {
-			const status = this.lsp.error
-				? th.fg("error", `  ${this.lsp.error}`)
-				: th.fg("dim", "  Starting LSP...");
+		if (isStarting) {
+			const status = this.lsp.errorText
+				? th.fg("error" as any, `  ${this.lsp.errorText}`)
+				: th.fg("dim", `  ${this.lsp.statusText || "Starting LSP..."}`);
 			lines.push(padContentLine(status, width, chromeOpts));
 			lines.push(padContentLine("", width, chromeOpts));
-		} else if (this.totalErrors === 0) {
-			lines.push(padContentLine(th.fg("success", "  All clear! No type errors."), width, chromeOpts));
-			if (this.totalDiagnostics > 0) {
+		} else if (this.totalDiagnostics === 0) {
+			lines.push(padContentLine(th.fg("success", "  All clear! No diagnostics."), width, chromeOpts));
+			if (this.lsp.ready) {
 				lines.push(padContentLine(
-					th.fg("dim", `  ${this.totalDiagnostics} warning(s)/hint(s)`),
+					th.fg("dim", `  ${this.lsp.statusText}`),
 					width, chromeOpts,
 				));
 			}
+			lines.push(padContentLine("", width, chromeOpts));
+		} else if (this.totalErrors === 0) {
+			lines.push(padContentLine(th.fg("success", "  No errors!"), width, chromeOpts));
+			const nonErrors = this.totalDiagnostics;
+			lines.push(padContentLine(
+				th.fg("dim", `  ${nonErrors} ${nonErrors === 1 ? "warning" : "warnings"}`),
+				width, chromeOpts,
+			));
 			lines.push(padContentLine("", width, chromeOpts));
 		} else {
 			let selectIdx = 0;
@@ -495,10 +678,11 @@ class LintPanelComponent {
 						const dPrefix = isDiagSelected && focused ? th.fg("accent", "  ▶ ") : "    ";
 						const loc = th.fg("dim", `${d.line}:${d.col}`);
 						const sevColor = d.severity === "error" ? "error" : d.severity === "warning" ? "warning" : "dim";
-						const code = th.fg(sevColor as any, d.code);
+						const code = d.code ? th.fg(sevColor as any, d.code) : "";
+						const sourceTag = this.lsp.configs.length > 1 ? th.fg("dim", ` [${d.source}]`) : "";
 
 						lines.push(padContentLine(
-							`${dPrefix}${loc} ${code} ${d.message}`,
+							`${dPrefix}${loc} ${code} ${d.message}${sourceTag}`,
 							width, chromeOpts,
 						));
 						selectIdx++;
@@ -519,11 +703,9 @@ class LintPanelComponent {
 
 const LintParams = Type.Object({
 	action: StringEnum(["check", "open", "close"] as const, {
-		description: "check: run tsc and return results. open: show lint panel. close: hide lint panel.",
+		description: "check: run type/lint checks and return results. open: show lint panel with live LSP diagnostics. close: hide lint panel.",
 	}),
 });
-
-type LintInput = Static<typeof LintParams>;
 
 // ── Extension ──
 
@@ -577,13 +759,45 @@ export default function lintPanel(pi: ExtensionAPI): void {
 		return false;
 	}
 
+	/**
+	 * Run a check: prefer LSP diagnostics if available, fall back to compiler commands.
+	 * Returns diagnostics from whichever source responds.
+	 */
+	function runCheck(cwd: string): { diagnostics: Diagnostic[]; source: string; duration: number } {
+		// If LSP is running and has data, use it
+		if (lspManager?.ready) {
+			const diags = lspManager.getAllDiagnostics();
+			return { diagnostics: diags, source: "LSP", duration: 0 };
+		}
+
+		// Otherwise, run all fallback commands
+		const configs = detectLanguages(cwd);
+		const allDiags: Diagnostic[] = [];
+		const sources: string[] = [];
+		const start = Date.now();
+
+		for (const config of configs) {
+			if (config.fallback) {
+				const result = runFallback(cwd, config.fallback);
+				allDiags.push(...result.diagnostics);
+				sources.push(config.fallback.name);
+			}
+		}
+
+		return {
+			diagnostics: allDiags,
+			source: sources.join(" + ") || "no tools found",
+			duration: Date.now() - start,
+		};
+	}
+
 	pi.registerTool({
 		name: "lint",
 		label: "Lint",
 		description:
-			"Run TypeScript type checking and show results. Use 'check' to get diagnostics as text, 'open' to show a persistent floating panel, 'close' to hide it.",
+			"Run type/lint checking and show results. Uses LSP servers when available, falls back to compiler commands. Supports TypeScript and Go. Use 'check' to get diagnostics as text, 'open' to show a persistent floating panel, 'close' to hide it.",
 		promptSnippet:
-			"Run TypeScript type checking (tsc) and show/manage diagnostic results",
+			"Run type/lint checking (LSP + compiler fallback) and show/manage diagnostic results",
 		promptGuidelines: [
 			"Use 'check' before committing to verify no type errors",
 			"Use 'open' to keep a persistent lint panel visible while working",
@@ -592,34 +806,38 @@ export default function lintPanel(pi: ExtensionAPI): void {
 		parameters: LintParams,
 
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const panels = getPanels();
 			const cwd = ctx.cwd;
 
 			if (params.action === "check") {
-				const tsconfig = findTsconfig(cwd);
-				if (!tsconfig) {
-					return {
-						content: [{ type: "text" as const, text: "No tsconfig.json found in project" }],
-						details: { action: "check", found: false },
-					};
-				}
-
-				const result = runTsc(cwd, tsconfig);
-				const groups = groupByFile(result.diagnostics, cwd);
+				const result = runCheck(cwd);
 
 				if (result.diagnostics.length === 0) {
+					const timing = result.duration > 0 ? ` (${result.duration}ms)` : "";
 					return {
-						content: [{ type: "text" as const, text: `✅ No type errors (${result.duration}ms)` }],
-						details: { action: "check", errors: 0, duration: result.duration },
+						content: [{ type: "text" as const, text: `✅ No diagnostics via ${result.source}${timing}` }],
+						details: { action: "check", errors: 0, source: result.source, duration: result.duration },
 					};
 				}
 
+				const errors = result.diagnostics.filter(d => d.severity === "error");
+				const warnings = result.diagnostics.filter(d => d.severity !== "error");
+				const groups = groupByFile(result.diagnostics);
+				const timing = result.duration > 0 ? ` (${result.duration}ms)` : "";
+
 				const lines: string[] = [];
-				lines.push(`⚠️ ${result.diagnostics.length} type error(s) found (${result.duration}ms)\n`);
+				if (errors.length > 0) {
+					lines.push(`⚠️ ${errors.length} error${errors.length === 1 ? "" : "s"} via ${result.source}${timing}`);
+				}
+				if (warnings.length > 0) {
+					lines.push(`${errors.length === 0 ? "📋" : ""} ${warnings.length} warning${warnings.length === 1 ? "" : "s"}`);
+				}
+				lines.push("");
+
 				for (const group of groups) {
 					lines.push(`## ${group.relPath} (${group.diagnostics.length})`);
 					for (const d of group.diagnostics) {
-						lines.push(`  ${d.line}:${d.col} ${d.code} ${d.message}`);
+						const sev = d.severity === "error" ? "E" : "W";
+						lines.push(`  ${d.line}:${d.col} ${d.code} [${sev}] ${d.message}`);
 					}
 					lines.push("");
 				}
@@ -628,7 +846,9 @@ export default function lintPanel(pi: ExtensionAPI): void {
 					content: [{ type: "text" as const, text: lines.join("\n") }],
 					details: {
 						action: "check",
-						errors: result.diagnostics.length,
+						errors: errors.length,
+						warnings: warnings.length,
+						source: result.source,
 						duration: result.duration,
 						files: groups.map(g => ({ path: g.relPath, count: g.diagnostics.length })),
 					},
@@ -637,9 +857,11 @@ export default function lintPanel(pi: ExtensionAPI): void {
 
 			if (params.action === "open") {
 				const success = openPanel(cwd);
+				const langs = detectLanguages(cwd);
+				const serverNames = langs.map(l => l.server.name).join(", ");
 				return {
-					content: [{ type: "text" as const, text: success ? "Opened lint panel — LSP connecting..." : "Panel manager not available" }],
-					details: { action: "open", success, mode: "lsp" },
+					content: [{ type: "text" as const, text: success ? `Opened lint panel — connecting to ${serverNames || "no servers detected"}...` : "Panel manager not available" }],
+					details: { action: "open", success, languages: langs.map(l => l.server.name) },
 				};
 			}
 
@@ -660,26 +882,29 @@ export default function lintPanel(pi: ExtensionAPI): void {
 
 	// Register /lint command
 	pi.registerCommand("lint", {
-		description: "Run type check or manage lint panel (check|open|close)",
+		description: "Run diagnostics or manage lint panel (check|open|close)",
 		handler: async (args, ctx) => {
 			const action = (args ?? "").trim() || "check";
 			if (action === "open") {
 				const ok = openPanel(ctx.cwd);
-				ctx.ui.notify(ok ? "Lint panel opened — LSP connecting..." : "Panel manager not available", ok ? "info" : "warning");
+				const langs = detectLanguages(ctx.cwd);
+				const names = langs.map(l => l.server.name).join(", ");
+				ctx.ui.notify(ok ? `Lint panel — ${names || "no languages detected"}` : "Panel manager not available", ok ? "info" : "warning");
 			} else if (action === "close") {
 				const ok = closePanel();
 				ctx.ui.notify(ok ? "Closed lint panel" : "No lint panel open", "info");
 			} else {
-				const tsconfig = findTsconfig(ctx.cwd);
-				if (!tsconfig) {
-					ctx.ui.notify("No tsconfig.json found", "warning");
-					return;
-				}
-				const result = runTsc(ctx.cwd, tsconfig);
+				const result = runCheck(ctx.cwd);
 				if (result.diagnostics.length === 0) {
-					ctx.ui.notify(`✅ No type errors (${result.duration}ms)`, "info");
+					const timing = result.duration > 0 ? ` (${result.duration}ms)` : "";
+					ctx.ui.notify(`✅ Clean — ${result.source}${timing}`, "info");
 				} else {
-					ctx.ui.notify(`⚠️ ${result.diagnostics.length} error(s) (${result.duration}ms)`, "warning");
+					const errors = result.diagnostics.filter(d => d.severity === "error").length;
+					const warnings = result.diagnostics.length - errors;
+					const parts = [];
+					if (errors > 0) parts.push(`${errors} error${errors === 1 ? "" : "s"}`);
+					if (warnings > 0) parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
+					ctx.ui.notify(`⚠️ ${parts.join(", ")} — ${result.source}`, "warning");
 				}
 			}
 		},
