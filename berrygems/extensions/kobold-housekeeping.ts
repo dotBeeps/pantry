@@ -13,24 +13,22 @@
  * A small dog and a large dragon made this together.
  */
 
-import { StringEnum, complete, type Context } from "@mariozechner/pi-ai";
+import { StringEnum } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
+import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { Type } from "@sinclair/typebox";
+import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
+import { IMAGE_SIZES, resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
+import { fetchGiphyImage, generateVibeQuery, clearVibeCache } from "../lib/giphy-source.ts";
+
 // ── Panel Manager Access ──
 // hoard-gallery API is published to globalThis by hoard-gallery.ts extension.
 // No direct imports — avoids jiti module isolation issues.
 const PANELS_KEY = Symbol.for("hoard.gallery");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
-import {
-	matchesKey, Key, Text, truncateToWidth, visibleWidth,
-	calculateImageRows, getCellDimensions, getGifDimensions,
-} from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
-import { execSync } from "node:child_process";
-import { readFileSync, readdirSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmdirSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { readHoardSetting } from "../lib/settings.ts";
 
 // ── Types ──
 
@@ -51,352 +49,16 @@ interface PanelContext {
 	isFocused: () => boolean;
 }
 
-interface GifFrames {
-	frames: string[];   // base64 PNG per frame
-	delays: number[];   // ms per frame
-	widthPx: number;
-	heightPx: number;
-}
 
-/** Per-panel mascot state */
-interface MascotState {
-	imageId: number;
-	cols: number;
-	rows: number;
-	gifData: GifFrames;
-	currentFrame: number;
-	interval: ReturnType<typeof setInterval> | null;
-}
 
 // ── Constants ──
 
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
-const DEFAULT_GIF_RATING = "r";
-const VALID_RATINGS = ["g", "pg", "pg-13", "r"];
-
-// ── Settings ──
-
-
-
-
-
-// ── GIF Constants ──
-
-const GIPHY_API_KEY = "GlVGYHkr3WSBnllca54iNt0yFbjz7L65";
-const GIPHY_STICKER_URL = "https://api.giphy.com/v1/stickers/search";
-const GIPHY_GIF_URL = "https://api.giphy.com/v1/gifs/search";
-
-// Client-side AI content filter — skip results matching these in title/username/slug
-const AI_BLOCK_WORDS = [
-	"ai", "generated", "midjourney", "dalle", "stable diffusion",
-	"dreamimaginations", "aiart", "artificial", "neural", "deepdream",
-];
-const GIF_SIZE_VARIANT = "fixed_width";
-const DEFAULT_GIF_CELLS_W = 16;
-const DEFAULT_GIF_CELLS_H = 8;
-
-/** Named GIF sizes — maps to max cell dimensions [width, height] */
-const GIF_SIZES: Record<string, [number, number]> = {
-	tiny:   [8,  4],
-	small:  [12, 6],
-	medium: [16, 8],
-	large:  [22, 11],
-	huge:   [30, 15],
-};
-const DEFAULT_FRAME_DELAY_MS = 80;
-const MIN_FRAME_DELAY_MS = 50;
-const VIBE_MODEL = "anthropic/claude-haiku-4-5";
-const VIBE_TIMEOUT_MS = 4000;
-
-// Fallback search terms — used when the AI vibe generator isn't available.
-// Keep queries to 2-3 broad words — sticker API has a small pool,
-// over-specific queries return 0 results.
-const TAG_SEARCH_FALLBACK: Record<string, string> = {
-	bugs: "furry computer",
-	sprint: "furry running",
-	done: "furry happy dance",
-	blocked: "furry sleepy",
-	review: "furry detective",
-	urgent: "furry panic",
-	feature: "furry building",
-	refactor: "furry cleaning",
-	test: "furry science",
-	docs: "furry typing",
-	all: "furry coding",
-};
-
-// Prompt for AI vibe-matched GIF search.
-// Kept short for Haiku — we want 2-4 word Giphy queries, not essays.
-const DEFAULT_VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's animated sticker.
-The panel belongs to a tiny candy-flavored dog (dot) and a big cozy dragon (Ember).
-Aesthetic: furry art, toony animals, cute cartoon characters.
-
-Panel tag: "{tag}"
-Todo items:
-{todos}
-
-Respond with ONLY a 2-3 word Giphy search query. No quotes, no explanation.
-The first word MUST be "furry". Keep it short — Giphy's sticker pool is small, specific queries return nothing.
-Loosely relate to the work. Prefer dogs, wolves, foxes, dragons.
-Examples: "furry coding", "furry sleepy", "furry panic", "furry celebrate", "furry detective"`;
-
-/** Read the vibe prompt from settings, falling back to built-in default.
- *  Supports placeholders: {tag}, {todos} */
-function getVibePrompt(): string {
-	return readHoardSetting<string>("todos.gifVibePrompt", DEFAULT_VIBE_PROMPT);
-}
-
-// ── Kitty Unicode Placeholder Constants ──
-// U+10EEEE is Kitty's designated placeholder character.
-// Combined with row/column diacritics, it tells Kitty where to render a virtual image.
-// See: https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders
-
-const PLACEHOLDER_CHAR = "\u{10EEEE}";
-const DIACRITICS = [
-	0x0305, 0x030D, 0x030E, 0x0310, 0x0312, 0x033D, 0x033E, 0x033F,
-	0x0346, 0x034A, 0x034B, 0x034C, 0x0350, 0x0351, 0x0352, 0x0357,
-	0x035B, 0x0363, 0x0364, 0x0365, 0x0366, 0x0367, 0x0368, 0x0369,
-	0x036A, 0x036B, 0x036C, 0x036D, 0x036E, 0x036F, 0x0483, 0x0484,
-	0x0485, 0x0486, 0x0487, 0x0592, 0x0593, 0x0594, 0x0595, 0x0597,
-	0x0598, 0x0599, 0x059C, 0x059D, 0x059E, 0x059F, 0x05A0,
-];
-
-// Sequential IDs 1–200 for 256-color fg encoding
-let nextMascotId = 1;
-function allocateMascotId(): number {
-	const id = nextMascotId;
-	nextMascotId = (nextMascotId % 200) + 1;
-	return id;
-}
-
-// ── Kitty Protocol Helpers ──
-
-/**
- * Transmit a single PNG frame to Kitty's memory as a virtual placement.
- * Uses U=1 for Unicode placeholder display, q=2 to suppress responses.
- * The image is NOT rendered at cursor position — it only appears where
- * placeholder characters with matching foreground color exist.
- *
- * Written as a single process.stdout.write() to minimize interleave risk
- * with the TUI's own output buffer.
- */
-function transmitFrame(imageId: number, base64Data: string, cols: number, rows: number): void {
-	const CHUNK = 4096;
-	const params = `a=T,U=1,f=100,q=2,i=${imageId},c=${cols},r=${rows}`;
-	let buf: string;
-
-	if (base64Data.length <= CHUNK) {
-		buf = `\x1b_G${params};${base64Data}\x1b\\`;
-	} else {
-		const parts: string[] = [];
-		let offset = 0;
-		let first = true;
-		while (offset < base64Data.length) {
-			const chunk = base64Data.slice(offset, offset + CHUNK);
-			const isLast = offset + CHUNK >= base64Data.length;
-			if (first) {
-				parts.push(`\x1b_G${params},m=1;${chunk}\x1b\\`);
-				first = false;
-			} else if (isLast) {
-				parts.push(`\x1b_Gm=0;${chunk}\x1b\\`);
-			} else {
-				parts.push(`\x1b_Gm=1;${chunk}\x1b\\`);
-			}
-			offset += CHUNK;
-		}
-		buf = parts.join("");
-	}
-
-	process.stdout.write(buf);
-}
-
-/** Delete a Kitty image by ID, freeing memory. */
-function deleteKittyImage(imageId: number): void {
-	process.stdout.write(`\x1b_Ga=d,d=I,i=${imageId}\x1b\\`);
-}
-
-/**
- * Build Unicode placeholder lines for a virtual Kitty image.
- * Each grapheme cluster is U+10EEEE + row diacritic + column diacritic.
- * The foreground color encodes the image ID (256-color mode for IDs ≤ 255).
- * visibleWidth() correctly measures each cluster as width 1.
- * Intl.Segmenter keeps clusters intact during compositor slicing.
- */
-function buildPlaceholderLines(imageId: number, cols: number, rows: number): string[] {
-	const fgSet = imageId <= 255
-		? `\x1b[38;5;${imageId}m`
-		: `\x1b[38;2;${imageId & 0xFF};${(imageId >> 8) & 0xFF};${(imageId >> 16) & 0xFF}m`;
-	const fgReset = "\x1b[39m";
-	const lines: string[] = [];
-	for (let row = 0; row < rows; row++) {
-		let line = fgSet;
-		for (let col = 0; col < cols; col++) {
-			line += PLACEHOLDER_CHAR
-				+ String.fromCodePoint(DIACRITICS[row] ?? DIACRITICS[0]!)
-				+ String.fromCodePoint(DIACRITICS[col] ?? DIACRITICS[0]!);
-		}
-		line += fgReset;
-		lines.push(line);
-	}
-	return lines;
-}
-
-// ── AI Vibe Search Generator ──
-
-// Module-level ref to ExtensionContext for model registry access.
+// ── Module-level ExtensionContext ref ──
 // Set once during session_start, used by generateVibeQuery().
 let extCtxRef: ExtensionContext | null = null;
-
-// Cache: tag → generated query (avoid repeated API calls for same panel)
-const vibeQueryCache = new Map<string, { query: string; timestamp: number }>();
-
-/**
- * Ask a lightweight model to generate a Giphy search query based on
- * the actual todo content and our vibes (smol dog + big dragon + cozy coding).
- * Falls back to TAG_SEARCH_FALLBACK if the model isn't available or times out.
- */
-async function generateVibeQuery(tag: string, todos: TodoFile[]): Promise<string> {
-	// Check cache first (reuse for 10 minutes)
-	const cached = vibeQueryCache.get(tag);
-	if (cached && Date.now() - cached.timestamp < 10 * 60 * 1000) return cached.query;
-
-	// Need ExtensionContext for model registry
-	if (!extCtxRef) return getFallbackQuery(tag);
-
-	try {
-		// Resolve model
-		const slashIdx = VIBE_MODEL.indexOf("/");
-		const provider = VIBE_MODEL.slice(0, slashIdx);
-		const modelId = VIBE_MODEL.slice(slashIdx + 1);
-		const model = extCtxRef.modelRegistry.find(provider, modelId);
-		if (!model) return getFallbackQuery(tag);
-
-		// Get auth
-		const auth = await extCtxRef.modelRegistry.getApiKeyAndHeaders(model);
-		if (!auth.ok) return getFallbackQuery(tag);
-
-		// Build prompt with actual todo content
-		const todoSummary = todos.length > 0
-			? todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
-			: "(empty — no todos yet)";
-		const prompt = getVibePrompt()
-			.replace("{tag}", tag)
-			.replace("{todos}", todoSummary);
-
-		const aiContext: Context = {
-			messages: [{
-				role: "user",
-				content: [{ type: "text", text: prompt }],
-				timestamp: Date.now(),
-			}],
-		};
-
-		const signal = AbortSignal.timeout(VIBE_TIMEOUT_MS);
-		const response = await complete(model, aiContext, { apiKey: auth.apiKey, headers: auth.headers, signal });
-		const textContent = response.content.find(c => c.type === "text");
-		let query = textContent?.text?.trim().split("\n")[0]?.trim() ?? "";
-
-		// Clean up: remove quotes, limit length
-		query = query.replace(/^["']|["']$/g, "").slice(0, 60);
-		if (!query || query.length < 3) return getFallbackQuery(tag);
-
-		vibeQueryCache.set(tag, { query, timestamp: Date.now() });
-		return query;
-	} catch (err) {
-		console.debug("[todo-gif] Vibe generation failed:", err);
-		return getFallbackQuery(tag);
-	}
-}
-
-function getFallbackQuery(tag: string): string {
-	return TAG_SEARCH_FALLBACK[tag.toLowerCase()] ?? `furry ${tag}`;
-}
-
-// ── GIF Fetching & Frame Extraction ──
-
-interface GiphyResult {
-	title: string;
-	username: string;
-	slug: string;
-	images: Record<string, { url?: string }>;
-}
-
-/** Check if a result looks like AI-generated content. */
-function isLikelyAI(result: GiphyResult): boolean {
-	const haystack = `${result.title} ${result.username} ${result.slug}`.toLowerCase();
-	return AI_BLOCK_WORDS.some(w => haystack.includes(w));
-}
-
-/** Pick a random non-AI result from a list. */
-function pickCleanResult(results: GiphyResult[]): string | null {
-	const clean = results.filter(r => !isLikelyAI(r));
-	if (!clean.length) return null;
-	const pick = clean[Math.floor(Math.random() * clean.length)]!;
-	return pick.images?.[GIF_SIZE_VARIANT]?.url ?? null;
-}
-
-/**
- * Search Giphy for a GIF. Tries stickers first (hand-drawn, toony),
- * falls back to regular GIFs if stickers return too few results.
- * Filters out suspected AI-generated content client-side.
- */
-async function searchGiphy(query: string): Promise<string | null> {
-	try {
-		const rating = readHoardSetting<string>("todos.gifRating", DEFAULT_GIF_RATING);
-		const validRating = VALID_RATINGS.includes(rating) ? rating : DEFAULT_GIF_RATING;
-		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: validRating });
-
-		// Try stickers first — inherently toony/hand-drawn
-		const stickerRes = await fetch(`${GIPHY_STICKER_URL}?${params}`);
-		if (stickerRes.ok) {
-			const stickerData = (await stickerRes.json()) as { data: GiphyResult[] };
-			const url = pickCleanResult(stickerData.data ?? []);
-			if (url) return url;
-		}
-
-		// Fall back to regular GIFs
-		const gifRes = await fetch(`${GIPHY_GIF_URL}?${params}`);
-		if (!gifRes.ok) return null;
-		const gifData = (await gifRes.json()) as { data: GiphyResult[] };
-		return pickCleanResult(gifData.data ?? []);
-	} catch { return null; }
-}
-
-async function downloadGif(url: string): Promise<Buffer | null> {
-	try {
-		const r = await fetch(url);
-		return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
-	} catch { return null; }
-}
-
-function extractFrames(gifBuffer: Buffer): { frames: string[]; delays: number[] } | null {
-	const dir = join(tmpdir(), `todo-gif-${Date.now()}`);
-	try {
-		mkdirSync(dir, { recursive: true });
-		const gifPath = join(dir, "input.gif");
-		writeFileSync(gifPath, gifBuffer);
-
-		let delays: number[] = [];
-		try {
-			delays = execSync(`magick identify -format "%T\\n" "${gifPath}"`, { encoding: "utf-8", timeout: 5000 })
-				.trim().split("\n")
-				.map(d => { const v = parseInt(d, 10); return v > 0 ? v * 10 : DEFAULT_FRAME_DELAY_MS; });
-		} catch {}
-
-		execSync(`magick "${gifPath}" -coalesce "${join(dir, "frame_%04d.png")}"`, { timeout: 15000 });
-		const files = readdirSync(dir).filter(f => f.startsWith("frame_") && f.endsWith(".png")).sort();
-		if (!files.length) return null;
-
-		const frames = files.map(f => readFileSync(join(dir, f)).toString("base64"));
-		while (delays.length < frames.length) delays.push(DEFAULT_FRAME_DELAY_MS);
-		return { frames, delays: delays.slice(0, frames.length) };
-	} catch { return null; }
-	finally {
-		try { if (existsSync(dir)) { for (const f of readdirSync(dir)) unlinkSync(join(dir, f)); rmdirSync(dir); } } catch {}
-	}
-}
 
 // ── Todo File I/O ──
 
@@ -481,19 +143,19 @@ class TodoPanelComponent {
 	private cachedLines?: string[];
 
 	// GIF mascot state
-	private mascot: MascotState | null = null;
-	private gifCache: Map<string, GifFrames>;
+	private mascot: AnimatedImagePlayer | null = null;
+	private imageCache: Map<string, ImageFrames>;
 	private gifMaxW: number;
 	private gifMaxH: number;
 
-	constructor(panelCtx: PanelContext, tag: string, gifCache: Map<string, GifFrames>, gifSize?: string) {
+	constructor(panelCtx: PanelContext, tag: string, imageCache: Map<string, ImageFrames>, gifSize?: string) {
 		this.panelCtx = panelCtx;
 		this.tag = tag;
 		this.theme = panelCtx.theme;
 		this.tui = panelCtx.tui;
 		this.cwd = panelCtx.cwd;
-		this.gifCache = gifCache;
-		const [maxW, maxH] = GIF_SIZES[gifSize ?? "medium"] ?? [DEFAULT_GIF_CELLS_W, DEFAULT_GIF_CELLS_H];
+		this.imageCache = imageCache;
+		const [maxW, maxH] = resolveImageSize(gifSize);
 		this.gifMaxW = maxW;
 		this.gifMaxH = maxH;
 		this.refresh();
@@ -503,62 +165,36 @@ class TodoPanelComponent {
 	// ── Mascot Loading ──
 
 	private async loadMascot(): Promise<void> {
-		const cached = this.gifCache.get(this.tag);
+		const cached = this.imageCache.get(this.tag);
 		if (cached) { this.setupMascot(cached); return; }
 
 		// Ask a lightweight model to pick a vibe-matched search query,
 		// falling back to static map if the model isn't available.
-		const query = await generateVibeQuery(this.tag, this.todos);
-		const url = await searchGiphy(query);
-		if (!url) return;
-		const gifBuffer = await downloadGif(url);
-		if (!gifBuffer) return;
-		const extracted = extractFrames(gifBuffer);
-		if (!extracted || !extracted.frames.length) return;
-		const dims = getGifDimensions(gifBuffer.toString("base64")) ?? { widthPx: 100, heightPx: 100 };
-		const gifData: GifFrames = {
-			frames: extracted.frames, delays: extracted.delays,
-			widthPx: dims.widthPx, heightPx: dims.heightPx,
-		};
-		this.gifCache.set(this.tag, gifData);
-		this.setupMascot(gifData);
+		const todoSummary = this.todos.length > 0
+			? this.todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
+			: "(empty \u2014 no todos yet)";
+		const query = await generateVibeQuery(this.tag, todoSummary, extCtxRef);
+		const imageData = await fetchGiphyImage(query);
+		if (!imageData) return;
+		this.imageCache.set(this.tag, imageData);
+		this.setupMascot(imageData);
 	}
 
-	private setupMascot(gifData: GifFrames): void {
+	private setupMascot(imageData: ImageFrames): void {
 		this.disposeMascot();
 
-		const cellDims = getCellDimensions();
-		const cols = Math.min(this.gifMaxW, Math.max(2, Math.floor(gifData.widthPx / cellDims.widthPx)));
-		const rows = Math.min(this.gifMaxH, Math.max(2, calculateImageRows(
-			{ widthPx: gifData.widthPx, heightPx: gifData.heightPx }, cols, cellDims,
-		)));
-		const imageId = allocateMascotId();
+		const player = new AnimatedImagePlayer(imageData, { maxCols: this.gifMaxW, maxRows: this.gifMaxH });
+		this.mascot = player;
 
-		this.mascot = { imageId, cols, rows, gifData, currentFrame: 0, interval: null };
-
-		// Transmit first frame after a microtask delay to avoid racing with
+		// Start playback after a microtask delay to avoid racing with
 		// the TUI's current render cycle.
 		setTimeout(() => {
-			if (!this.mascot) return;
-			transmitFrame(imageId, gifData.frames[0]!, cols, rows);
-
-			// For multi-frame GIFs: software animation via setInterval.
-			// Each tick re-transmits the next frame for the same image ID.
-			// From the Kitty docs: "When a new image is transmitted with the
-			// same id, all existing placements are updated to show the new image."
-			if (gifData.frames.length > 1) {
-				const avgDelay = Math.max(
-					MIN_FRAME_DELAY_MS,
-					gifData.delays.reduce((a, b) => a + b, 0) / gifData.delays.length,
-				);
-				this.mascot!.interval = setInterval(() => {
-					if (!this.mascot) return;
-					this.mascot.currentFrame = (this.mascot.currentFrame + 1) % this.mascot.gifData.frames.length;
-					transmitFrame(this.mascot.imageId, this.mascot.gifData.frames[this.mascot.currentFrame]!, this.mascot.cols, this.mascot.rows);
-				}, avgDelay);
-			}
-
-			// Trigger overlay re-render to show placeholders now that the image is loaded
+			if (this.mascot !== player) return; // disposed before we got here
+			player.play(() => {
+				this.invalidate();
+				this.tui.requestRender();
+			});
+			// Trigger initial render to show placeholders
 			this.invalidate();
 			this.tui.requestRender();
 		}, 0);
@@ -566,8 +202,7 @@ class TodoPanelComponent {
 
 	disposeMascot(): void {
 		if (this.mascot) {
-			if (this.mascot.interval) clearInterval(this.mascot.interval);
-			deleteKittyImage(this.mascot.imageId);
+			this.mascot.dispose();
 			this.mascot = null;
 		}
 	}
@@ -629,7 +264,7 @@ class TodoPanelComponent {
 		// the image ID. This is compositor-safe: Intl.Segmenter keeps the
 		// grapheme clusters intact, and visibleWidth() measures each as width 1.
 		const mascotLines = this.mascot
-			? buildPlaceholderLines(this.mascot.imageId, this.mascot.cols, this.mascot.rows)
+			? this.mascot.getPlaceholderLines()
 			: [];
 		const mascotW = this.mascot?.cols ?? 0;
 		let mascotRow = 0; // tracks which mascot row to render next
@@ -730,7 +365,7 @@ const TodoPanelParams = Type.Object({
 // ── Extension ──
 
 export default function (pi: ExtensionAPI) {
-	const gifCache = new Map<string, GifFrames>();
+	const imageCache = new Map<string, ImageFrames>();
 	const todoComponents = new Map<string, TodoPanelComponent>();
 
 	function parseWidth(s: string | undefined): number | string {
@@ -758,7 +393,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		let component: TodoPanelComponent | null = null;
 		const result = panels.createPanel(pid, (panelCtx: any) => {
-			component = new TodoPanelComponent(panelCtx, tag, gifCache, gifSize);
+			component = new TodoPanelComponent(panelCtx, tag, imageCache, gifSize);
 			todoComponents.set(tag, component);
 			return {
 				render: (w: number) => component!.render(w),
@@ -824,8 +459,8 @@ export default function (pi: ExtensionAPI) {
 
 	// ── Events ──
 	pi.on("session_start", async (_event, ctx) => { extCtxRef = ctx; });
-	pi.on("session_switch", async (_event, ctx) => { todoComponents.clear(); extCtxRef = ctx; });
-	pi.on("session_shutdown", async () => { todoComponents.clear(); });
+	pi.on("session_switch", async (_event, ctx) => { todoComponents.clear(); clearVibeCache(); extCtxRef = ctx; });
+	pi.on("session_shutdown", async () => { todoComponents.clear(); clearVibeCache(); });
 	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && todoComponents.size > 0) refreshAllPanels(); });
 
 	// ── Tool ──
@@ -883,8 +518,8 @@ export default function (pi: ExtensionAPI) {
 					const tag = parts[1];
 					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width] [gifSize]", "warning"); return; }
 					// Check if any trailing arg is a known gif size
-					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in GIF_SIZES);
-					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in GIF_SIZES));
+					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in IMAGE_SIZES);
+					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in IMAGE_SIZES));
 					ctx.ui.notify(openPanel(tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
 					return;
 				}
