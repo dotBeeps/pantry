@@ -58,9 +58,6 @@ const IMG_MARKER_SUFFIX = "\uE000";
 /** Tag prepended to expanded image placeholder lines so render() can skip padContentLine. */
 const IMG_LINE_TAG = "\uE001";
 
-/** Regex to find block-level image references: ![alt](source) or ![alt](source|size) */
-const BLOCK_IMG_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/gm;
-
 /** Strip ANSI escape sequences for marker detection in rendered lines. */
 const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
 
@@ -87,25 +84,43 @@ interface InlineImage {
 /**
  * Extract block-level image references from markdown, replace with markers.
  * Only matches images on their own line (block-level).
+ * Skips images inside fenced code blocks (``` or ~~~).
  */
 function extractInlineImages(content: string): { processed: string; refs: ImageRef[] } {
 	const refs: ImageRef[] = [];
-	const processed = content.replace(BLOCK_IMG_RE, (_match, alt: string, url: string) => {
+	const lines = content.split("\n");
+	let inCodeBlock = false;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i]!;
+		// Toggle code fence state
+		if (/^\s*(`{3,}|~{3,})/.test(line)) {
+			inCodeBlock = !inCodeBlock;
+			continue;
+		}
+		if (inCodeBlock) continue;
+
+		// Match block-level image: ![alt](source) or ![alt](source|size)
+		const match = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
+		if (!match) continue;
+
+		const [, alt, url] = match;
 		const idx = refs.length;
 		let size = "medium";
-		let source = url;
-		const pipeIdx = url.lastIndexOf("|");
+		let source = url!;
+		const pipeIdx = url!.lastIndexOf("|");
 		if (pipeIdx !== -1) {
-			const sizePart = url.slice(pipeIdx + 1).trim().toLowerCase();
+			const sizePart = url!.slice(pipeIdx + 1).trim().toLowerCase();
 			if (["tiny", "small", "medium", "large", "huge"].includes(sizePart)) {
 				size = sizePart;
-				source = url.slice(0, pipeIdx);
+				source = url!.slice(0, pipeIdx);
 			}
 		}
-		refs.push({ alt, source, size, idx });
-		return `${IMG_MARKER_PREFIX}${idx}${IMG_MARKER_SUFFIX}`;
-	});
-	return { processed, refs };
+		refs.push({ alt: alt!, source, size, idx });
+		lines[i] = `${IMG_MARKER_PREFIX}${idx}${IMG_MARKER_SUFFIX}`;
+	}
+
+	return { processed: lines.join("\n"), refs };
 }
 
 // ── Popup Component ──
