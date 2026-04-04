@@ -355,7 +355,7 @@ export interface ChromeOptions {
 // ── Content Line Helpers ──
 
 /** Get the resolved left/right edge strings and their widths for content lines. */
-function getEdges(options: ChromeOptions): {
+export function getEdges(options: ChromeOptions): {
 	left: string; leftW: number;
 	right: string; rightW: number;
 	bg?: string;

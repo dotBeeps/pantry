@@ -16,7 +16,7 @@ import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
-	renderHeader, renderFooter, padContentLine, contentWidth,
+	renderHeader, renderFooter, padContentLine, contentWidth, getEdges,
 } from "../lib/panel-chrome.ts";
 import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
 import { resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
@@ -211,17 +211,21 @@ class PopupComponent {
 		const mascotW = this.mascot?.cols ?? 0;
 		let mascotRow = 0;
 
-		// Merge content lines with GIF mascot (top-right aligned)
+		// Merge content lines with GIF mascot (top-right aligned).
+		// We build each merged line to exactly `innerW` visible width ourselves,
+		// because padContentLine's truncation can cut into placeholder escape
+		// sequences and its bg() wrapping doesn't cover them correctly.
+		const edges = getEdges(chromeOpts);
 		const contentLines = visible.map(line => {
 			const padded = ` ${line}`;
 			if (mascotRow < mascotLines.length && mascotW > 0) {
-				// Reserve space: [content] [gap] [mascot]
+				// Reserve space: [content] [1 gap] [mascot]
 				const textW = innerW - mascotW - 1;
 				const truncated = truncateToWidth(padded, Math.max(4, textW));
 				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
-				const merged = truncated + " ".repeat(gap) + mascotLines[mascotRow]!;
+				const merged = edges.left + truncated + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
 				mascotRow++;
-				return padContentLine(merged, width, chromeOpts);
+				return edges.bg ? theme.bg(edges.bg as any, merged) : merged;
 			}
 			return padContentLine(padded, width, chromeOpts);
 		});
@@ -229,8 +233,8 @@ class PopupComponent {
 		// Flush remaining mascot rows if mascot is taller than visible content
 		while (mascotRow < mascotLines.length) {
 			const gap = Math.max(0, innerW - mascotW);
-			const line = " ".repeat(gap) + mascotLines[mascotRow]!;
-			contentLines.push(padContentLine(line, width, chromeOpts));
+			const merged = edges.left + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
+			contentLines.push(edges.bg ? theme.bg(edges.bg as any, merged) : merged);
 			mascotRow++;
 		}
 
