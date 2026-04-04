@@ -154,6 +154,38 @@ export async function fetchGiphyImage(query: string): Promise<ImageFrames | null
 	};
 }
 
+/**
+ * Fetch image from an arbitrary URL or local file path.
+ * Supports http/https URLs and local file paths.
+ * Returns ImageFrames or null on failure.
+ */
+export async function fetchImageFromSource(source: string): Promise<ImageFrames | null> {
+	let gifBuffer: Buffer | null = null;
+
+	if (source.startsWith("http://") || source.startsWith("https://")) {
+		gifBuffer = await downloadGif(source);
+	} else {
+		// Local file path
+		try {
+			const resolved = source.startsWith("~") ? join(process.env.HOME ?? "", source.slice(1)) : source;
+			if (existsSync(resolved)) {
+				gifBuffer = readFileSync(resolved) as unknown as Buffer;
+			}
+		} catch { return null; }
+	}
+
+	if (!gifBuffer) return null;
+	const extracted = extractFrames(gifBuffer);
+	if (!extracted || !extracted.frames.length) return null;
+	const dims = getGifDimensions(gifBuffer.toString("base64")) ?? { widthPx: 100, heightPx: 100 };
+	return {
+		frames: extracted.frames,
+		delays: extracted.delays,
+		widthPx: dims.widthPx,
+		heightPx: dims.heightPx,
+	};
+}
+
 // ── AI Vibe Search Query Generator ──
 
 /** Fallback search terms — used when the AI vibe generator isn't available. */

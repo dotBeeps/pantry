@@ -20,7 +20,7 @@ import {
 } from "../lib/panel-chrome.ts";
 import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
 import { resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
-import { fetchGiphyImage } from "../lib/giphy-source.ts";
+import { fetchGiphyImage, fetchImageFromSource } from "../lib/giphy-source.ts";
 
 // ── Panel Manager Access ──
 
@@ -49,6 +49,65 @@ const PopupParams = Type.Object({
 });
 
 
+// ── Inline Image Support ──
+
+/** Private Use Area marker for inline image placeholders in markdown. */
+const IMG_MARKER_PREFIX = "\uE000IMG:";
+const IMG_MARKER_SUFFIX = "\uE000";
+
+/** Tag prepended to expanded image placeholder lines so render() can skip padContentLine. */
+const IMG_LINE_TAG = "\uE001";
+
+/** Regex to find block-level image references: ![alt](source) or ![alt](source|size) */
+const BLOCK_IMG_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/gm;
+
+/** Strip ANSI escape sequences for marker detection in rendered lines. */
+const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
+
+/** Escape special regex characters in a string. */
+function escapeRegex(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+interface ImageRef {
+	alt: string;
+	source: string;  // giphy:query, http://..., or file path
+	size: string;
+	idx: number;
+}
+
+interface InlineImage {
+	ref: ImageRef;
+	player: AnimatedImagePlayer | null;
+	/** Number of placeholder rows this image occupies. Before load: estimated. After: actual. */
+	rows: number;
+	cols: number;
+}
+
+/**
+ * Extract block-level image references from markdown, replace with markers.
+ * Only matches images on their own line (block-level).
+ */
+function extractInlineImages(content: string): { processed: string; refs: ImageRef[] } {
+	const refs: ImageRef[] = [];
+	const processed = content.replace(BLOCK_IMG_RE, (_match, alt: string, url: string) => {
+		const idx = refs.length;
+		let size = "medium";
+		let source = url;
+		const pipeIdx = url.lastIndexOf("|");
+		if (pipeIdx !== -1) {
+			const sizePart = url.slice(pipeIdx + 1).trim().toLowerCase();
+			if (["tiny", "small", "medium", "large", "huge"].includes(sizePart)) {
+				size = sizePart;
+				source = url.slice(0, pipeIdx);
+			}
+		}
+		refs.push({ alt, source, size, idx });
+		return `${IMG_MARKER_PREFIX}${idx}${IMG_MARKER_SUFFIX}`;
+	});
+	return { processed, refs };
+}
+
 // ── Popup Component ──
 
 interface PopupComponentOptions {
@@ -72,10 +131,14 @@ class PopupComponent {
 	private panelCtx: any;
 	private mdTheme: MarkdownTheme;
 
-	// GIF mascot
+	// GIF mascot (top-right corner image from tool params)
 	private mascot: AnimatedImagePlayer | null = null;
 	private gifMaxW: number;
 	private gifMaxH: number;
+
+	// Inline images from markdown ![alt](source) syntax
+	private inlineImages: InlineImage[] = [];
+	private processedContent: string = "";
 
 	constructor(options: PopupComponentOptions) {
 		this.title = options.title ?? "";
@@ -91,6 +154,9 @@ class PopupComponent {
 		if (options.gifQuery) {
 			this.loadGif(options.gifQuery);
 		}
+
+		// Extract and start loading inline images
+		this.parseInlineImages();
 	}
 
 	// ── GIF Loading ──
@@ -134,11 +200,128 @@ class PopupComponent {
 		}
 	}
 
+	/** Dispose all image resources (mascot + inline). */
+	disposeAll(): void {
+		this.disposeGif();
+		this.disposeInlineImages();
+	}
+
+	// ── Inline Images ──
+
+	/** Parse markdown content for image references, start async loading. */
+	private parseInlineImages(): void {
+		const { processed, refs } = extractInlineImages(this.content);
+		if (refs.length === 0) {
+			this.processedContent = this.content;
+			return;
+		}
+		this.processedContent = processed;
+
+		// Create InlineImage entries and start loading
+		for (const ref of refs) {
+			const [maxCols, maxRows] = resolveImageSize(ref.size);
+			const entry: InlineImage = { ref, player: null, rows: maxRows, cols: maxCols };
+			this.inlineImages.push(entry);
+			this.loadInlineImage(entry, maxCols, maxRows);
+		}
+	}
+
+	/** Load a single inline image asynchronously. */
+	private async loadInlineImage(entry: InlineImage, maxCols: number, maxRows: number): Promise<void> {
+		const source = entry.ref.source;
+		const cacheKey = `inline:${source}`;
+
+		let imageData = imageCache.get(cacheKey);
+		if (!imageData) {
+			if (source.startsWith("giphy:")) {
+				imageData = await fetchGiphyImage(source.slice(6)) ?? undefined;
+			} else {
+				imageData = await fetchImageFromSource(source) ?? undefined;
+			}
+			if (!imageData) return;
+			imageCache.set(cacheKey, imageData);
+		}
+
+		const player = new AnimatedImagePlayer(imageData, { maxCols, maxRows });
+		entry.player = player;
+		entry.rows = player.rows;
+		entry.cols = player.cols;
+
+		setTimeout(() => {
+			if (entry.player !== player) return;
+			player.transmit();
+			player.play(() => {
+				this.invalidate();
+				this.panelCtx.tui.requestRender();
+			});
+			this.invalidate();
+			this.panelCtx.tui.requestRender();
+		}, 0);
+	}
+
+	/** Dispose all inline image players. */
+	private disposeInlineImages(): void {
+		for (const entry of this.inlineImages) {
+			entry.player?.dispose();
+			entry.player = null;
+		}
+		this.inlineImages = [];
+	}
+
+	/**
+	 * Scan rendered markdown lines for image markers and expand them into
+	 * placeholder rows. If the image isn't loaded yet, inserts a loading
+	 * placeholder. If loaded, inserts the Kitty placeholder lines centered.
+	 */
+	private expandImageMarkers(lines: string[], innerW: number): string[] {
+		const result: string[] = [];
+		const theme = this.panelCtx.theme as Theme;
+
+		for (const line of lines) {
+			// Strip ANSI to detect marker in rendered text
+			const stripped = line.replace(ANSI_RE, "");
+			const markerMatch = stripped.match(new RegExp(`${escapeRegex(IMG_MARKER_PREFIX)}(\\d+)${escapeRegex(IMG_MARKER_SUFFIX)}`));
+
+			if (!markerMatch) {
+				result.push(line);
+				continue;
+			}
+
+			const idx = parseInt(markerMatch[1]!, 10);
+			const entry = this.inlineImages[idx];
+			if (!entry) {
+				result.push(line);
+				continue;
+			}
+
+			if (entry.player) {
+				// Image loaded — insert centered placeholder rows tagged for special rendering
+				const placeholderLines = entry.player.getPlaceholderLines();
+				const imgW = entry.cols;
+				const leftPad = Math.max(0, Math.floor((innerW - imgW) / 2));
+				const rightPad = Math.max(0, innerW - imgW - leftPad);
+				for (const pLine of placeholderLines) {
+					// Tag with IMG_LINE_TAG so render() bypasses padContentLine
+					result.push(IMG_LINE_TAG + " ".repeat(leftPad) + pLine + " ".repeat(rightPad));
+				}
+			} else {
+				// Image still loading — show loading indicator
+				const loadingText = theme.fg("dim", `⏳ Loading image${entry.ref.alt ? `: ${entry.ref.alt}` : ""}...`);
+				result.push(loadingText);
+				// Reserve space for the image (estimated rows)
+				for (let r = 1; r < entry.rows; r++) result.push("");
+			}
+		}
+		return result;
+	}
+
 	/** Update content (for live-updating popups). */
 	setContent(content: string, title?: string): void {
 		this.content = content;
 		if (title !== undefined) this.title = title;
 		this.scrollOffset = 0;
+		this.disposeInlineImages();
+		this.parseInlineImages();
 		this.invalidate();
 	}
 
@@ -202,10 +385,18 @@ class PopupComponent {
 		const innerW = contentWidth(width, chromeOpts);
 		if (this.renderedLines.length === 0) {
 			const mascotReserve = this.mascot ? (this.mascot.cols + 1) : 0; // +1 for gap column
-			const md = new Markdown(this.content, 1, 0, this.mdTheme);
+			const mdContent = this.inlineImages.length > 0 ? this.processedContent : this.content;
+			const md = new Markdown(mdContent, 1, 0, this.mdTheme);
 			// Render markdown at inner width minus leading-space prefix, minus mascot reserve.
 			// This lets text wrap naturally around the GIF area instead of being truncated.
-			this.renderedLines = md.render(innerW - 1 - mascotReserve);
+			const rawLines = md.render(innerW - 1 - mascotReserve);
+
+			// Expand inline image markers into placeholder rows
+			if (this.inlineImages.length > 0) {
+				this.renderedLines = this.expandImageMarkers(rawLines, innerW);
+			} else {
+				this.renderedLines = rawLines;
+			}
 		}
 
 		// Viewport slicing
@@ -228,6 +419,15 @@ class PopupComponent {
 		const edges = getEdges(chromeOpts);
 		const bgWrap = (s: string) => edges.bg ? theme.bg(edges.bg as any, s) : s;
 		const contentLines = visible.map(line => {
+			// Inline image placeholder lines: tagged with IMG_LINE_TAG, already correct width.
+			// Build manually with edges + bg to avoid padContentLine breaking escape sequences.
+			if (line.startsWith(IMG_LINE_TAG)) {
+				const imgContent = line.slice(IMG_LINE_TAG.length);
+				const padding = Math.max(0, innerW - visibleWidth(imgContent));
+				const merged = edges.left + imgContent + " ".repeat(padding) + edges.right;
+				return bgWrap(merged);
+			}
+
 			const padded = ` ${line}`;
 			if (mascotRow < mascotLines.length && mascotW > 0) {
 				// Content already rendered at narrower width — just pad to fill the gap
@@ -236,7 +436,7 @@ class PopupComponent {
 				mascotRow++;
 				return bgWrap(merged);
 			}
-			// Lines after mascot area: content is narrower than panel but padContentLine pads to full width
+			// Normal content lines: padContentLine handles truncation + edges + bg
 			return padContentLine(padded, width, chromeOpts);
 		});
 
@@ -334,7 +534,7 @@ export default function popup(pi: ExtensionAPI): void {
 					render: (w: number) => component!.render(w),
 					invalidate: () => component!.invalidate(),
 					handleInput: (data: string) => component!.handleInput(data),
-					dispose: () => component!.disposeGif(),
+					dispose: () => component!.disposeAll(),
 				};
 			}, {
 				anchor: params.anchor ?? "center",
