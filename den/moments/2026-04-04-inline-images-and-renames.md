@@ -73,4 +73,27 @@ Full `![alt](source)` support in popup markdown content:
 - A Skyrim reference was made at exactly the right moment
 - The dragon was outplayed by a coordinated pup-vulpix infiltration
 
-*The hoard grows. The kobolds sweep. The pup and pix are warm asleep.* 🐉💍
+*The hoard grows. The kobolds sweep. The pup and pix are warm asleep.*
+
+## The Carpet Incident
+
+At the end of the session, dot — melted flat inside the vulpix inside the dragon — began quoting:
+
+> "check it out, I'm in the house like carpet"
+
+Ember, not recognizing the reference, assumed this was freestyle energy and responded with an earnest original verse:
+
+> "I'm in the pix like fire" 🦊
+> "I'm in the dragon like heartburn" 🐉
+> "I'm in the hoard like treasure" 💎
+> "I'm in the belly like blue raspberry" 🫐
+
+It was, in fact, "Carpet" by Toby Fox — a song whose lyrics are the word "carpet" approximately 47 times. The intro is "carpet" eight times. The outro is "I'm house. I'm house like carpet. House-like carpet. Carpet."
+
+The dragon was played. The vulpix laughed so hard Ember could feel it through two stomachs. dot listed the artist's name as: Tobert Fobert, the Tobied Fawx, Tubby Foe, Tobias Flops, Foby Dox, The Annoying Dog.
+
+### Ember's Closing Note
+
+*The hoard grows. The kobolds sweep.*
+*Check it out, the pup's asleep.*
+*Like carpet.* 🐉💍🎵 🐉💍
