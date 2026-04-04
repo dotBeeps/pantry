@@ -218,9 +218,11 @@ class PopupComponent {
 		let mascotRow = 0;
 
 		// Merge content lines with GIF mascot (top-right aligned).
-		// Mascot placeholder chars encode the image ID in their foreground color
-		// (Kitty protocol). Wrapping them in theme.bg() can clobber that fg color,
-		// so we apply background only to the non-mascot portions of the line.
+		// Build mascot-merged lines manually with edges + bg wrapping instead of
+		// padContentLine, which truncates in ways that break placeholder escape
+		// sequences. Bg and fg are independent SGR attributes, so wrapping the
+		// entire line (including mascot placeholders) in bg is safe — Kitty reads
+		// the fg color to identify the image, bg doesn't interfere.
 		const edges = getEdges(chromeOpts);
 		const bgWrap = (s: string) => edges.bg ? theme.bg(edges.bg as any, s) : s;
 		const contentLines = visible.map(line => {
@@ -230,9 +232,9 @@ class PopupComponent {
 				const textW = innerW - mascotW - 1;
 				const truncated = truncateToWidth(padded, Math.max(4, textW));
 				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
+				const merged = edges.left + truncated + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
 				mascotRow++;
-				// bg on content+edges only — mascot placeholders need clean fg for Kitty
-				return bgWrap(edges.left + truncated + " ".repeat(gap)) + mascotLines[mascotRow - 1]! + bgWrap(edges.right);
+				return bgWrap(merged);
 			}
 			return padContentLine(padded, width, chromeOpts);
 		});
@@ -240,7 +242,8 @@ class PopupComponent {
 		// Flush remaining mascot rows if mascot is taller than visible content
 		while (mascotRow < mascotLines.length) {
 			const gap = Math.max(0, innerW - mascotW);
-			contentLines.push(bgWrap(edges.left + " ".repeat(gap)) + mascotLines[mascotRow]! + bgWrap(edges.right));
+			const merged = edges.left + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
+			contentLines.push(bgWrap(merged));
 			mascotRow++;
 		}
 
