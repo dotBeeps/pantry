@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key, visibleWidth } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -201,9 +201,11 @@ class PopupComponent {
 		// Render markdown content (full, then slice for scroll)
 		const innerW = contentWidth(width, chromeOpts);
 		if (this.renderedLines.length === 0) {
+			const mascotReserve = this.mascot ? (this.mascot.cols + 1) : 0; // +1 for gap column
 			const md = new Markdown(this.content, 1, 0, this.mdTheme);
-			// Render markdown at the actual inner width minus 1 col for the leading space prefix
-			this.renderedLines = md.render(innerW - 1);
+			// Render markdown at inner width minus leading-space prefix, minus mascot reserve.
+			// This lets text wrap naturally around the GIF area instead of being truncated.
+			this.renderedLines = md.render(innerW - 1 - mascotReserve);
 		}
 
 		// Viewport slicing
@@ -228,14 +230,13 @@ class PopupComponent {
 		const contentLines = visible.map(line => {
 			const padded = ` ${line}`;
 			if (mascotRow < mascotLines.length && mascotW > 0) {
-				// Reserve space: [content] [1 gap] [mascot]
-				const textW = innerW - mascotW - 1;
-				const truncated = truncateToWidth(padded, Math.max(4, textW));
-				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
-				const merged = edges.left + truncated + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
+				// Content already rendered at narrower width — just pad to fill the gap
+				const gap = Math.max(0, innerW - visibleWidth(padded) - mascotW);
+				const merged = edges.left + padded + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
 				mascotRow++;
 				return bgWrap(merged);
 			}
+			// Lines after mascot area: content is narrower than panel but padContentLine pads to full width
 			return padContentLine(padded, width, chromeOpts);
 		});
 
