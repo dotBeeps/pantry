@@ -10,7 +10,7 @@ Manage work items in `.pi/todos` and display them as persistent floating panels.
 ## Two Tools, One System
 
 | Tool | Purpose |
-|------|---------|
+|------|--------|
 | `todo` (built-in) | CRUD: create, update, delete, toggle, list todos in `.pi/todos` |
 | `todo_panel` (extension) | Display: open, close, focus, position floating panels |
 
@@ -22,9 +22,9 @@ Before opening multiple panels, get layout suggestions:
 
 ```
 todo_panel suggest_layout count=3
-→ Panel 1: /todos open <tag> top-right 30%
-  Panel 2: /todos open <tag> right-center 30%
-  Panel 3: /todos open <tag> bottom-right 30%
+→ Panel 1: top-right 30%
+  Panel 2: right-center 30%
+  Panel 3: bottom-right 30%
 ```
 
 Then open panels with the suggested positions:
@@ -33,6 +33,12 @@ Then open panels with the suggested positions:
 todo_panel open tag="sprint" anchor="right-center" width="30%"
 todo_panel open tag="bugs" anchor="bottom-right" width="30%"
 todo_panel open tag="all"   # shows all todos, default position
+```
+
+To immediately focus a panel after opening, pass `focus=true`:
+
+```
+todo_panel open tag="sprint" anchor="right-center" focus=true
 ```
 
 ## Workflow
@@ -51,10 +57,10 @@ todo_panel open tag="sprint" anchor="right-center"
 
 | Action | Effect |
 |--------|--------|
-| `open` | Open panel for a tag (required: `tag`; optional: `anchor`, `width`) |
+| `open` | Open panel for a tag (required: `tag`; optional: `anchor`, `width`, `focus`) |
 | `close` | Close a specific panel (required: `tag`) |
 | `close_all` | Close every open panel |
-| `focus` | Focus a panel by tag, or cycle if no tag given |
+| `focus` | Focus a panel by tag, or cycle to next if no tag given |
 | `unfocus` | Remove focus from all panels |
 | `list_panels` | Show all open panels with status |
 | `suggest_layout` | Get position recommendations for N panels |
@@ -72,7 +78,7 @@ Users control panels via `/todos`:
 
 - `/todos open sprint right-center 30%`
 - `/todos close sprint`
-- `/todos focus` or `Alt+T` to cycle focus
+- `/todos focus` or `Alt+T` to cycle focus forward, `Shift+Tab` to cycle backward
 - `/todos status` to list panels
 - `/todos layout 3` for position suggestions
 
