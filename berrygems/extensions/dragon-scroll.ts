@@ -20,14 +20,16 @@ import {
 } from "../lib/panel-chrome.ts";
 import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
 import { resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
-import { fetchGiphyImage, fetchImageFromSource } from "../lib/giphy-source.ts";
-
 // ── Panel Manager Access ──
 
 const PANELS_KEY = Symbol.for("hoard.parchment");
 const KITTY_KEY = Symbol.for("hoard.kitty");
 function getKitty(): { loadImage: Function; disposeImage: Function; createMerger: Function } | undefined {
 	return (globalThis as any)[KITTY_KEY];
+}
+const IMAGE_FETCH_KEY = Symbol.for("hoard.imageFetch");
+function getImageFetch(): { fetch: (query: string, size?: string) => Promise<any> } | undefined {
+	return (globalThis as any)[IMAGE_FETCH_KEY];
 }
 
 /** Shape of a LoadedImage as returned by kitty.loadImage(). Local mirror — no cross-extension import. */
@@ -187,7 +189,8 @@ class PopupComponent {
 		const cached = imageCache.get(query);
 		if (cached) { this.setupGif(cached); return; }
 
-		const imageData = await fetchGiphyImage(query);
+		const imageFetch = getImageFetch();
+		const imageData = imageFetch ? await imageFetch.fetch(`giphy:${query}`) : null;
 		if (!imageData) return;
 		imageCache.set(query, imageData);
 		this.setupGif(imageData);
@@ -250,11 +253,8 @@ class PopupComponent {
 
 		let imageData = imageCache.get(cacheKey);
 		if (!imageData) {
-			if (source.startsWith("giphy:")) {
-				imageData = await fetchGiphyImage(source.slice(6)) ?? undefined;
-			} else {
-				imageData = await fetchImageFromSource(source) ?? undefined;
-			}
+			const imageFetch = getImageFetch();
+			imageData = imageFetch ? await imageFetch.fetch(source) ?? undefined : undefined;
 			if (!imageData) return;
 			imageCache.set(cacheKey, imageData);
 		}

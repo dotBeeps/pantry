@@ -21,7 +21,10 @@ import { Type } from "@sinclair/typebox";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { IMAGE_SIZES, resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
-import { fetchGiphyImage, generateVibeQuery, clearVibeCache } from "../lib/giphy-source.ts";
+const IMAGE_FETCH_KEY = Symbol.for("hoard.imageFetch");
+function getImageFetch(): { fetch: Function; vibeQuery: Function; clearCache: Function } | undefined {
+	return (globalThis as any)[IMAGE_FETCH_KEY];
+}
 
 // ── Panel Manager Access ──
 // dragon-parchment API is published to globalThis by dragon-parchment.ts extension.
@@ -64,7 +67,8 @@ const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
 // ── Module-level ExtensionContext ref ──
-// Set once during session_start, used by generateVibeQuery().
+// Set once during session_start — dragon-image-fetch also tracks this internally,
+// but kobold-housekeeping keeps a ref for direct vibeQuery() calls.
 let extCtxRef: ExtensionContext | null = null;
 
 // ── Todo File I/O ──
@@ -180,8 +184,11 @@ class TodoPanelComponent {
 		const todoSummary = this.todos.length > 0
 			? this.todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
 			: "(empty \u2014 no todos yet)";
-		const query = await generateVibeQuery(this.tag, todoSummary, extCtxRef);
-		const imageData = await fetchGiphyImage(query);
+		const imageFetch = getImageFetch();
+		const query = imageFetch
+			? await imageFetch.vibeQuery(todoSummary, { tag: this.tag, extCtx: extCtxRef })
+			: this.tag;
+		const imageData = imageFetch ? await imageFetch.fetch(`giphy:${query}`) : null;
 		if (!imageData) return;
 		this.imageCache.set(this.tag, imageData);
 		this.setupMascot(imageData);
@@ -459,8 +466,8 @@ export default function (pi: ExtensionAPI) {
 
 	// ── Events ──
 	pi.on("session_start", async (_event, ctx) => { extCtxRef = ctx; });
-	pi.on("session_switch", async (_event, ctx) => { todoComponents.clear(); clearVibeCache(); extCtxRef = ctx; });
-	pi.on("session_shutdown", async () => { todoComponents.clear(); clearVibeCache(); });
+	pi.on("session_switch" as any, async (_event: any, ctx: any) => { todoComponents.clear(); getImageFetch()?.clearCache(); extCtxRef = ctx; });
+	pi.on("session_shutdown" as any, async () => { todoComponents.clear(); getImageFetch()?.clearCache(); extCtxRef = null; });
 	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && todoComponents.size > 0) refreshAllPanels(); });
 
 	// ── Tool ──
