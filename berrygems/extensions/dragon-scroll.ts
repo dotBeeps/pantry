@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key, truncateToWidth } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -130,6 +130,25 @@ function splitAtWordBoundary(line: string, leftW: number): [string, string, numb
 	}
 
 	return [line.slice(0, i) + "\x1b[39m", line.slice(i), visible];
+}
+
+/**
+ * Truncate ANSI-decorated text to maxW visible chars without any indicator.
+ * Unlike truncateToWidth (which appends \x1b[0m...\x1b[0m), this silently
+ * cuts and adds only a fg-reset to preserve background colour.
+ */
+function truncateSilent(str: string, maxW: number): string {
+	let visible = 0;
+	let i = 0;
+	while (i < str.length && visible < maxW) {
+		if (str[i] === "\x1b") {
+			const end = str.indexOf("m", i);
+			if (end !== -1) { i = end + 1; continue; }
+		}
+		visible++;
+		i++;
+	}
+	return str.slice(0, i) + "\x1b[39m";
 }
 
 /**
@@ -331,36 +350,41 @@ class PopupComponent {
 			// (U+10EEEE grapheme clusters are private-use and measure 0 in most libs).
 			const imgLine = (content: string) => IMG_LINE_TAG + innerW + IMG_WIDTH_SEP + content;
 
+			// 1 cell of breathing room on each side of the image in every float mode.
+			const M = 1; // margin cells per side
+
 			if (float === "center") {
-				// Centered full-width block — leftPad + imgCols + rightPad = innerW
-				const leftPad = Math.max(0, Math.floor((innerW - imgCols) / 2));
-				const rightPad = Math.max(0, innerW - imgCols - leftPad);
+				// Centered full-width block — margin ≥ 1 on each side.
+				const leftPad = Math.max(M, Math.floor((innerW - imgCols) / 2));
+				const rightPad = Math.max(M, innerW - imgCols - leftPad);
 				for (const pLine of placeholderLines) {
 					result.push(imgLine(" ".repeat(leftPad) + pLine + " ".repeat(rightPad)));
 				}
 
 			} else if (float === "right" || float === "left") {
 				// Float: image anchored to one edge, text wraps on the opposite side.
+				// Tell the merger the available width is innerW - 2*M so the margins
+				// fit when we insert them around the image in the assembly step.
+				const mergerW = innerW - 2 * M;
 				const loaded = { player: entry.player, cols: imgCols, rows: entry.rows };
-				const merger = kitty?.createMerger(loaded, innerW);
+				const merger = kitty?.createMerger(loaded, mergerW);
 				if (!merger) {
 					// No kitty renderer — fallback to centered block
-					const leftPad = Math.max(0, Math.floor((innerW - imgCols) / 2));
-					const rightPad = Math.max(0, innerW - imgCols - leftPad);
+					const leftPad = Math.max(M, Math.floor((innerW - imgCols) / 2));
+					const rightPad = Math.max(M, innerW - imgCols - leftPad);
 					for (const pLine of placeholderLines) result.push(imgLine(" ".repeat(leftPad) + pLine + " ".repeat(rightPad)));
 					continue;
 				}
 
 				// Consume following lines until image rows exhausted or next marker.
-				// merger.nextLine() returns content narrowed to innerW - imgCols - gap,
-				// gap, and the placeholder string for this row. Total is always innerW.
+				// merger totals mergerW; we add M on each side of the image → innerW.
 				while (merger.hasMore && i < allLines.length) {
 					if (isMarkerLine(allLines[i]!)) break;
 					const { content, gap, mascot } = merger.nextLine(allLines[i]!);
 					result.push(imgLine(
 						float === "right"
-							? content + " ".repeat(gap) + mascot!
-							: mascot! + " ".repeat(gap) + content
+							? content + " ".repeat(gap) + " " + mascot! + " "
+							: " " + mascot! + " " + " ".repeat(gap) + content
 					));
 					i++;
 				}
@@ -368,28 +392,29 @@ class PopupComponent {
 				for (const { gap, mascot } of merger.flushLines()) {
 					result.push(imgLine(
 						float === "right"
-							? " ".repeat(gap) + mascot!
-							: mascot! + " ".repeat(innerW - imgCols)
+							? " ".repeat(gap) + " " + mascot! + " "
+							: " " + mascot! + " " + " ".repeat(innerW - imgCols - 2 * M)
 					));
 				}
 
 			} else if (float === "inline") {
 				// Bilateral wrap: image centered, text fills both sides simultaneously.
-				// splitAtWordBoundary backs up to the last space so words are never cut.
-				// leftVisible may be < leftW; leftFill pads the gap to the image edge.
-				const leftW = Math.max(1, Math.floor((innerW - imgCols) / 2));
-				const rightW = Math.max(1, innerW - leftW - imgCols);
+				// M-cell margin on each side of the image; text columns shrink to fit.
+				// truncateSilent (not truncateToWidth) to avoid \x1b[0m...\x1b[0m
+				// which kills bgWrap's background and shows literal dots at the edge.
+				const leftW = Math.max(1, Math.floor((innerW - imgCols - 2 * M) / 2));
+				const rightW = Math.max(1, innerW - leftW - imgCols - 2 * M);
 
 				for (let pr = 0; pr < placeholderLines.length; pr++) {
 					if (i < allLines.length && !isMarkerLine(allLines[i]!)) {
 						const [leftPart, rightPart, leftVisible] = splitAtWordBoundary(allLines[i]!, leftW);
 						const leftFill = " ".repeat(Math.max(0, leftW - leftVisible));
-						const rightTrunc = truncateToWidth(rightPart, rightW);
-						result.push(imgLine(leftPart + leftFill + placeholderLines[pr]! + rightTrunc));
+						const rightTrunc = truncateSilent(rightPart, rightW);
+						result.push(imgLine(leftPart + leftFill + " " + placeholderLines[pr]! + " " + rightTrunc));
 						i++;
 					} else {
 						// No more content — empty columns on both sides
-						result.push(imgLine(" ".repeat(leftW) + placeholderLines[pr]! + " ".repeat(rightW)));
+						result.push(imgLine(" ".repeat(leftW + M) + placeholderLines[pr]! + " ".repeat(rightW + M)));
 					}
 				}
 			}
@@ -497,14 +522,11 @@ class PopupComponent {
 		const bgWrap = (s: string) => edges.bg ? theme.bg(edges.bg as any, s) : s;
 		const contentLines = visible.map(line => {
 			if (line.startsWith(IMG_LINE_TAG)) {
-				// Parse the embedded precomputed terminal column width from the tag.
-				// We encode it as IMG_LINE_TAG + width + IMG_WIDTH_SEP + content to avoid
-				// calling visibleWidth() on Kitty placeholder chars (they measure as 0).
+				// Strip the IMG_LINE_TAG (and optional width+sep from earlier encoding).
+				// Content is pre-assembled to exactly innerW terminal columns.
 				const sepIdx = line.indexOf(IMG_WIDTH_SEP, IMG_LINE_TAG.length);
-				const precomputedW = sepIdx !== -1 ? parseInt(line.slice(IMG_LINE_TAG.length, sepIdx), 10) : innerW;
 				const imgContent = sepIdx !== -1 ? line.slice(sepIdx + IMG_WIDTH_SEP.length) : line.slice(IMG_LINE_TAG.length);
-				const padding = Math.max(0, innerW - precomputedW);
-				return bgWrap(edges.left + imgContent + " ".repeat(padding) + edges.right);
+				return bgWrap(edges.left + imgContent + edges.right);
 			}
 			return padContentLine(` ${line}`, width, chromeOpts);
 		});
