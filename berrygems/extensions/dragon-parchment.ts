@@ -93,7 +93,7 @@ export interface PanelCreateOptions {
 	visible?: (termWidth: number, termHeight: number) => boolean;
 	/** Called after the panel is closed (for consumer state cleanup) */
 	onClose?: () => void;
-	/** If true, immediately focus this panel after creation. Default: false */
+	/** If true, immediately focus this panel after creation. Default: true */
 	focusOnOpen?: boolean;
 }
 
@@ -142,6 +142,16 @@ interface PanelGeometry {
 	 *  Without this, computeGeoRect uses anchor+offsets which gives the
 	 *  REFERENCE panel's position, not this panel's actual position. */
 	computedRect?: CellRect;
+	/** Center X coordinate in cell space (for spatial focus navigation). */
+	centerX: number;
+	/** Center Y coordinate in cell space (for spatial focus navigation). */
+	centerY: number;
+	/** When true, this panel has been nudged to an absolute screen position. */
+	isAbsoluteMode?: boolean;
+	/** Absolute column position (set after first nudge). */
+	absoluteX?: number;
+	/** Absolute row position (set after first nudge). */
+	absoluteY?: number;
 }
 
 /** Axis-aligned bounding box in cell coordinates. */
@@ -156,9 +166,7 @@ interface CellRect {
 
 // ── Constants ──
 
-const FOCUS_KEY = readHoardKey("panels.focusKey", "alt+t");
 const DEFAULT_SKIN = readHoardSetting<string>("panels.defaultSkin", "ember");
-const FOCUS_LABEL = keyLabel(FOCUS_KEY);
 
 // Panel-specific keybinds — only active when a panel has focus.
 // Read from hoard.panels.keybinds.* in settings, with sane defaults.
@@ -169,12 +177,31 @@ const KEYBINDS = {
 	scrollDown: readHoardKey("panels.keybinds.scrollDown", "j"),
 	skinNext: readHoardKey("panels.keybinds.skinNext", "]"),
 	skinPrev: readHoardKey("panels.keybinds.skinPrev", "["),
-	focusReverse: readHoardKey("panels.keybinds.focusReverse", "shift+tab"),
+	// Spatial focus navigation (global — active even without a focused panel)
+	focusLeft: readHoardKey("panels.keybinds.focusLeft", "alt+shift+left"),
+	focusRight: readHoardKey("panels.keybinds.focusRight", "alt+shift+right"),
+	focusUp: readHoardKey("panels.keybinds.focusUp", "alt+shift+up"),
+	focusDown: readHoardKey("panels.keybinds.focusDown", "alt+shift+down"),
+	// Panel resize (focused panel only)
+	resizeWider: readHoardKey("panels.keybinds.resizeWider", "alt+ctrl+right"),
+	resizeNarrower: readHoardKey("panels.keybinds.resizeNarrower", "alt+ctrl+left"),
+	resizeTaller: readHoardKey("panels.keybinds.resizeTaller", "alt+ctrl+down"),
+	resizeShorter: readHoardKey("panels.keybinds.resizeShorter", "alt+ctrl+up"),
+	// Panel nudge / move position (focused panel only)
+	nudgeLeft: readHoardKey("panels.keybinds.nudgeLeft", "ctrl+shift+left"),
+	nudgeRight: readHoardKey("panels.keybinds.nudgeRight", "ctrl+shift+right"),
+	nudgeUp: readHoardKey("panels.keybinds.nudgeUp", "ctrl+shift+up"),
+	nudgeDown: readHoardKey("panels.keybinds.nudgeDown", "ctrl+shift+down"),
 };
 const CLOSE_LABEL = keyLabel(KEYBINDS.close);
 const UNFOCUS_LABEL = keyLabel(KEYBINDS.unfocus);
-const FOCUS_REVERSE_LABEL = keyLabel(KEYBINDS.focusReverse);
 const API_KEY = Symbol.for("hoard.parchment");
+
+// Resize + nudge step sizes
+const MIN_PANEL_WIDTH = 20;
+const MIN_PANEL_HEIGHT = 5;
+const DEFAULT_RESIZE_STEP = 2;
+const DEFAULT_NUDGE_STEP = 2;
 
 const VALID_ANCHORS: OverlayAnchor[] = [
 	"top-left", "top-center", "top-right",
@@ -478,7 +505,7 @@ class PanelRegistry {
 	private panels = new Map<string, ManagedPanel>();
 	private geometries = new Map<string, PanelGeometry>();
 	private recreateInfo = new Map<string, PanelRecreateInfo>();
-	private focusOrder: string[] = [];
+	private _focusHistory: string[] = [];
 	private _tui: TUI | null = null;
 	private _theme: Theme | null = null;
 	private _cwd: string = process.cwd();
@@ -538,7 +565,7 @@ class PanelRegistry {
 
 	/**
 	 * Attach (or re-attach) the TUI input listener for panel-specific keybinds.
-	 * The listener only consumes keys when a panel has focus (_focusedId is set).
+	 * The listener consumes spatial-focus keys globally and other panel keys when focused.
 	 * Must be called after TUI ref is available.
 	 */
 	attachInputListener(): void {
@@ -552,22 +579,32 @@ class PanelRegistry {
 			// Stand down when a capturing overlay (ask prompt) is active —
 			// it handles panel key routing via passthroughToPanel() instead.
 			if (this._askActive) return undefined;
-			// Only intercept when a panel is focused
+
+			// Spatial focus navigation — active even when no panel is focused
+			if (matchesKey(data, KEYBINDS.focusLeft)) {
+				if (this.panels.size > 0) this.focusDirection("left");
+				return this.panels.size > 0 ? { consume: true } : undefined;
+			}
+			if (matchesKey(data, KEYBINDS.focusRight)) {
+				if (this.panels.size > 0) this.focusDirection("right");
+				return this.panels.size > 0 ? { consume: true } : undefined;
+			}
+			if (matchesKey(data, KEYBINDS.focusUp)) {
+				if (this.panels.size > 0) this.focusDirection("up");
+				return this.panels.size > 0 ? { consume: true } : undefined;
+			}
+			if (matchesKey(data, KEYBINDS.focusDown)) {
+				if (this.panels.size > 0) this.focusDirection("down");
+				return this.panels.size > 0 ? { consume: true } : undefined;
+			}
+
+			// Keys below only active when a panel has focus
 			const focusedId = this._focusedId;
 			if (!focusedId || !this.panels.has(focusedId)) {
 				this._focusedId = null;
 				return undefined;
 			}
 
-			// Focus cycle (global key, but also works when focused)
-			if (matchesKey(data, FOCUS_KEY)) {
-				this.cycleFocus(1);
-				return { consume: true };
-			}
-			if (matchesKey(data, KEYBINDS.focusReverse)) {
-				this.cycleFocus(-1);
-				return { consume: true };
-			}
 			// Unfocus
 			if (matchesKey(data, KEYBINDS.unfocus)) {
 				this.unfocusAll();
@@ -585,6 +622,40 @@ class PanelRegistry {
 			}
 			if (matchesKey(data, KEYBINDS.skinPrev)) {
 				this.cyclePanelSkin(focusedId, -1);
+				return { consume: true };
+			}
+			// Resize focused panel
+			if (matchesKey(data, KEYBINDS.resizeWider)) {
+				this.resizePanel(focusedId, "wider");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.resizeNarrower)) {
+				this.resizePanel(focusedId, "narrower");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.resizeTaller)) {
+				this.resizePanel(focusedId, "taller");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.resizeShorter)) {
+				this.resizePanel(focusedId, "shorter");
+				return { consume: true };
+			}
+			// Nudge focused panel
+			if (matchesKey(data, KEYBINDS.nudgeLeft)) {
+				this.nudgePanel(focusedId, "left");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.nudgeRight)) {
+				this.nudgePanel(focusedId, "right");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.nudgeUp)) {
+				this.nudgePanel(focusedId, "up");
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.nudgeDown)) {
+				this.nudgePanel(focusedId, "down");
 				return { consume: true };
 			}
 			// Forward everything else to the focused panel's handleInput
@@ -627,7 +698,7 @@ class PanelRegistry {
 		}
 		this.panels.clear();
 		this.geometries.clear();
-		this.focusOrder = [];
+		this._focusHistory = [];
 		this._focusedId = null;
 		// recreateInfo is intentionally preserved
 	}
@@ -806,6 +877,10 @@ class PanelRegistry {
 		};
 
 		// ── Track geometry ──
+		// Compute center coordinates for spatial focus navigation
+		const geoRect = relativeComputedRect ?? computeCellRect(
+			resolvedAnchor, panelW, panelH, finalOffsetX, finalOffsetY, margin, termCols, termRows,
+		);
 		const geometry: PanelGeometry = {
 			anchor: resolvedAnchor,
 			width: widthSpec,
@@ -816,6 +891,8 @@ class PanelRegistry {
 			margin,
 			anchorSpec: opts.anchor ?? resolvedAnchor,
 			computedRect: relativeComputedRect,
+			centerX: geoRect.left + geoRect.width / 2,
+			centerY: geoRect.top + geoRect.height / 2,
 		};
 
 		// Reserve geometry IMMEDIATELY so parallel createPanel() calls see it.
@@ -859,7 +936,8 @@ class PanelRegistry {
 						onClose: opts.onClose,
 					});
 					// Geometry already reserved above — no need to set again
-					if (opts.focusOnOpen) this.setFocus(id);
+					// focusOnOpen defaults to true — only skip if explicitly false
+					if (opts.focusOnOpen !== false) this.setFocus(id);
 				},
 			},
 		).catch(() => {
@@ -878,7 +956,6 @@ class PanelRegistry {
 	register(id: string, panel: ManagedPanel): void {
 		if (this.panels.has(id)) return;
 		this.panels.set(id, panel);
-		this.focusOrder.push(id);
 	}
 
 	// ── Lifecycle ──
@@ -887,15 +964,30 @@ class PanelRegistry {
 	close(id: string): boolean {
 		const panel = this.panels.get(id);
 		if (!panel) return false;
-		if (this._focusedId === id) this._focusedId = null;
+
+		// History-walk focus recovery: restore focus to most recently focused sibling
+		if (this._focusedId === id) {
+			this._focusedId = null;
+			for (let i = this._focusHistory.length - 1; i >= 0; i--) {
+				const candidate = this._focusHistory[i]!;
+				if (candidate !== id && this.panels.has(candidate)) {
+					this._focusedId = candidate;
+					this.panels.get(candidate)?.invalidate();
+					break;
+				}
+			}
+		}
+
+		// Remove from focus history
+		const histIdx = this._focusHistory.indexOf(id);
+		if (histIdx !== -1) this._focusHistory.splice(histIdx, 1);
+
 		this._panelSkins.delete(id);
 		panel.dispose?.();
 		panel.handle.hide();
 		this.panels.delete(id);
 		this.geometries.delete(id);
 		this.recreateInfo.delete(id);
-		const idx = this.focusOrder.indexOf(id);
-		if (idx !== -1) this.focusOrder.splice(idx, 1);
 		panel.onClose?.();
 		this._tui?.requestRender();
 		return true;
@@ -959,12 +1051,18 @@ class PanelRegistry {
 
 	// ── Focus Management ──
 
-	/** Set focus to a specific panel (or clear with null). Visual-only. */
+	/** Set focus to a specific panel (or clear with null). Visual-only. MRU history tracked. */
 	setFocus(id: string | null): void {
 		if (this._focusedId === id) return;
 		if (this._focusedId) this.panels.get(this._focusedId)?.invalidate();
 		this._focusedId = id;
-		if (id) this.panels.get(id)?.invalidate();
+		if (id) {
+			// MRU dedup+push: remove existing entry, push to end (most recent)
+			const idx = this._focusHistory.indexOf(id);
+			if (idx !== -1) this._focusHistory.splice(idx, 1);
+			this._focusHistory.push(id);
+			this.panels.get(id)?.invalidate();
+		}
 		this._tui?.requestRender();
 	}
 
@@ -1028,23 +1126,22 @@ class PanelRegistry {
 		return this._panelSkins.get(id) ?? getSkin().name;
 	}
 
-	/** Cycle focus to the next panel. Returns status message. */
 	/**
 	 * IDs of panels that are currently visible (their `visible()` callback returns
 	 * true for the current terminal size, or they have no callback). Hidden panels
-	 * are skipped during focus cycling.
+	 * are skipped during focus navigation.
 	 */
 	private _visiblePanelIds(): string[] {
 		const cols = process.stdout.columns ?? 120;
 		const rows = process.stdout.rows ?? 40;
-		return this.focusOrder.filter(id => {
+		return [...this.panels.keys()].filter(id => {
 			const visibleFn = this.recreateInfo.get(id)?.options.visible;
 			return visibleFn ? visibleFn(cols, rows) : true;
 		});
 	}
 
 	/**
-	 * Returns the current panel's 1-based index within the visible focus cycle,
+	 * Returns the current panel's 1-based index within the visible panel set,
 	 * and the total count. Returns null when only one (or zero) panels are open.
 	 */
 	getFocusPosition(id: string): { index: number; total: number } | null {
@@ -1056,19 +1153,82 @@ class PanelRegistry {
 	}
 
 	/**
-	 * Cycle focus to the next (direction = 1) or previous (direction = -1) visible panel.
-	 * No-ops when fewer than two visible panels are open.
+	 * Focus the nearest visible panel in the given spatial direction.
+	 * Uses panel center coordinates for distance scoring.
+	 * If no panel is focused, focuses the most recently focused visible panel.
 	 */
-	cycleFocus(direction: 1 | -1 = 1): string {
+	focusDirection(direction: "left" | "right" | "up" | "down"): string {
 		const visible = this._visiblePanelIds();
 		if (visible.length === 0) return "No panels open";
-		if (visible.length === 1) return `Only one panel open`;
 
-		const currentIdx = this._focusedId ? visible.indexOf(this._focusedId) : -1;
-		const nextIdx = ((currentIdx + direction) % visible.length + visible.length) % visible.length;
-		const nextId = visible[nextIdx]!;
-		this.setFocus(nextId);
-		return `Focused '${nextId}' (${nextIdx + 1}/${visible.length})`;
+		// If nothing is currently focused, restore MRU or pick first
+		if (!this._focusedId || !visible.includes(this._focusedId)) {
+			const latest = this._focusHistory.slice().reverse().find(id => visible.includes(id));
+			const target = latest ?? visible[0]!;
+			this.setFocus(target);
+			return `Focused '${target}'`;
+		}
+
+		const currentGeo = this.geometries.get(this._focusedId);
+		if (!currentGeo) return `No geometry for '${this._focusedId}'`;
+
+		const cx = currentGeo.centerX;
+		const cy = currentGeo.centerY;
+
+		let bestId: string | null = null;
+		let bestScore = Infinity;
+
+		for (const id of visible) {
+			if (id === this._focusedId) continue;
+			const geo = this.geometries.get(id);
+			if (!geo) continue;
+
+			const dx = geo.centerX - cx;
+			const dy = geo.centerY - cy;
+
+			let isInDirection: boolean;
+			let primaryDist: number;
+			let secondaryDist: number;
+
+			switch (direction) {
+				case "left":
+					isInDirection = dx < 0;
+					primaryDist = -dx;
+					secondaryDist = Math.abs(dy);
+					break;
+				case "right":
+					isInDirection = dx > 0;
+					primaryDist = dx;
+					secondaryDist = Math.abs(dy);
+					break;
+				case "up":
+					isInDirection = dy < 0;
+					primaryDist = -dy;
+					secondaryDist = Math.abs(dx);
+					break;
+				case "down":
+					isInDirection = dy > 0;
+					primaryDist = dy;
+					secondaryDist = Math.abs(dx);
+					break;
+				default:
+					isInDirection = false;
+					primaryDist = 0;
+					secondaryDist = 0;
+			}
+
+			if (!isInDirection) continue;
+			// Weighted score: primary distance + small secondary penalty
+			const score = primaryDist + secondaryDist * 0.3;
+			if (score < bestScore) {
+				bestScore = score;
+				bestId = id;
+			}
+		}
+
+		if (!bestId) return `No panel to the ${direction} of '${this._focusedId}'`;
+		this.setFocus(bestId);
+		return `Focused '${bestId}'`;
 	}
 
 	/** Focus a specific panel by ID. Returns status message. */
@@ -1081,6 +1241,140 @@ class PanelRegistry {
 	/** Unfocus all panels. */
 	unfocusAll(): void {
 		this.setFocus(null);
+	}
+
+	// ── Panel Resize ──
+
+	/**
+	 * Resize a focused panel wider/narrower/taller/shorter.
+	 * Closes and recreates the panel at the new dimensions (without firing onClose).
+	 */
+	resizePanel(id: string, direction: "wider" | "narrower" | "taller" | "shorter"): string {
+		if (!this.panels.has(id)) return `No panel '${id}' open`;
+		const info = this.recreateInfo.get(id);
+		if (!info) return `No recreate info for '${id}'`;
+		const geo = this.geometries.get(id);
+		if (!geo) return `No geometry for '${id}'`;
+
+		const termCols = process.stdout.columns ?? 120;
+		const termRows = process.stdout.rows ?? 40;
+		const wasFocused = this._focusedId === id;
+
+		const newOpts: PanelCreateOptions = { ...info.options };
+
+		switch (direction) {
+			case "wider":
+				newOpts.width = Math.min(geo.resolvedWidthCols + DEFAULT_RESIZE_STEP, termCols - 4);
+				break;
+			case "narrower":
+				newOpts.width = Math.max(geo.resolvedWidthCols - DEFAULT_RESIZE_STEP, MIN_PANEL_WIDTH);
+				break;
+			case "taller": {
+				const curH = typeof info.options.maxHeight === "number"
+					? info.options.maxHeight : geo.estimatedHeightRows;
+				newOpts.maxHeight = Math.min(curH + DEFAULT_RESIZE_STEP, termRows - 4);
+				break;
+			}
+			case "shorter": {
+				const curH = typeof info.options.maxHeight === "number"
+					? info.options.maxHeight : geo.estimatedHeightRows;
+				newOpts.maxHeight = Math.max(curH - DEFAULT_RESIZE_STEP, MIN_PANEL_HEIGHT);
+				break;
+			}
+		}
+
+		info.options = newOpts;
+		this._reopenPanel(id, wasFocused);
+		return `Resized '${id}' ${direction}`;
+	}
+
+	// ── Panel Nudge ──
+
+	/**
+	 * Move a panel by step cells in the given direction.
+	 * On first nudge, transitions to absolute positioning (anchor "top-left" with margin 0).
+	 * Updates isAbsoluteMode/absoluteX/absoluteY on the geometry.
+	 */
+	nudgePanel(id: string, direction: "left" | "right" | "up" | "down", step?: number): string {
+		if (!this.panels.has(id)) return `No panel '${id}' open`;
+		const info = this.recreateInfo.get(id);
+		if (!info) return `No recreate info for '${id}'`;
+		const geo = this.geometries.get(id);
+		if (!geo) return `No geometry for '${id}'`;
+
+		const s = step ?? DEFAULT_NUDGE_STEP;
+		const termCols = process.stdout.columns ?? 120;
+		const termRows = process.stdout.rows ?? 40;
+		const wasFocused = this._focusedId === id;
+
+		// Transition to absolute positioning on first nudge
+		if (!geo.isAbsoluteMode) {
+			const rect = this.computeGeoRect(geo, termCols, termRows);
+			geo.isAbsoluteMode = true;
+			geo.absoluteX = rect.left;
+			geo.absoluteY = rect.top;
+		}
+
+		// Apply nudge delta
+		switch (direction) {
+			case "left":
+				geo.absoluteX = Math.max(0, (geo.absoluteX ?? 0) - s);
+				break;
+			case "right":
+				geo.absoluteX = Math.min(termCols - geo.resolvedWidthCols - 1, (geo.absoluteX ?? 0) + s);
+				break;
+			case "up":
+				geo.absoluteY = Math.max(0, (geo.absoluteY ?? 0) - s);
+				break;
+			case "down":
+				geo.absoluteY = Math.min(termRows - geo.estimatedHeightRows - 1, (geo.absoluteY ?? 0) + s);
+				break;
+		}
+
+		// Encode absolute position in options: "top-left" anchor + margin 0 so
+		// computeCellRect gives: top = offsetY = absoluteY, left = offsetX = absoluteX
+		info.options = {
+			...info.options,
+			anchor: "top-left" as OverlayAnchor,
+			offsetX: geo.absoluteX,
+			offsetY: geo.absoluteY,
+			margin: 0,
+			allowOverlap: true,
+		};
+
+		this._reopenPanel(id, wasFocused);
+		return `Nudged '${id}' ${direction}`;
+	}
+
+	/**
+	 * Close and immediately recreate a panel without calling its onClose callback.
+	 * Used by resizePanel() and nudgePanel() to apply updated options in-place.
+	 */
+	private _reopenPanel(id: string, refocus: boolean): void {
+		const info = this.recreateInfo.get(id);
+		if (!info) return;
+		const panel = this.panels.get(id);
+		if (!panel) return;
+
+		// Preserve per-panel skin override
+		const skin = this._panelSkins.get(id);
+
+		// Remove panel state without firing onClose
+		this._panelSkins.delete(id);
+		panel.dispose?.();
+		panel.handle.hide();
+		this.panels.delete(id);
+		this.geometries.delete(id);
+		const histIdx = this._focusHistory.indexOf(id);
+		if (histIdx !== -1) this._focusHistory.splice(histIdx, 1);
+		if (this._focusedId === id) this._focusedId = null;
+		// recreateInfo intentionally preserved — createPanel will overwrite it
+
+		// Recreate with updated options
+		this.createPanel(id, info.factory, { ...info.options, focusOnOpen: refocus });
+
+		// Restore skin override (set before first render fires)
+		if (skin) this._panelSkins.set(id, skin);
 	}
 
 	// ── Input Routing ──
@@ -1102,15 +1396,11 @@ class PanelRegistry {
 			this.close(id);
 			return true;
 		}
-		if (matchesKey(data, FOCUS_KEY)) {
-			this.cycleFocus(1);
-			return true;
-		}
-		if (matchesKey(data, KEYBINDS.focusReverse)) {
-			this.cycleFocus(-1);
-			return true;
-		}
-
+		// Spatial focus navigation
+		if (matchesKey(data, KEYBINDS.focusLeft)) { this.focusDirection("left"); return true; }
+		if (matchesKey(data, KEYBINDS.focusRight)) { this.focusDirection("right"); return true; }
+		if (matchesKey(data, KEYBINDS.focusUp)) { this.focusDirection("up"); return true; }
+		if (matchesKey(data, KEYBINDS.focusDown)) { this.focusDirection("down"); return true; }
 		// Skin cycling
 		if (matchesKey(data, KEYBINDS.skinNext)) {
 			this.cyclePanelSkin(id, 1);
@@ -1120,6 +1410,16 @@ class PanelRegistry {
 			this.cyclePanelSkin(id, -1);
 			return true;
 		}
+		// Resize
+		if (matchesKey(data, KEYBINDS.resizeWider)) { this.resizePanel(id, "wider"); return true; }
+		if (matchesKey(data, KEYBINDS.resizeNarrower)) { this.resizePanel(id, "narrower"); return true; }
+		if (matchesKey(data, KEYBINDS.resizeTaller)) { this.resizePanel(id, "taller"); return true; }
+		if (matchesKey(data, KEYBINDS.resizeShorter)) { this.resizePanel(id, "shorter"); return true; }
+		// Nudge
+		if (matchesKey(data, KEYBINDS.nudgeLeft)) { this.nudgePanel(id, "left"); return true; }
+		if (matchesKey(data, KEYBINDS.nudgeRight)) { this.nudgePanel(id, "right"); return true; }
+		if (matchesKey(data, KEYBINDS.nudgeUp)) { this.nudgePanel(id, "up"); return true; }
+		if (matchesKey(data, KEYBINDS.nudgeDown)) { this.nudgePanel(id, "down"); return true; }
 
 		panel.handleInput?.(data);
 		return true;
@@ -1214,20 +1514,28 @@ export default function (pi: ExtensionAPI) {
 		isOpen: (id: string) => registry.isOpen(id),
 		get: (id: string) => registry.get(id),
 		list: () => registry.list(),
-		// Focus (unified — always visual-only, never touches overlay capture state)
+		// Focus (spatial navigation — always visual-only, never touches overlay capture state)
 		focusPanel: (id: string) => registry.focusPanel(id),
-		cycleFocus: () => registry.cycleFocus(),
+		focusDirection: (direction: "left" | "right" | "up" | "down") => registry.focusDirection(direction),
 		unfocusAll: () => registry.unfocusAll(),
 		getFocusedId: () => registry.getFocusedId(),
 		setFocus: (id: string | null) => registry.setFocus(id),
-		/** Route input to a specific panel, including shared keys (close/unfocus/focus-cycle). */
+		/** Route input to a specific panel, including shared keys (close/unfocus/spatial-focus). */
 		handleInput: (id: string, data: string) => registry.handlePanelInput(id, data),
 		// Ask prompt coordination — when active, the input listener stands down
 		setAskActive: (active: boolean) => { registry._askActive = active; },
-		// Backward compat aliases for virtual focus (now unified)
+		// Resize + nudge
+		resizePanel: (id: string, direction: "wider" | "narrower" | "taller" | "shorter") =>
+			registry.resizePanel(id, direction),
+		nudgePanel: (id: string, direction: "left" | "right" | "up" | "down", step?: number) =>
+			registry.nudgePanel(id, direction, step),
+		// Backward compat aliases (deprecated — use focusDirection() for spatial navigation)
+		/** @deprecated Use focusDirection() for spatial navigation */
+		cycleFocus: () => registry.focusDirection("right"),
 		setVirtualFocus: (id: string | null) => registry.setFocus(id),
 		getVirtualFocusId: () => registry.getFocusedId(),
-		cycleVirtualFocus: () => registry.cycleFocus(),
+		/** @deprecated Use focusDirection() for spatial navigation */
+		cycleVirtualFocus: () => registry.focusDirection("right"),
 		// Skin management (global)
 		setSkin: (name: string) => registry.setSkin(name),
 		cycleSkin: () => registry.cycleSkin(),
@@ -1248,17 +1556,21 @@ export default function (pi: ExtensionAPI) {
 		wrapComponent: (panelId: string, inner: any) => registry.wrapComponent(panelId, inner),
 		/** Display-friendly hints for shared panel keys. */
 		keyHints: {
-			focusKey: FOCUS_LABEL,
-			focusReverseKey: FOCUS_REVERSE_LABEL,
 			closeKey: CLOSE_LABEL,
 			unfocusKey: UNFOCUS_LABEL,
+			focusLeftKey: keyLabel(KEYBINDS.focusLeft),
+			focusRightKey: keyLabel(KEYBINDS.focusRight),
+			focusUpKey: keyLabel(KEYBINDS.focusUp),
+			focusDownKey: keyLabel(KEYBINDS.focusDown),
 			focused: `${CLOSE_LABEL} close · ${UNFOCUS_LABEL} unfocus`,
-			unfocused: `${FOCUS_LABEL}/${FOCUS_REVERSE_LABEL} cycle`,
+			unfocused: `${keyLabel(KEYBINDS.focusLeft)}/${keyLabel(KEYBINDS.focusRight)} focus`,
 		},
 		/** Raw matchesKey-compatible key codes for passthrough from overlays. */
 		rawKeys: {
-			focus: FOCUS_KEY,
-			focusReverse: KEYBINDS.focusReverse,
+			focusLeft: KEYBINDS.focusLeft,
+			focusRight: KEYBINDS.focusRight,
+			focusUp: KEYBINDS.focusUp,
+			focusDown: KEYBINDS.focusDown,
 			close: KEYBINDS.close,
 			unfocus: KEYBINDS.unfocus,
 		},
@@ -1268,20 +1580,23 @@ export default function (pi: ExtensionAPI) {
 
 	(globalThis as any)[API_KEY] = api;
 
-	// ── Shortcut & Resize ──
+	// ── Spatial Focus Shortcuts ──
 
-	pi.registerShortcut(FOCUS_KEY, {
-		description: "Cycle focus forward between panels",
-		handler: async () => {
-			if (registry.size > 0) registry.cycleFocus(1);
-		},
+	pi.registerShortcut(KEYBINDS.focusLeft, {
+		description: "Focus nearest panel to the left",
+		handler: async () => { if (registry.size > 0) registry.focusDirection("left"); },
 	});
-
-	pi.registerShortcut(KEYBINDS.focusReverse, {
-		description: "Cycle focus backward between panels",
-		handler: async () => {
-			if (registry.size > 0) registry.cycleFocus(-1);
-		},
+	pi.registerShortcut(KEYBINDS.focusRight, {
+		description: "Focus nearest panel to the right",
+		handler: async () => { if (registry.size > 0) registry.focusDirection("right"); },
+	});
+	pi.registerShortcut(KEYBINDS.focusUp, {
+		description: "Focus nearest panel above",
+		handler: async () => { if (registry.size > 0) registry.focusDirection("up"); },
+	});
+	pi.registerShortcut(KEYBINDS.focusDown, {
+		description: "Focus nearest panel below",
+		handler: async () => { if (registry.size > 0) registry.focusDirection("down"); },
 	});
 
 	process.stdout.on("resize", () => {
@@ -1401,7 +1716,8 @@ export default function (pi: ExtensionAPI) {
 				case "focus": {
 					if (registry.size === 0) { ctx.ui.notify("No panels open", "info"); return; }
 					const target = parts[1];
-					ctx.ui.notify(target ? registry.focusPanel(target) : registry.cycleFocus(), "info");
+					const dir = (parts[2] as "left" | "right" | "up" | "down") ?? "right";
+					ctx.ui.notify(target ? registry.focusPanel(target) : registry.focusDirection(dir), "info");
 					return;
 				}
 				default:
@@ -1411,9 +1727,11 @@ export default function (pi: ExtensionAPI) {
 						"  /panels                  List all open panels",
 						"  /panels close-all         Close everything",
 						"  /panels layout [count]    Suggest positions",
-						"  /panels focus [id]        Focus panel / cycle",
+						"  /panels focus [id]        Focus panel by ID",
+						"  /panels focus [left|right|up|down]  Spatial focus",
 						"",
-						`Focus: ${FOCUS_LABEL} · Close: ${CLOSE_LABEL} · Unfocus: ${UNFOCUS_LABEL}`,
+						`Spatial focus: ${keyLabel(KEYBINDS.focusLeft)}/${keyLabel(KEYBINDS.focusRight)}/${keyLabel(KEYBINDS.focusUp)}/${keyLabel(KEYBINDS.focusDown)}`,
+						`Close: ${CLOSE_LABEL} · Unfocus: ${UNFOCUS_LABEL}`,
 					].join("\n"), "info");
 			}
 		},

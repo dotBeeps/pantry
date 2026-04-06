@@ -109,16 +109,29 @@ function activateAskMode(): void {
  * The TUI input listener (in dragon-parchment) is suppressed via setAskActive(true),
  * so we manually route panel keys through this function instead.
  *
- * Focus is unified: cycleFocus/getFocusedId/unfocusAll are the same API
+ * Focus is unified: focusDirection/getFocusedId/unfocusAll are the same API
  * whether called from here or from the input listener outside ask prompts.
  */
 function passthroughToPanel(data: string): boolean {
 	const panels = getPanels();
 	if (!panels?.rawKeys) return false;
 
-	// Focus cycle
-	if (matchesKey(data, panels.rawKeys.focus)) {
-		panels.cycleFocus();
+	// Spatial focus — enter focus mode or move focus in a direction.
+	// These work even when no panel is currently focused.
+	if (matchesKey(data, panels.rawKeys.focusLeft)) {
+		panels.focusDirection('left');
+		return true;
+	}
+	if (matchesKey(data, panels.rawKeys.focusDown)) {
+		panels.focusDirection('down');
+		return true;
+	}
+	if (matchesKey(data, panels.rawKeys.focusUp)) {
+		panels.focusDirection('up');
+		return true;
+	}
+	if (matchesKey(data, panels.rawKeys.focusRight)) {
+		panels.focusDirection('right');
 		return true;
 	}
 

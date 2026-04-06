@@ -284,6 +284,29 @@ async function generatePhrases(ctx: ExtensionContext): Promise<string[]> {
 
 // ── Phrase Cache & Cycling ──
 
+/** Simple Fisher-Yates shuffle (in-place). */
+function shuffle<T>(arr: T[]): T[] {
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[arr[i], arr[j]] = [arr[j]!, arr[i]!];
+	}
+	return arr;
+}
+
+/** Blend generated phrases with a few random static ones, dedupe, shuffle. */
+function blendAndShuffle(generated: string[], recentlySeen: Set<string>): string[] {
+	// Pick 3 random static phrases for variety
+	const staticPicks = shuffle([...STATIC_PHRASES]).slice(0, 3);
+	const combined = [...generated, ...staticPicks];
+
+	// Dedupe against recently seen phrases (case-insensitive)
+	const unique = combined.filter((p) => !recentlySeen.has(p.toLowerCase()));
+
+	// If deduping killed too many, fall back to the generated set as-is
+	const result = unique.length >= 3 ? unique : combined;
+	return shuffle(result);
+}
+
 interface PhraseState {
 	phrases: string[];
 	index: number;
@@ -313,6 +336,10 @@ export default function (pi: ExtensionAPI) {
 	let turnsSinceLastGeneration = 0;
 	let generationInFlight = false; // prevent concurrent generation
 	let turnCount = 0;
+
+	// Track recently seen phrases to avoid repetition across generations
+	const recentlySeen = new Set<string>();
+	const MAX_RECENTLY_SEEN = 60;
 
 	const state: PhraseState = {
 		phrases: [],
@@ -376,8 +403,20 @@ export default function (pi: ExtensionAPI) {
 			generatePhrases(ctx)
 				.then((phrases) => {
 					if (phrases.length >= 3) {
-						state.phrases = phrases;
+						state.phrases = blendAndShuffle(phrases, recentlySeen);
 						state.index = 0;
+
+						// Record these as seen
+						for (const p of state.phrases) recentlySeen.add(p.toLowerCase());
+						// Evict oldest if the set grows too large
+						if (recentlySeen.size > MAX_RECENTLY_SEEN) {
+							const iter = recentlySeen.values();
+							while (recentlySeen.size > MAX_RECENTLY_SEEN) {
+								const oldest = iter.next();
+								if (oldest.done) break;
+								recentlySeen.delete(oldest.value);
+							}
+						}
 					}
 					generationsThisSession++;
 					turnsSinceLastGeneration = 0;
@@ -408,6 +447,7 @@ export default function (pi: ExtensionAPI) {
 		turnsSinceLastGeneration = 0;
 		generationInFlight = false;
 		turnCount = 0;
+		recentlySeen.clear();
 		ctxRef = null;
 	});
 

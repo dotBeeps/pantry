@@ -527,7 +527,7 @@ export default function dragonGuardExtension(pi: ExtensionAPI): void {
 						"  /dog                 Enter Dog Mode",
 						"",
 						"When focused: ↑↓ navigate, ←→ or Space to adjust,",
-						`${kh?.focusKey ?? "Alt+T"} to cycle focus, ${kh?.closeKey ?? "Q"} to close, ${kh?.unfocusKey ?? "Escape"} to unfocus`,
+						`${kh?.spatialFocusKey ?? "Ctrl+Arrows"} to focus, ${kh?.closeKey ?? "Q"} to close, ${kh?.unfocusKey ?? "Escape"} to unfocus`,
 					].join("\n"), "info");
 				}
 			}

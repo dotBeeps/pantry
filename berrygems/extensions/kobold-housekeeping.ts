@@ -3,7 +3,7 @@
  *
  * Features:
  * - Non-blocking, non-capturing overlay panels showing todos grouped by tag
- * - Focus cycling via Alt+T — panels capture keyboard input only when focused
+ * - Spatial focus via Ctrl+Arrows — panels capture keyboard input only when focused
  * - Backed by pi's built-in `.pi/todos` file system (no session state)
  * - Agent-callable `todo_panel` tool for opening, closing, focusing, and layout
  * - `/todos` command for user panel management
@@ -250,7 +250,7 @@ class TodoPanelComponent {
 		const focusCounter = focusPos ? ` ${focusPos.index}/${focusPos.total}` : "";
 		const help = focused
 			? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "Q close · Escape unfocus"}${focusCounter}`)
-			: th.fg("dim", `${kh?.unfocused ?? "Alt+T/Shift+Tab cycle"} · /todos help${focusCounter}`);
+			: th.fg("dim", `${kh?.unfocused ?? "Ctrl+Arrows focus"} · /todos help${focusCounter}`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
 		// ── Bottom border ──
@@ -401,7 +401,7 @@ export default function (pi: ExtensionAPI) {
 				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.relativeTo, params.relativeEdge, params.focus)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllTodoPanels());
-				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }
+				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.focusDirection?.("right") ?? "Panel manager unavailable"); }
 				case "unfocus": getPanels()?.unfocusAll(); return makeResult("All panels unfocused");
 				case "list_panels": return makeResult(listPanels());
 				case "suggest_layout": return makeResult(getSuggestedLayout(params.count ?? todoComponents.size + 1));
@@ -456,7 +456,7 @@ export default function (pi: ExtensionAPI) {
 				case "focus": {
 					if (todoComponents.size === 0) { ctx.ui.notify("No todo panels open", "info"); return; }
 					const fp = getPanels();
-					ctx.ui.notify(parts[1] ? fp?.focusPanel(panelId(parts[1])) ?? "Panel manager unavailable" : fp?.cycleFocus() ?? "Panel manager unavailable", "info");
+					ctx.ui.notify(parts[1] ? fp?.focusPanel(panelId(parts[1])) ?? "Panel manager unavailable" : fp?.focusDirection?.("right") ?? "Panel manager unavailable", "info");
 					return;
 				}
 				case "layout": { const c = parts[1] ? parseInt(parts[1], 10) : todoComponents.size + 1; ctx.ui.notify(getSuggestedLayout(isNaN(c) ? 1 : c), "info"); return; }
@@ -468,7 +468,8 @@ export default function (pi: ExtensionAPI) {
 						"", "  /todos open <tag> [anchor] [width]",
 						"  /todos close [tag]                  Close panel",
 						"  /todos close-all                    Close all",
-						`  /todos focus [tag]                  Focus / cycle (${getPanels()?.keyHints?.focusKey ?? "Alt+T"})`,
+						`  /todos focus [tag]                  Focus panel (${getPanels()?.keyHints?.spatialFocusKey ?? "Ctrl+Arrows"})`,
+
 						"  /todos status                       List panels",
 						"  /todos layout [count]               Suggest positions",
 						"  /todos refresh                      Refresh all",

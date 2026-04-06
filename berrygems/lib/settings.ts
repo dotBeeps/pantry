@@ -68,7 +68,6 @@ function resolvePath(obj: Record<string, unknown>, path: string): unknown {
  */
 const LEGACY_MAP: Record<string, string> = {
 	// panels
-	"panels.focusKey": "panelFocusKey",
 	"panels.keybinds.close": "panelCloseKey",
 	"panels.keybinds.unfocus": "panelUnfocusKey",
 	// guard
