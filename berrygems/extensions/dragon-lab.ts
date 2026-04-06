@@ -2,20 +2,18 @@
 //
 // Manages provider-level opt-in features (beta headers, experimental APIs) that
 // require explicit provider registration. Loads before other dragon-* extensions
-// alphabetically so features are active by the time agent_start fires.
+// alphabetically so activated features are visible by agent_start.
 //
-// Hoard's own features don't need to gate through dragon-lab — they ship on by
-// default. This is for external provider experiments: Anthropic betas, future
+// Hoard's own features don't gate through dragon-lab — they ship on by default.
+// Dragon-lab is for external provider experiments: Anthropic betas, future
 // Google/OpenAI opt-ins, etc.
 //
 // globalThis API: Symbol.for("hoard.lab")
-// Settings: hoard.lab.*
+// Settings:       hoard.lab.*
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Model, Api } from "@mariozechner/pi-ai";
-import { readHoardSetting } from "../lib/settings";
-
-declare const pi: ExtensionAPI;
+import { readHoardSetting } from "../lib/settings.ts";
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -44,14 +42,14 @@ export interface DragonLabAPI {
 //
 // Mirror of the hardcoded betas in pi-ai/dist/providers/anthropic.js.
 // We must reproduce the full string because mergeHeaders is Object.assign —
-// our providerHeaders.anthropic-beta overwrites pi's base value entirely.
+// our providerHeaders["anthropic-beta"] overwrites pi's base value entirely.
 //
-// Update this constant when pi adds new betas (check anthropic.js in pi-ai).
+// ⚠️  Update this when pi adds new Anthropic betas (check anthropic.js in pi-ai).
 
 const PI_BASE_BETAS = [
 	"claude-code-20250219",
 	"fine-grained-tool-streaming-2025-05-14",
-	"interleaved-thinking-2025-05-14", // always include — safe when thinking is off, required when on
+	"interleaved-thinking-2025-05-14", // always include — safe when off, required when on
 ];
 const PI_OAUTH_BETA = "oauth-2025-04-20";
 
@@ -86,50 +84,51 @@ const api: DragonLabAPI = {
 
 (globalThis as any)[LAB_KEY] = api;
 
-// ─── Session start ────────────────────────────────────────────────────────────
+// ─── Extension entry point ───────────────────────────────────────────────────
 
-pi.on("session_start", async (_event, ctx) => {
-	_active.clear();
+export default function dragonLab(pi: ExtensionAPI): void {
+	pi.on("session_start", async (_event, ctx) => {
+		_active.clear();
 
-	const model = ctx.model as Model<Api> | undefined;
-	if (!model) return;
+		const model = ctx.model as Model<Api> | undefined;
+		if (!model) return;
 
-	// ── Anthropic context management ──────────────────────────────────────────
-	//
-	// Activates Anthropic's context management API (clear_tool_uses,
-	// clear_thinking, compact_20260112) by injecting the beta header.
-	//
-	// Note: registerProvider replaces providerRequestConfigs entirely, so we
-	// must reproduce pi's full beta string. API key users who configured their
-	// key only via settings.json (not /login) will have their key wiped from
-	// providerRequestConfigs — authStorage-based auth (OAuth, /login API key)
-	// is unaffected. Document this limitation and revisit if it comes up.
+		// ── Anthropic context management ──────────────────────────────────────
+		//
+		// Activates Anthropic's context management API by injecting the beta header.
+		//
+		// Note: registerProvider replaces providerRequestConfigs entirely. Users who
+		// set their API key only in settings.json (not via /login) may have their key
+		// wiped from the stored config. OAuth and /login API key users are unaffected
+		// (authStorage is checked first and is independent of providerRequestConfigs).
 
-	if (model.provider === "anthropic") {
-		const enabled = readHoardSetting<boolean>("lab.anthropic.contextManagement", true);
-		if (enabled !== false) {
-			const isOAuth = ctx.modelRegistry.isUsingOAuth(model);
+		if (model.provider === "anthropic") {
+			const enabled = readHoardSetting<boolean>("lab.anthropic.contextManagement", true);
+			if (enabled !== false) {
+				const isOAuth = ctx.modelRegistry.isUsingOAuth(model);
 
-			const betas = [
-				...PI_BASE_BETAS,
-				isOAuth ? PI_OAUTH_BETA : null,
-				"context-management-2025-06-27",
-			]
-				.filter(Boolean)
-				.join(",");
+				const betas = [
+					...PI_BASE_BETAS,
+					isOAuth ? PI_OAUTH_BETA : null,
+					"context-management-2025-06-27",
+				]
+					.filter(Boolean)
+					.join(",");
 
-			pi.registerProvider("anthropic", { headers: { "anthropic-beta": betas } });
-			_active.set(ANTHROPIC_CONTEXT_MANAGEMENT.id, ANTHROPIC_CONTEXT_MANAGEMENT);
+				pi.registerProvider("anthropic", { headers: { "anthropic-beta": betas } });
+				_active.set(ANTHROPIC_CONTEXT_MANAGEMENT.id, ANTHROPIC_CONTEXT_MANAGEMENT);
+			}
 		}
-	}
 
-	// ── External features ─────────────────────────────────────────────────────
-	// Extensions can call lab.register(feature) at load time. Dragon-lab marks
-	// them active here if they match the current provider. Extensions handle
-	// their own provider registration; this just tracks activation state.
-	for (const [id, feature] of _pending) {
-		if (!_active.has(id) && feature.provider === model.provider) {
-			_active.set(id, feature);
+		// ── External features ─────────────────────────────────────────────────
+		// Extensions register features at load time via lab.register(). Dragon-lab
+		// marks them active if their provider matches the current session model.
+		// Extensions handle their own provider registration; dragon-lab only tracks
+		// activation state.
+		for (const [id, feature] of _pending) {
+			if (!_active.has(id) && feature.provider === model.provider) {
+				_active.set(id, feature);
+			}
 		}
-	}
-});
+	});
+}
