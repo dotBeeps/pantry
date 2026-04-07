@@ -1,11 +1,7 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
+import "github.com/dotBeeps/hoard/dragon-daemon/cmd"
 
 func main() {
-	fmt.Println("dragon-daemon: not yet implemented")
-	os.Exit(0)
+	cmd.Execute()
 }
