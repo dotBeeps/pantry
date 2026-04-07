@@ -8,11 +8,14 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/attention"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/body"
 	hoardbody "github.com/dotBeeps/hoard/dragon-daemon/internal/body/hoard"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/sensory"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/thought"
@@ -46,12 +49,30 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// Wire up components.
 	ledger := attention.New(d.persona, d.log)
 	agg := sensory.New(20)
+
+	// Load pi OAuth credentials.
+	oauth, err := auth.LoadPiOAuth(d.log)
+	if err != nil {
+		return fmt.Errorf("loading pi oauth: %w", err)
+	}
+
+	// Open memory vault.
+	vaultDir, err := d.vaultDir()
+	if err != nil {
+		return fmt.Errorf("resolving vault dir: %w", err)
+	}
+	vault, err := memory.Open(vaultDir, d.log)
+	if err != nil {
+		return fmt.Errorf("opening memory vault: %w", err)
+	}
+	d.log.Info("memory vault open", "dir", vault.VaultDir())
+
 	bodies, err := d.buildBodies()
 	if err != nil {
 		return fmt.Errorf("building bodies: %w", err)
 	}
 
-	cycle := thought.New(d.persona, ledger, agg, bodies, d.log)
+	cycle := thought.New(d.persona, ledger, agg, bodies, vault, oauth, d.log)
 
 	// Parse thought interval from persona config.
 	interval, err := d.persona.ThoughtInterval()
@@ -106,6 +127,15 @@ func (d *Daemon) buildBodies() ([]body.Body, error) {
 		d.log.Info("body loaded", "id", cfg.ID, "type", cfg.Type)
 	}
 	return bodies, nil
+}
+
+// vaultDir returns the path to this persona's memory vault.
+func (d *Daemon) vaultDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "dragon-daemon", "memory", d.persona.Persona.Name), nil
 }
 
 func (d *Daemon) buildBody(cfg persona.BodyConfig) (body.Body, error) {

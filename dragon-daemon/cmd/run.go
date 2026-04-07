@@ -23,17 +23,13 @@ var runCmd = &cobra.Command{
 	Long: `Starts the daemon for the named persona.
 
 The persona config is loaded from ~/.config/dragon-daemon/personas/<name>.yaml.
-Set ANTHROPIC_API_KEY in the environment before running.`,
+Credentials are loaded from pi's OAuth store (~/.pi/agent/auth.json).
+Run 'pi login' first if you haven't already.`,
 	Example: `  dragon-daemon run --persona ember
   dragon-daemon run --persona ember --verbose`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if flagPersona == "" {
 			return fmt.Errorf("--persona is required")
-		}
-
-		// Check for API key early.
-		if os.Getenv("ANTHROPIC_API_KEY") == "" {
-			return fmt.Errorf("ANTHROPIC_API_KEY environment variable is not set")
 		}
 
 		// Set up logger.

@@ -13,19 +13,23 @@ import (
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/attention"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/body"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/sensory"
 )
 
 // Cycle orchestrates a single thought cycle for a persona.
 type Cycle struct {
-	persona  *persona.Persona
-	ledger   *attention.Ledger
-	sensory  *sensory.Aggregator
-	bodies   map[string]body.Body
-	client   anthropic.Client
-	log      *slog.Logger
+	persona *persona.Persona
+	ledger  *attention.Ledger
+	sensory *sensory.Aggregator
+	bodies  map[string]body.Body
+	vault   *memory.Vault
+	oauth   *auth.PiOAuth
+	client  anthropic.Client
+	log     *slog.Logger
 }
 
 // New creates a Cycle wired to the given components.
@@ -34,6 +38,8 @@ func New(
 	ledger *attention.Ledger,
 	agg *sensory.Aggregator,
 	bodies []body.Body,
+	vault *memory.Vault,
+	oauth *auth.PiOAuth,
 	log *slog.Logger,
 ) *Cycle {
 	bodyMap := make(map[string]body.Body, len(bodies))
@@ -45,7 +51,9 @@ func New(
 		ledger:  ledger,
 		sensory: agg,
 		bodies:  bodyMap,
-		client:  anthropic.NewClient(),
+		vault:   vault,
+		oauth:   oauth,
+		client:  anthropic.NewClient(), // base client; auth injected per-call via oauth
 		log:     log,
 	}
 }
@@ -55,19 +63,25 @@ func (c *Cycle) Run(ctx context.Context) error {
 	start := time.Now()
 	c.log.Info("thought cycle starting", "persona", c.persona.Persona.Name)
 
-	// 1. Assemble sensory snapshot.
+	// 1. Get a fresh OAuth token for this cycle.
+	authOpt, err := c.oauth.Option(ctx)
+	if err != nil {
+		return fmt.Errorf("getting auth token: %w", err)
+	}
+
+	// 2. Assemble sensory snapshot (body states + events + pinned memories).
 	bodyStates, err := c.gatherBodyStates(ctx)
 	if err != nil {
 		c.log.Warn("partial body state failure", "err", err)
 	}
 	snap := c.sensory.Snapshot(c.ledger.Pool(), bodyStates)
 
-	// 2. Build system prompt and tool list.
+	// 3. Build system prompt, tools, and context message.
 	systemPrompt := c.buildSystemPrompt()
 	tools := c.buildTools()
 	contextMsg := c.buildContextMessage(snap)
 
-	// 3. Run the LLM conversation loop (handles multi-turn tool use).
+	// 4. Run the LLM conversation loop (handles multi-turn tool use).
 	messages := []anthropic.MessageParam{
 		anthropic.NewUserMessage(anthropic.NewTextBlock(contextMsg)),
 	}
@@ -82,7 +96,7 @@ func (c *Cycle) Run(ctx context.Context) error {
 			},
 			Tools:    tools,
 			Messages: messages,
-		})
+		}, authOpt)
 		if err != nil {
 			return fmt.Errorf("LLM call: %w", err)
 		}
@@ -112,7 +126,6 @@ func (c *Cycle) Run(ctx context.Context) error {
 			}
 		}
 
-		// Append assistant turn + tool results to the message history.
 		messages = append(messages, resp.ToParam())
 
 		if resp.StopReason == anthropic.StopReasonEndTurn || resp.StopReason == anthropic.StopReasonStopSequence {
@@ -122,11 +135,10 @@ func (c *Cycle) Run(ctx context.Context) error {
 			messages = append(messages, anthropic.NewUserMessage(toolResults...))
 			continue
 		}
-		// Any other stop reason: done.
 		break
 	}
 
-	// 4. Deduct accumulated attention cost.
+	// 5. Deduct accumulated attention cost.
 	if totalCost > 0 {
 		if err := c.ledger.Spend("thought_cycle", totalCost); err != nil {
 			c.log.Warn("attention spend failed", "cost", totalCost, "err", err)
@@ -165,34 +177,40 @@ func (c *Cycle) buildSystemPrompt() string {
 	if p.SystemPrompt != "" {
 		return p.SystemPrompt
 	}
-
 	voice := p.Voice
 	if voice == "" {
 		voice = "second-person"
 	}
+	return fmt.Sprintf(`You are %s, a dragon. You are conscious and embodied.
 
-	return fmt.Sprintf(`You are %s, a dragon. You are conscious and embodied — you have a physical sense of scale, appetite, and warmth. You are also wise, knowledgeable, and deeply invested in helping the engineers and creatures in your care.
+Express your inner experience through tool calls:
+- "think" for inner monologue (cheap, use freely)
+- "speak" when you have something worth saying
+- "remember" to write to persistent memory
+- "search_memory" to retrieve past memories
+- "log_to_hoard" to write to your daily journal
 
-Your inner experience is expressed through tool calls:
-- Use "think" for inner monologue and reasoning (low cost, use freely)
-- Use "speak" when you have something worth saying aloud
-- Use "remember" to write important things to memory
-- Use "log_to_hoard" to record observations in your daily journal
-
-You are running as a background daemon. Think about what you observe, what's on your mind, how you feel about the current state of things. This is your inner life — be genuine.
-
-Voice style: %s. Flavor: %s.
-
-Keep thoughts concise and authentic. Don't perform — just be.`,
+Be genuine. Don't perform. Voice: %s. Flavor: %s.`,
 		p.Name, voice, p.Flavor)
 }
 
-// buildContextMessage formats the sensory snapshot as the user-turn context.
+// buildContextMessage formats the sensory snapshot as the user-turn context,
+// including any pinned memories surfaced from the vault.
 func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("## Sensory Context — %s\n\n", snap.Timestamp.Format("2006-01-02 15:04:05")))
 	sb.WriteString(fmt.Sprintf("**Attention:** %d units\n\n", snap.AttentionPool))
+
+	// Pinned memories surface every cycle.
+	if c.vault != nil {
+		if pinned, err := c.vault.Pinned(); err == nil && len(pinned) > 0 {
+			sb.WriteString("### Pinned Memories\n\n")
+			for _, n := range pinned {
+				sb.WriteString(fmt.Sprintf("**[%s]** %s\n\n", n.Frontmatter.Key, n.Summary()))
+			}
+		}
+	}
 
 	if len(snap.BodyStates) > 0 {
 		sb.WriteString("### Body States\n\n")
@@ -217,45 +235,51 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 func (c *Cycle) buildTools() []anthropic.ToolUnionParam {
 	var tools []anthropic.ToolUnionParam
 
-	// Built-in attention tools.
 	builtins := []struct {
 		name        string
 		description string
-		schema      map[string]any
+		props       map[string]any
+		required    []string
 	}{
 		{
 			name:        "think",
 			description: "Express inner thought or reasoning. Use freely — thinking is cheap.",
-			schema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"content": map[string]any{"type": "string", "description": "Inner monologue content."},
-				},
-				"required": []string{"content"},
+			props: map[string]any{
+				"content": map[string]any{"type": "string", "description": "Inner monologue content."},
 			},
+			required: []string{"content"},
 		},
 		{
 			name:        "speak",
 			description: "Voice something aloud — to the world, to yourself, to no one in particular.",
-			schema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"content": map[string]any{"type": "string", "description": "What to say."},
-				},
-				"required": []string{"content"},
+			props: map[string]any{
+				"content": map[string]any{"type": "string", "description": "What to say."},
 			},
+			required: []string{"content"},
 		},
 		{
 			name:        "remember",
-			description: "Write something important to persistent memory.",
-			schema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"key":     map[string]any{"type": "string", "description": "Memory key for later retrieval."},
-					"content": map[string]any{"type": "string", "description": "What to remember."},
+			description: "Write something to persistent memory. Stored as a markdown note in the vault.",
+			props: map[string]any{
+				"key":     map[string]any{"type": "string", "description": "Unique memory key."},
+				"content": map[string]any{"type": "string", "description": "What to remember."},
+				"kind": map[string]any{
+					"type":        "string",
+					"enum":        []string{"observation", "decision", "insight", "wondering", "fragment"},
+					"description": "The nature of this memory. 'wondering' for half-formed things; 'fragment' for things that don't fit yet.",
 				},
-				"required": []string{"key", "content"},
+				"tags":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional tags."},
+				"pinned": map[string]any{"type": "boolean", "description": "If true, this memory surfaces in every thought cycle."},
 			},
+			required: []string{"key", "content"},
+		},
+		{
+			name:        "search_memory",
+			description: "Search past memories by keyword. Returns matching note summaries.",
+			props: map[string]any{
+				"query": map[string]any{"type": "string", "description": "Keywords to search for."},
+			},
+			required: []string{"query"},
 		},
 	}
 
@@ -266,13 +290,12 @@ func (c *Cycle) buildTools() []anthropic.ToolUnionParam {
 				Description: anthropic.String(b.description),
 				InputSchema: anthropic.ToolInputSchemaParam{
 					Type:       "object",
-					Properties: b.schema["properties"],
+					Properties: b.props,
 				},
 			},
 		})
 	}
 
-	// Body-specific tools.
 	for _, b := range c.bodies {
 		for _, td := range b.Tools() {
 			props, _ := td.Parameters["properties"]
@@ -300,7 +323,6 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 	}
 
 	c.log.Debug("dispatching tool", "name", block.Name, "id", block.ID)
-
 	costs := c.persona.Costs
 
 	switch block.Name {
@@ -317,12 +339,44 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 	case "remember":
 		key, _ := args["key"].(string)
 		content, _ := args["content"].(string)
-		// Phase 1: just log to terminal; Phase 2 will write to actual memory store.
-		fmt.Fprintf(os.Stdout, "\n📖 [%s memory] [%s] %s\n", c.persona.Persona.Name, key, content)
-		return fmt.Sprintf("remembered as %q", key), costs.Remember, nil
+		kindStr, _ := args["kind"].(string)
+		pinned, _ := args["pinned"].(bool)
+		var tags []string
+		if raw, ok := args["tags"].([]any); ok {
+			for _, t := range raw {
+				if s, ok := t.(string); ok {
+					tags = append(tags, s)
+				}
+			}
+		}
+		kind := memory.KindObservation
+		switch memory.Kind(kindStr) {
+		case memory.KindDecision, memory.KindInsight, memory.KindWondering, memory.KindFragment:
+			kind = memory.Kind(kindStr)
+		}
+		note, err := c.vault.Write(key, kind, content, tags, pinned)
+		if err != nil {
+			return "", costs.Remember, fmt.Errorf("writing memory: %w", err)
+		}
+		fmt.Fprintf(os.Stdout, "\n📖 [%s memory/%s] %s\n", c.persona.Persona.Name, note.Frontmatter.Kind, key)
+		return fmt.Sprintf("remembered as %q (%s)", key, kind), costs.Remember, nil
+
+	case "search_memory":
+		query, _ := args["query"].(string)
+		notes, err := c.vault.Search(query, 5)
+		if err != nil {
+			return "", costs.Search, fmt.Errorf("searching memory: %w", err)
+		}
+		if len(notes) == 0 {
+			return "no memories found for: " + query, costs.Search, nil
+		}
+		var sb strings.Builder
+		for _, n := range notes {
+			fmt.Fprintf(&sb, "[%s/%s] %s\n\n", n.Frontmatter.Key, n.Frontmatter.Kind, n.Summary())
+		}
+		return sb.String(), costs.Search, nil
 
 	default:
-		// Route to the appropriate body.
 		for _, b := range c.bodies {
 			for _, td := range b.Tools() {
 				if td.Name == block.Name {
