@@ -384,6 +384,7 @@ export default function (pi: ExtensionAPI) {
 	// We only generate once per turn (guarded by generationInFlight + turnCount).
 	pi.on("before_provider_request", async (_event, ctx) => {
 		if (!isEnabled()) return;
+		if (!ctx.hasUI) return; // Subagents have no TUI — skip musings entirely
 
 		ctxRef = ctx;
 

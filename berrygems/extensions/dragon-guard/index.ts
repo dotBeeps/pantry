@@ -661,8 +661,8 @@ export default function dragonGuardExtension(pi: ExtensionAPI): void {
 	};
 
 	pi.on("session_start", handleSessionChange);
-	pi.on("session_switch", handleSessionChange);
-	pi.on("session_fork", handleSessionChange);
+	pi.on("session_switch" as any, handleSessionChange);
+	pi.on("session_fork" as any, handleSessionChange);
 	pi.on("session_tree", handleSessionChange);
 
 	pi.on("session_shutdown", async (_event, ctx) => {

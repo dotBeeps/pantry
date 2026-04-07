@@ -723,7 +723,7 @@ export default function popup(pi: ExtensionAPI): void {
 
 	// ── Events ──
 
-	pi.on("session_switch", async () => { activePopups.clear(); imageCache.clear(); });
+	pi.on("session_switch" as any, async () => { activePopups.clear(); imageCache.clear(); });
 	pi.on("session_shutdown", async () => { activePopups.clear(); imageCache.clear(); });
 
 	// ── Commands ──

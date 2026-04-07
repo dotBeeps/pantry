@@ -1642,7 +1642,7 @@ export default function (pi: ExtensionAPI) {
 		pi.events.emit("panels:ready", {});
 	});
 
-	pi.on("session_switch", async (_event, ctx) => {
+	pi.on("session_switch" as any, async (_event: any, ctx: any) => {
 		registry.closeAll();
 		widgetRegistered = false;
 		captureUI(ctx);
