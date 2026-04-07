@@ -66,35 +66,31 @@ Designed the Qt/QML desktop window for dot to watch the daemon's inner life.
 
 ---
 
-### Phase 4A — In Progress
-Kobold chain dispatched at ~00:00, blocked by dragon-curfew before tests could run.
+### Phase 4A ✅ (completed 2026-04-08 morning)
+Kobold chain dispatched at ~00:00 on 2026-04-07, blocked by dragon-curfew (all three workers hit curfew). Re-dispatched next morning with curfew overrides baked in. Completed cleanly.
 
-**Done:**
-- `internal/body/maw/maw.go` — full Body implementation written (build clean)
-- `internal/daemon/daemon.go` — `buildBodies(ledger, agg)` signature updated, "maw" case added, `outputWirer` interface + wire loop added, `soul.Deps.Cycle` wired
+**Delivered:**
+- `internal/body/maw/maw.go` — full Body implementation: SSE stream, state snapshot, message injection
+- `internal/body/maw/maw_test.go` — 8 tests (state, message, stream SSE, method enforcement)
+- `internal/daemon/daemon.go` — buildBodies(ledger, agg), "maw" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
 
-**Blocked at:**
-- `internal/body/maw/maw_test.go` — test kobold hit curfew, tests not yet written
-- Full test+lint pass not yet run on 4A changes
-
-**Resume:** re-dispatch the test+lint kobold with curfew override, or run manually:
-```bash
-cd /home/dot/Development/hoard/dragon-daemon
-go test ./... -count=1
-golangci-lint run ./...
-```
+**Bugs caught by test kobold:**
+1. SSE headers not flushing until first event → client hangs. Fixed with `: connected\n\n` + Flush() on connect.
+2. Missing ReadHeaderTimeout (gosec G112). Fixed.
 
 ---
 
-## Commits this session
+## Commits
 - `74bf97c` — `feat(dragon-daemon): shore up soul ethics enforcement (phases A-D)`
-- `a5e4ab1` (approx) — `docs(dragon-daemon): add phase 4 maw spec + update AGENTS.md`
+- `f7fbfff` — `docs(dragon-daemon): add phase 4 maw spec + update AGENTS.md`
+- `1db653f` — `docs: update AGENTS.md + session snapshot for 2026-04-07`
+- `4690f86` — `feat(dragon-daemon): add maw body — HTTP+SSE thought stream for dot (phase 4A)`
+- `379787c` — `feat(dragon-daemon): phase 2 — body lifecycle, heart, hoard watcher, research`
 
 ---
 
 ## State of the repo
-- `dragon-daemon/internal/body/maw/maw.go` — new, uncommitted
-- `dragon-daemon/internal/daemon/daemon.go` — modified, uncommitted  
-- Root `AGENTS.md` — updated (dragon-daemon entry reflects soul shore-up + Phase 4)
+All work committed. 102 tests, 0 lint issues across 5 packages.
+Ready for code review, then Phase 4B (Qt scaffold).
 
 These need a commit in the morning before continuing with 4A tests.

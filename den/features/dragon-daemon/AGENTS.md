@@ -1,6 +1,6 @@
 # dragon-daemon
 
-**Status:** 🐣 in-progress (Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, lint clean ✅, ready for Phase 3)
+**Status:** 🐣 in-progress (Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, Phase 4A ✅, lint clean ✅)
 **Code:** `dragon-daemon/` (Go module)
 
 ## What It Does
@@ -95,18 +95,24 @@ The daemon currently has one body type (hoard repo watcher). Phase 3 expands wha
 - Per-body soul contracts (e.g. shell body gets a command allowlist gate)
 - Cross-body event correlation (e.g. "file changed AND PR is open for this branch")
 
-### Phase 4 — Maw 🥚 planned
+### Phase 4 — Maw 🐣 in-progress
 
 Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 
-**Maw** — the dragon's mouth. A body (`internal/body/maw.go`) that exposes the daemon's inner life to dot via HTTP+SSE. Paired with a Qt/QML desktop app (`hoard/maw/`).
+**Maw** — the dragon's mouth. A body (`internal/body/maw/`) that exposes the daemon's inner life to dot via HTTP+SSE. Paired with a Qt/QML desktop app (`hoard/maw/`).
 
-Dot gets:
-- Thought stream — live scrolling feed of think/speak/text-block/beat events
-- State panel — attention gauge, active bodies, contract status indicators
-- Input bar — direct message to daemon (no impulse mode — that's agent-to-agent)
+**4A ✅ Maw body** (2026-04-08):
+- `internal/body/maw/maw.go` — full Body implementation
+  - `GET /stream`: SSE thought events + 30s keepalive + flush-on-connect
+  - `GET /state`: JSON snapshot (attention pool + timestamp)
+  - `POST /message`: enqueues maw/message sensory event
+  - `Wire(soul.OutputCapture)`: hooks into thought cycle output
+- `internal/body/maw/maw_test.go` — 8 tests
+- `internal/daemon/daemon.go` — "maw" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
 
-Sub-phases: 4A daemon body, 4B Qt scaffold + stream, 4C state panel, 4D input bar.
+**4B 🥚 Qt scaffold + stream** — MawConnection SSE client, ThoughtStream.qml
+**4C 🥚 State panel** — attention gauge, body list, contract indicators
+**4D 🥚 Input bar** — direct message send
 
 ### Phase 5 — Polish + Inclinations
 
@@ -139,7 +145,8 @@ dragon-daemon/
     body/body.go                  Body interface (ID, Type, State, Tools, Events, Start, Stop)
     body/hoard/hoard.go           git log, daily journal, log_to_hoard, event channel
     body/hoard/watcher.go         fsnotify file/commit watcher with debounce
-    daemon/daemon.go              lifecycle orchestrator, fan-in, soul wiring
+    body/maw/maw.go               HTTP+SSE body: thought stream, state, message injection
+    daemon/daemon.go              lifecycle orchestrator, fan-in, soul wiring, outputWirer
     heart/heart.go                heartbeat with jitter + event-driven nudge
     memory/note.go                Note struct + frontmatter + Kind enum
     memory/vault.go               Obsidian-compatible read/write/search/append + write hooks
