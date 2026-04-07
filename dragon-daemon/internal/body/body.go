@@ -18,6 +18,14 @@ type Body interface {
 	// Type returns the body type string (e.g. "hoard", "minecraft").
 	Type() string
 
+	// Start initializes the body's runtime resources (watchers, connections).
+	// Called once after construction, before the dragon-heart starts beating.
+	Start(ctx context.Context) error
+
+	// Stop shuts down the body's runtime resources.
+	// Called during daemon shutdown.
+	Stop() error
+
 	// State returns the current state summary for inclusion in the sensory snapshot.
 	State(ctx context.Context) (sensory.BodyState, error)
 
@@ -29,6 +37,11 @@ type Body interface {
 	// Tools returns the list of tool definitions this body exposes to the LLM.
 	// These are merged with built-in persona tools before each thought cycle.
 	Tools() []ToolDef
+
+	// Events returns a channel of sensory events pushed by this body.
+	// The dragon-heart: events on this channel trigger immediate thought cycles.
+	// Returns nil if this body does not produce asynchronous events.
+	Events() <-chan sensory.Event
 }
 
 // ToolDef describes a tool that a body (or the persona itself) exposes to the LLM.

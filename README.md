@@ -9,7 +9,7 @@ Built by a small dog and a large dragon.
 ```
 berrygems/       Tasty pi extensions — panels, guards, tools, and tone
 morsels/         Bite-sized agent skills — git, GitHub, writing, pi internals
-dragon-daemon/   Go daemon — memory consolidation, vault maintenance, async operations
+dragon-daemon/   Go persona daemon — thought cycles, attention economy, ethical contracts, Obsidian memory
 ```
 
 ## Install
@@ -108,7 +108,7 @@ On-demand knowledge packages that teach the agent how to do specific tasks.
 
 | | component | description |
 |---|---|---|
-| 📜 | **dragon-daemon** | Go daemon for memory consolidation, vault maintenance, and async ops that outlive pi sessions |
+| 🐣 | **dragon-daemon** | Go persona daemon — persistent agent runtime with event-driven thought cycles, attention economy, ethical contract enforcement (dragon-soul), Obsidian-compatible memory, and fsnotify body sensing |
 
 ## License
 

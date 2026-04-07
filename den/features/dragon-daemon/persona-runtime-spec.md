@@ -61,7 +61,7 @@ This creates real behavioral trade-offs: speed vs depth, reaction vs planning.
 A "thought" is one turn of the inner loop:
 
 ```
-1. Ticker fires (event arrives OR heartbeat interval elapsed)
+1. Dragon-heart beats (event nudge OR heartbeat interval elapsed)
 2. Sensory aggregator builds context window:
      - current body state (what the agent perceives right now)
      - recent events (rolling buffer, last N)
@@ -76,7 +76,7 @@ A "thought" is one turn of the inner loop:
 5. Contract enforcer validates each action before dispatch
 6. Actions dispatched to appropriate connections
 7. Results enqueued as perceptual inputs for next thought
-8. Attention ledger updated; ticker schedules next thought
+8. Attention ledger updated; dragon-heart schedules next beat
 ```
 
 One turn = one pi agent turn. The attention constraint is enforced by the system: each tool has a declared cost, and the ledger blocks dispatch when the budget is empty.
@@ -400,9 +400,9 @@ SoulGem is the reference implementation of a body.
 
 ---
 
-## 7. The Ticker
+## 7. The Dragon-Heart
 
-The ticker is the clock of the inner loop. It's deliberately not a simple interval timer.
+The dragon-heart is the clock of the inner loop. It's deliberately not a simple interval timer.
 
 ### 7.1 Firing Conditions
 
@@ -419,16 +419,18 @@ A thought does **not** fire when:
 
 This means the system costs **zero tokens** when nothing is happening. The cost scales with actual activity, not with time. That's the right model.
 
+> **Implementation note (2026-04-07):** Firing conditions 1 and 2 are implemented. The heart's `Nudge()` method is a buffered-1 channel — rapid events coalesce. Conditions 3 and 4 are not yet implemented.
+
 ### 7.2 Budget Awareness
 
-The ticker tracks cumulative daily token usage using the EcoLogits constants already in hoard (1.4 Wh/1K output tokens for Haiku). At the start of each thought it:
+The dragon-heart tracks cumulative daily token usage using the EcoLogits constants already in hoard (1.4 Wh/1K output tokens for Haiku). At the start of each thought it:
 
 1. Estimates cost of the upcoming thought
 2. If above 80% of daily budget: logs a warning, switches heartbeat to 2× interval
 3. If above 100% of daily budget: switches to event-only mode (no heartbeat), logs loudly
 4. Reports actual cost to dragon-breath after each thought
 
-Dragon-breath handles the UI and user-visible reporting. The ticker just provides the accounting.
+Dragon-breath handles the UI and user-visible reporting. The dragon-heart just provides the accounting.
 
 ### 7.3 Model Escalation
 
@@ -449,7 +451,7 @@ Escalation is transparent — it's logged and surfaced in the Qt reasoning view.
 | Subsystem | Description | Lives in |
 |-----------|-------------|----------|
 | **Persona Loader** | Parse YAML profile, validate schema, compute initial attention/rate state | dragon-daemon |
-| **Thought Ticker** | Event-driven + heartbeat clock, budget awareness, escalation logic | dragon-daemon |
+| **Dragon-Heart** | Event-driven + heartbeat clock, budget awareness, escalation logic | `internal/heart/` |
 | **Attention Ledger** | Track pool, current rate, apply action costs, enforce cap | dragon-daemon |
 | **Sensory Aggregator** | Assemble context window from body state + events + memory + working memory | dragon-daemon |
 | **Contract Enforcer** | Validate proposed actions against obligations/prohibitions before dispatch | dragon-daemon |
@@ -550,37 +552,57 @@ Global only for now: `~/.config/dragon-daemon/personas/<name>.yaml`. Project-sco
 ### Phase 1 — Minimum Viable Ticker ✅
 - ✅ Persona loader (YAML parse + validation + defaults)
 - ✅ Attention ledger (pool, hourly regen, floor gate, per-action spend)
-- ✅ Ticker (heartbeat with ±variance jitter)
+- ✅ Ticker/heartbeat (now renamed to dragon-heart, `internal/heart/`)
 - ✅ Sensory aggregator (event queue, body state merge)
 - ✅ Dispatch to hoard body (git log, daily journal, log_to_hoard tool)
 - ✅ Thought cycle (Claude haiku, multi-turn tool dispatch)
 - ✅ Daemon lifecycle (signal handling, cobra CLI)
 - Terminal output only — no Qt yet (as planned)
 
-### Phase 2 — Auth + Memory + Events (in progress)
+### Phase 2 — Auth + Memory + Dragon Triad ✅ core
 - ✅ Pi OAuth auth (reads ~/.pi/agent/auth.json, refreshes tokens, Bearer auth)
 - ✅ Obsidian vault memory (~/.config/dragon-daemon/memory/<persona>/)
-- ✅ Five memory kinds: observation, decision, insight, wondering, fragment
+- ✅ Six memory kinds: observation, decision, insight, wondering, fragment, journal
 - ✅ Pinned notes surface in every sensory snapshot
 - ✅ First-person ethical contract as system_prompt
-- ❌ Event-driven ticker (body events trigger thoughts)
-- ❌ Contract enforcer (obligations + prohibitions)
+- ✅ Dragon-heart: event-driven heartbeat with `Nudge()` coalescing (`internal/heart/`)
+- ✅ Dragon-body: fsnotify watcher on hoard repo, commit + file change events (`internal/body/hoard/watcher.go`)
+- ✅ Dragon-soul: contract enforcer with gate/audit phases (`internal/soul/`)
+  - ✅ `minimum-rest` gate (time window with midnight crossing)
+  - ✅ `attention-honesty` audit (ledger snapshot + arithmetic verification)
+  - ✅ `memory-transparency` audit (write-through journaling + completeness check)
+- ✅ Vault write hooks + audit trail on attention ledger
 - ❌ Focus manager
 - ❌ Impulse injection (terminal only — Qt later)
 - ❌ Budget awareness + dragon-breath reporting
 
-### Phase 3 — Body Interface + Integration
-- Full body connection interface
-- SoulGem registered as a body (Minecraft persona works)
-- Working memory across turns
+### Phase 3 — Bodies + Integration
+The daemon currently has one body (hoard repo). Phase 3 expands the interaction surface.
+
+**New body types:**
+- GitHub body — PR events, issue mentions, CI status, commenting, workflow triggers
+- Pi session body — sense active pi sessions, send messages, read session state
+- Shell body — cron-like triggers, gated command execution (soul contract for allowlists)
+
+**Enhanced hoard body:**
+- Multi-repo watching
+- Branch switches, stash events, merge conflict detection
+- `git_status` and `git_diff` tools
+
+**Infrastructure:**
+- Per-body soul contracts (e.g. shell command allowlist gate)
+- Cross-body event correlation
+- Focus manager (deferred from Phase 2 stretch)
+- Budget awareness + dragon-breath energy reporting
 
 ### Phase 4 — Qt Frontend (hoard)
 - Thought stream view
-- Agent state panel
+- Agent state panel (attention, bodies, contracts)
 - Input terminal (direct + impulse modes)
+- Impulse injection (deferred from Phase 2 stretch)
 
 ### Phase 5 — Polish + Inclinations
 - Inclination-based action weighting
-- Model escalation logic
-- Sub-agent spawning (if needed)
+- Model escalation logic (Haiku → Sonnet for complex thoughts)
+- Sub-agent spawning
 - Identity reflection (consent-gated, high-risk opt-in)

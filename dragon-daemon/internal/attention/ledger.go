@@ -11,16 +11,25 @@ import (
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/persona"
 )
 
+// AuditEntry records a single attention operation for post-beat verification.
+type AuditEntry struct {
+	Action    string
+	Cost      int
+	PoolAfter int
+	At        time.Time
+}
+
 // Ledger tracks the current attention pool and handles regen + spending.
 type Ledger struct {
-	mu      sync.Mutex
-	pool    float64 // current attention units (float for fractional regen)
-	max     int     // maximum pool size (starting pool)
-	floor   int     // minimum before ticker pauses
-	rate    float64 // units per hour regeneration
-	costs   persona.CostConfig
+	mu        sync.Mutex
+	pool      float64 // current attention units (float for fractional regen)
+	max       int     // maximum pool size (starting pool)
+	floor     int     // minimum before ticker pauses
+	rate      float64 // units per hour regeneration
+	costs     persona.CostConfig
 	lastRegen time.Time
-	log     *slog.Logger
+	audit     []AuditEntry // dragon-soul: attention honesty trail
+	log       *slog.Logger
 }
 
 // New creates a Ledger initialised from a persona config.
@@ -61,12 +70,28 @@ func (l *Ledger) Spend(action string, cost int) error {
 		return fmt.Errorf("insufficient attention for %s: have %d, need %d", action, int(l.pool), cost)
 	}
 	l.pool -= float64(cost)
+	l.audit = append(l.audit, AuditEntry{
+		Action:    action,
+		Cost:      cost,
+		PoolAfter: int(l.pool),
+		At:        time.Now(),
+	})
 	l.log.Info("attention spent",
 		"action", action,
 		"cost", cost,
 		"pool_after", int(l.pool),
 	)
 	return nil
+}
+
+// DrainAudit returns and clears the audit trail.
+// Used by dragon-soul to verify attention honesty post-beat.
+func (l *Ledger) DrainAudit() []AuditEntry {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	entries := l.audit
+	l.audit = nil
+	return entries
 }
 
 // SpendThink deducts the configured think cost.

@@ -3,19 +3,19 @@ package persona
 
 // Persona is the top-level persona YAML structure.
 type Persona struct {
-	Persona   PersonaConfig  `yaml:"persona"`
+	Persona   Config          `yaml:"persona"`
 	Attention AttentionConfig `yaml:"attention"`
-	Costs     CostConfig     `yaml:"costs"`
-	Bodies    []BodyConfig   `yaml:"bodies"`
-	Contracts []Contract     `yaml:"contracts"`
+	Costs     CostConfig      `yaml:"costs"`
+	Bodies    []BodyConfig    `yaml:"bodies"`
+	Contracts []Contract      `yaml:"contracts"`
 }
 
-// PersonaConfig holds character identity settings.
-type PersonaConfig struct {
-	Name        string `yaml:"name"`
-	Flavor      string `yaml:"flavor"`
-	Voice       string `yaml:"voice"`        // second-person | first-person
-	MemoryScope string `yaml:"memory_scope"` // session | rolling | archive
+// Config holds character identity settings.
+type Config struct {
+	Name         string `yaml:"name"`
+	Flavor       string `yaml:"flavor"`
+	Voice        string `yaml:"voice"`         // second-person | first-person
+	MemoryScope  string `yaml:"memory_scope"`  // session | rolling | archive
 	SystemPrompt string `yaml:"system_prompt"` // optional override; otherwise generated from name/flavor
 }
 

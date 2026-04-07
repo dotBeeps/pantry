@@ -5,6 +5,7 @@ package hoard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,22 +20,56 @@ import (
 
 // Body is a hoard repository body.
 type Body struct {
-	id   string
-	path string
-	log  *slog.Logger
+	id     string
+	path   string
+	log    *slog.Logger
+	events chan sensory.Event // dragon-heart: outbound event channel
+	watch  *watcher           // dragon-body: filesystem watcher
+	cancel context.CancelFunc
 }
 
 // New creates a HoardBody for the repository at path.
 func New(id, path string, log *slog.Logger) *Body {
 	return &Body{
-		id:   id,
-		path: path,
-		log:  log,
+		id:     id,
+		path:   path,
+		log:    log,
+		events: make(chan sensory.Event, 16),
 	}
 }
 
-func (b *Body) ID() string   { return b.id }
+// ID returns the body identifier.
+func (b *Body) ID() string { return b.id }
+
+// Type returns "hoard".
 func (b *Body) Type() string { return "hoard" }
+
+// Start initializes the dragon-body filesystem watcher.
+func (b *Body) Start(ctx context.Context) error {
+	w, err := newWatcher(b.path, b.events, b.log)
+	if err != nil {
+		return fmt.Errorf("starting hoard watcher: %w", err)
+	}
+	b.watch = w
+
+	watchCtx, cancel := context.WithCancel(ctx)
+	b.cancel = cancel
+	go w.run(watchCtx)
+
+	b.log.Info("dragon-body started", "id", b.id, "path", b.path)
+	return nil
+}
+
+// Stop shuts down the dragon-body filesystem watcher.
+func (b *Body) Stop() error {
+	if b.cancel != nil {
+		b.cancel()
+	}
+	if b.watch != nil {
+		return b.watch.stop()
+	}
+	return nil
+}
 
 // State returns a sensory summary of the hoard repository.
 func (b *Body) State(ctx context.Context) (sensory.BodyState, error) {
@@ -61,6 +96,12 @@ func (b *Body) Execute(ctx context.Context, name string, args map[string]any) (s
 	default:
 		return "", fmt.Errorf("unknown tool %q for hoard body %s", name, b.id)
 	}
+}
+
+// Events returns the dragon-heart event channel.
+// Events pushed here trigger immediate thought cycles.
+func (b *Body) Events() <-chan sensory.Event {
+	return b.events
 }
 
 // Tools returns the tools this body exposes.
@@ -125,7 +166,7 @@ func (b *Body) buildSummary(ctx context.Context) (string, map[string]any, error)
 
 // recentCommits returns the last n commit summaries from git log.
 func (b *Body) recentCommits(ctx context.Context, n int) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", b.path, "log",
+	cmd := exec.CommandContext(ctx, "git", "-C", b.path, "log", //nolint:gosec // G204: args are hardcoded, not user-controlled
 		fmt.Sprintf("--max-count=%d", n),
 		"--pretty=format:%h %s (%ar)",
 	)
@@ -145,7 +186,7 @@ func (b *Body) recentCommits(ctx context.Context, n int) ([]string, error) {
 
 // isDirty reports whether the repo has any unstaged or uncommitted changes.
 func (b *Body) isDirty(ctx context.Context) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", b.path, "status", "--porcelain")
+	cmd := exec.CommandContext(ctx, "git", "-C", b.path, "status", "--porcelain") //nolint:gosec // G204: args are hardcoded
 	out, err := cmd.Output()
 	if err != nil {
 		return false, fmt.Errorf("git status: %w", err)
@@ -163,7 +204,7 @@ func (b *Body) todayLogContent() (string, error) {
 		return "", nil
 	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("reading daily log: %w", err)
 	}
 	content := strings.TrimSpace(string(data))
 	// Truncate to first 500 chars for the sensory snapshot.
@@ -177,22 +218,26 @@ func (b *Body) todayLogContent() (string, error) {
 func (b *Body) logToHoard(_ context.Context, args map[string]any) (string, error) {
 	content, ok := args["content"].(string)
 	if !ok || content == "" {
-		return "", fmt.Errorf("log_to_hoard: content is required")
+		return "", errors.New("log_to_hoard: content is required")
 	}
 	section, _ := args["section"].(string)
 
 	today := time.Now().Format("2006-01-02")
 	dir := filepath.Join(b.path, "den", "daily")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("creating daily log dir: %w", err)
 	}
 
 	path := filepath.Join(dir, today+".md")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("opening daily log: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			b.log.Error("closing daily log", "err", cerr)
+		}
+	}()
 
 	now := time.Now().Format("15:04")
 	var entry string
@@ -207,5 +252,5 @@ func (b *Body) logToHoard(_ context.Context, args map[string]any) (string, error
 	}
 
 	b.log.Info("hoard daily log updated", "file", path, "section", section)
-	return fmt.Sprintf("Logged to %s", path), nil
+	return "Logged to " + path, nil
 }

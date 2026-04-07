@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -29,7 +30,7 @@ Run 'pi login' first if you haven't already.`,
   dragon-daemon run --persona ember --verbose`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if flagPersona == "" {
-			return fmt.Errorf("--persona is required")
+			return errors.New("--persona is required")
 		}
 
 		// Set up logger.
