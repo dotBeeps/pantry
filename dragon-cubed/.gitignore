@@ -1,0 +1,42 @@
+# ── General ──────────────────────────────────────────────────────────────────
+.DS_Store
+*.log
+*.tmp
+.env
+.env.*
+
+# ── Gradle (leylines/, rumble/) ──────────────────────────────────────────────
+.gradle/
+build/
+**/build/
+**/.gradle/
+
+# NeoForge dev run directories (server world data, eula.txt, etc.)
+runs/
+**/runs/
+
+# Datagen output — commit if you want diffable JSON, gitignore if not
+# src/generated/
+**/src/generated/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ── Go (soulgem/) ────────────────────────────────────────────────────────────
+soulgem/bin/
+soulgem/*.exe
+soulgem/dist/
+
+# ── Java / Kotlin artifacts ──────────────────────────────────────────────────
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# ── Node (if any tooling lands here) ─────────────────────────────────────────
+node_modules/
+dist/
+research.md
