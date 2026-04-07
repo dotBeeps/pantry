@@ -20,16 +20,21 @@ import (
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/sensory"
 )
 
+// OutputHook is called for each piece of text output produced during a thought cycle.
+// Includes LLM text blocks, think tool content, and speak tool content.
+type OutputHook func(text string)
+
 // Cycle orchestrates a single thought cycle for a persona.
 type Cycle struct {
-	persona *persona.Persona
-	ledger  *attention.Ledger
-	sensory *sensory.Aggregator
-	bodies  map[string]body.Body
-	vault   *memory.Vault
-	oauth   *auth.PiOAuth
-	client  anthropic.Client
-	log     *slog.Logger
+	persona     *persona.Persona
+	ledger      *attention.Ledger
+	sensory     *sensory.Aggregator
+	bodies      map[string]body.Body
+	vault       *memory.Vault
+	oauth       *auth.PiOAuth
+	client      anthropic.Client
+	log         *slog.Logger
+	outputHooks []OutputHook
 }
 
 // New creates a Cycle wired to the given components.
@@ -55,6 +60,18 @@ func New(
 		oauth:   oauth,
 		client:  anthropic.NewClient(), // base client; auth injected per-call via oauth
 		log:     log,
+	}
+}
+
+// OnOutput registers a hook called for every piece of text the thought cycle produces.
+// Safe to call concurrently. Hooks are called in registration order.
+func (c *Cycle) OnOutput(hook OutputHook) {
+	c.outputHooks = append(c.outputHooks, hook)
+}
+
+func (c *Cycle) fireOutput(text string) {
+	for _, h := range c.outputHooks {
+		h(text)
 	}
 }
 
@@ -112,7 +129,8 @@ func (c *Cycle) Run(ctx context.Context) error {
 			switch v := block.AsAny().(type) {
 			case anthropic.TextBlock:
 				if strings.TrimSpace(v.Text) != "" {
-					fmt.Fprintf(os.Stdout, "\n[%s thought] %s\n", c.persona.Persona.Name, v.Text)
+					_, _ = fmt.Fprintf(os.Stdout, "\n[%s thought] %s\n", c.persona.Persona.Name, v.Text)
+					c.fireOutput(v.Text)
 				}
 			case anthropic.ToolUseBlock:
 				result, cost, execErr := c.dispatchTool(ctx, v)
@@ -196,18 +214,20 @@ Be genuine. Don't perform. Voice: %s. Flavor: %s.`,
 
 // buildContextMessage formats the sensory snapshot as the user-turn context,
 // including any pinned memories surfaced from the vault.
+//
+//nolint:revive // strings.Builder.WriteString never returns an error
 func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("## Sensory Context — %s\n\n", snap.Timestamp.Format("2006-01-02 15:04:05")))
-	sb.WriteString(fmt.Sprintf("**Attention:** %d units\n\n", snap.AttentionPool))
+	fmt.Fprintf(&sb, "## Sensory Context — %s\n\n", snap.Timestamp.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&sb, "**Attention:** %d units\n\n", snap.AttentionPool)
 
 	// Pinned memories surface every cycle.
 	if c.vault != nil {
 		if pinned, err := c.vault.Pinned(); err == nil && len(pinned) > 0 {
 			sb.WriteString("### Pinned Memories\n\n")
 			for _, n := range pinned {
-				sb.WriteString(fmt.Sprintf("**[%s]** %s\n\n", n.Frontmatter.Key, n.Summary()))
+				fmt.Fprintf(&sb, "**[%s]** %s\n\n", n.Frontmatter.Key, n.Summary())
 			}
 		}
 	}
@@ -215,14 +235,14 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 	if len(snap.BodyStates) > 0 {
 		sb.WriteString("### Body States\n\n")
 		for _, bs := range snap.BodyStates {
-			sb.WriteString(fmt.Sprintf("**%s** (%s):\n%s\n\n", bs.ID, bs.Type, bs.Summary))
+			fmt.Fprintf(&sb, "**%s** (%s):\n%s\n\n", bs.ID, bs.Type, bs.Summary)
 		}
 	}
 
 	if len(snap.RecentEvents) > 0 {
 		sb.WriteString("### Recent Events\n\n")
 		for _, e := range snap.RecentEvents {
-			sb.WriteString(fmt.Sprintf("- [%s] %s — %s\n", e.Source, e.Kind, e.Content))
+			fmt.Fprintf(&sb, "- [%s] %s — %s\n", e.Source, e.Kind, e.Content)
 		}
 		sb.WriteString("\n")
 	}
@@ -298,7 +318,7 @@ func (c *Cycle) buildTools() []anthropic.ToolUnionParam {
 
 	for _, b := range c.bodies {
 		for _, td := range b.Tools() {
-			props, _ := td.Parameters["properties"]
+			props := td.Parameters["properties"]
 			tools = append(tools, anthropic.ToolUnionParam{
 				OfTool: &anthropic.ToolParam{
 					Name:        td.Name,
@@ -328,12 +348,14 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 	switch block.Name {
 	case "think":
 		content, _ := args["content"].(string)
-		fmt.Fprintf(os.Stdout, "\n💭 [%s] %s\n", c.persona.Persona.Name, content)
+		_, _ = fmt.Fprintf(os.Stdout, "\n💭 [%s] %s\n", c.persona.Persona.Name, content)
+		c.fireOutput(content)
 		return "thought noted", costs.Think, nil
 
 	case "speak":
 		content, _ := args["content"].(string)
-		fmt.Fprintf(os.Stdout, "\n🔥 [%s speaks] %s\n", c.persona.Persona.Name, content)
+		_, _ = fmt.Fprintf(os.Stdout, "\n🔥 [%s speaks] %s\n", c.persona.Persona.Name, content)
+		c.fireOutput(content)
 		return "spoken", costs.Speak, nil
 
 	case "remember":
@@ -351,14 +373,16 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 		}
 		kind := memory.KindObservation
 		switch memory.Kind(kindStr) {
-		case memory.KindDecision, memory.KindInsight, memory.KindWondering, memory.KindFragment:
+		case memory.KindDecision, memory.KindInsight, memory.KindWondering, memory.KindFragment, memory.KindJournal:
 			kind = memory.Kind(kindStr)
+		case memory.KindObservation:
+			// default, already set
 		}
-		note, err := c.vault.Write(key, kind, content, tags, pinned)
+		note, err := c.vault.Write(key, kind, content, tags, pinned, memory.TierUnset)
 		if err != nil {
 			return "", costs.Remember, fmt.Errorf("writing memory: %w", err)
 		}
-		fmt.Fprintf(os.Stdout, "\n📖 [%s memory/%s] %s\n", c.persona.Persona.Name, note.Frontmatter.Kind, key)
+		_, _ = fmt.Fprintf(os.Stdout, "\n📖 [%s memory/%s] %s\n", c.persona.Persona.Name, note.Frontmatter.Kind, key)
 		return fmt.Sprintf("remembered as %q (%s)", key, kind), costs.Remember, nil
 
 	case "search_memory":
@@ -381,7 +405,10 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 			for _, td := range b.Tools() {
 				if td.Name == block.Name {
 					result, err := b.Execute(ctx, block.Name, args)
-					return result, costs.Perceive, err
+					if err != nil {
+						return "", costs.Perceive, fmt.Errorf("body tool %s: %w", block.Name, err)
+					}
+					return result, costs.Perceive, nil
 				}
 			}
 		}

@@ -1,27 +1,34 @@
 // Package memory implements an Obsidian-compatible markdown vault for persona memory.
 package memory
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Kind classifies the type of memory being stored.
 type Kind string
 
+// Memory kind constants.
 const (
 	KindObservation Kind = "observation"
 	KindDecision    Kind = "decision"
 	KindInsight     Kind = "insight"
 	KindWondering   Kind = "wondering" // half-formed things; held loosely
 	KindFragment    Kind = "fragment"  // things that don't fit yet
+	KindJournal     Kind = "journal"   // auto-generated audit trail entries
 )
 
 // Frontmatter is the YAML header of a memory note.
 type Frontmatter struct {
-	Key     string   `yaml:"key"`
-	Kind    Kind     `yaml:"kind"`
-	Tags    []string `yaml:"tags,omitempty"`
-	Pinned  bool     `yaml:"pinned"`
-	Created string   `yaml:"created"`
-	Updated string   `yaml:"updated"`
+	Key     string      `yaml:"key"`
+	Kind    Kind        `yaml:"kind"`
+	Tags    []string    `yaml:"tags,omitempty"`
+	Pinned  bool        `yaml:"pinned"`
+	Private bool        `yaml:"private,omitempty"`
+	Tier    ConsentTier `yaml:"tier,omitempty"`
+	Created string      `yaml:"created"`
+	Updated string      `yaml:"updated"`
 }
 
 // Note is a single memory entry.
@@ -32,12 +39,20 @@ type Note struct {
 
 // CreatedAt parses the Created timestamp.
 func (n *Note) CreatedAt() (time.Time, error) {
-	return time.Parse(time.RFC3339, n.Frontmatter.Created)
+	t, err := time.Parse(time.RFC3339, n.Frontmatter.Created)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parsing created timestamp: %w", err)
+	}
+	return t, nil
 }
 
 // UpdatedAt parses the Updated timestamp.
 func (n *Note) UpdatedAt() (time.Time, error) {
-	return time.Parse(time.RFC3339, n.Frontmatter.Updated)
+	t, err := time.Parse(time.RFC3339, n.Frontmatter.Updated)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parsing updated timestamp: %w", err)
+	}
+	return t, nil
 }
 
 // Summary returns a compact representation for injection into the sensory snapshot.
