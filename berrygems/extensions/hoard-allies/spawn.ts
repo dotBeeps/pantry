@@ -33,10 +33,10 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 
 		const args = [
 			"--mode", "json",
+			"-p",
 			"--no-session",
 			"--model", opts.model,
-			"--system-prompt", promptFile,
-			"-p", opts.task,
+			"--append-system-prompt", promptFile,
 		];
 
 		if (opts.tools) {
@@ -47,15 +47,17 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 			args.push("--thinking", opts.thinking);
 		}
 
-		if (opts.maxSubagentDepth !== undefined) {
-			args.push("--max-subagent-depth", String(opts.maxSubagentDepth));
-		}
+		// Note: maxSubagentDepth is an agent def field, not a CLI flag.
+		// It's enforced by the agent def, not the spawn command.
+
+		// Task goes as trailing positional arg
+		args.push(`Task: ${opts.task}`);
 
 		return await new Promise<SpawnResult>((resolve) => {
 			const proc = spawn(opts.piPath, args, {
 				cwd: opts.cwd,
 				env: { ...process.env },
-				stdio: ["pipe", "pipe", "pipe"],
+				stdio: ["ignore", "pipe", "pipe"],
 			});
 
 			let stdout = "";
@@ -91,7 +93,7 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 		});
 	} finally {
 		try { unlinkSync(promptFile); } catch { /* ignore */ }
-		try { unlinkSync(promptDir); } catch { /* ignore, rmdir would be better but non-fatal */ }
+		try { const { rmdirSync } = await import("node:fs"); rmdirSync(promptDir); } catch { /* ignore */ }
 	}
 }
 
