@@ -237,7 +237,6 @@ tools: read, grep, find, ls, bash
 model: anthropic/claude-sonnet-4-6
 thinking: medium
 maxSubagentDepth: 1
-output: false
 ---
 
 You are a Wise Griffin Reviewer.

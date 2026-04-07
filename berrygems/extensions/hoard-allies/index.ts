@@ -1,8 +1,9 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
-import { readHoardSetting } from "../lib/settings.ts";
+import { readHoardSetting } from "../../lib/settings.ts";
 import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { registerQuestTool } from "./quest-tool.ts";
 
 /**
  * hoard-allies — Subagent token governance for the hoard.
@@ -45,6 +46,7 @@ interface AlliesState {
 	budgetUsed: number;
 	nameQueues: Record<string, string[]>;
 	pendingNames: Map<string, string[]>;
+	providerCooldowns: Map<string, number>;
 }
 
 // ── Constants: Curated Combos ──
@@ -87,9 +89,9 @@ const NAME_POOLS: Record<Noun, string[]> = {
 // ── Constants: Defaults ──
 
 const DEFAULT_MODELS: Record<string, string[]> = {
-	kobold: ["anthropic/claude-haiku-4-5", "github-copilot/claude-haiku-4-5", "google/gemini-2.0-flash"],
-	griffin: ["anthropic/claude-sonnet-4-6", "github-copilot/claude-sonnet-4-6", "google/gemini-2.5-pro"],
-	dragon: ["anthropic/claude-opus-4-6", "github-copilot/claude-opus-4-6"],
+	kobold: ["github-copilot/claude-haiku-4.5", "anthropic/claude-haiku-4-5", "google/gemini-2.0-flash"],
+	griffin: ["github-copilot/claude-sonnet-4.6", "anthropic/claude-sonnet-4-6", "google/gemini-2.5-pro"],
+	dragon: ["github-copilot/claude-opus-4.6", "anthropic/claude-opus-4-6"],
 };
 
 const DEFAULT_THINKING: Record<string, string> = {
@@ -220,6 +222,7 @@ function initState(): AlliesState {
 			dragon: shuffle([...NAME_POOLS.dragon]),
 		},
 		pendingNames: new Map(),
+		providerCooldowns: new Map(),
 	};
 }
 
@@ -466,7 +469,6 @@ tools: ${JOB_TOOLS[combo.job]}
 model: ${model}
 thinking: ${thinking}
 maxSubagentDepth: ${depth}
-output: false
 ---
 
 ${prompt}`;
@@ -575,7 +577,8 @@ function buildSystemPrompt(): string {
 
 	return `## Subagent Dispatch — Hoard Allies
 
-You have a kobold/griffin/dragon taxonomy for subagent dispatch. Agent definitions are in .pi/agents/.
+You have a kobold/griffin/dragon taxonomy for subagent dispatch.
+Use the **quest** tool to send allies on quests. Agent definitions are also in .pi/agents/ for the built-in subagent tool.
 
 The matrix: <adjective> <noun> <job>
 - Adjective = thinking: silly (none) → clever (low) → wise (medium) → elder (high)
@@ -649,9 +652,32 @@ function checkParallel(): { allowed: boolean; reason?: string } {
 	return { allowed: true };
 }
 
+// ── Shared API for quest-tool (via globalThis) ──
+
+const ALLIES_API_KEY = Symbol.for("hoard.allies.api");
+
+function exposeAPI(): void {
+	(globalThis as Record<symbol, unknown>)[ALLIES_API_KEY] = {
+		calcCost,
+		getModels,
+		getThinking,
+		popName,
+		buildAllyPrompt,
+		budgetRemaining,
+		recordSpawn,
+		recordComplete,
+		recordFailed,
+	};
+}
+
 // ── Main Export ──
 
 export default function hoardAllies(pi: ExtensionAPI) {
+	// Expose API for quest-tool module
+	exposeAPI();
+	// Register the quest dispatch tool
+	registerQuestTool(pi);
+
 	// Regenerate agent defs + reset state on session start
 	pi.on("session_start", async (_event, ctx) => {
 		try {
