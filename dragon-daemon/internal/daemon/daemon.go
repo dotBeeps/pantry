@@ -9,17 +9,20 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/body"
 	hoardbody "github.com/dotBeeps/hoard/dragon-daemon/internal/body/hoard"
+	mawbody "github.com/dotBeeps/hoard/dragon-daemon/internal/body/maw"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/sensory"
+	"github.com/dotBeeps/hoard/dragon-daemon/internal/soul"
 	"github.com/dotBeeps/hoard/dragon-daemon/internal/thought"
-	"github.com/dotBeeps/hoard/dragon-daemon/internal/ticker"
 )
 
 // Daemon orchestrates a persona's lifecycle.
@@ -67,12 +70,36 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	d.log.Info("memory vault open", "dir", vault.VaultDir())
 
-	bodies, err := d.buildBodies()
+	bodies, err := d.buildBodies(ledger, agg)
 	if err != nil {
 		return fmt.Errorf("building bodies: %w", err)
 	}
 
+	// Start body lifecycle — watchers, connections, etc.
+	var startedBodies []body.Body
+	for _, b := range bodies {
+		if err := b.Start(ctx); err != nil {
+			return fmt.Errorf("starting body %s: %w", b.ID(), err)
+		}
+		startedBodies = append(startedBodies, b)
+	}
+	defer func() {
+		for _, b := range startedBodies {
+			if err := b.Stop(); err != nil {
+				d.log.Error("stopping body", "id", b.ID(), "err", err)
+			}
+		}
+	}()
+
 	cycle := thought.New(d.persona, ledger, agg, bodies, vault, oauth, d.log)
+
+	// Wire thought output to any bodies that support it (e.g. maw).
+	cycleOut := cycleCapture{c: cycle}
+	for _, b := range bodies {
+		if w, ok := b.(outputWirer); ok {
+			w.Wire(cycleOut)
+		}
+	}
 
 	// Parse thought interval from persona config.
 	interval, err := d.persona.ThoughtInterval()
@@ -86,40 +113,93 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"attention", ledger.Status(),
 	)
 
-	// Build and run the ticker.
-	tick := ticker.New(
+	// Build the dragon-soul (contract enforcer).
+	enforcer, err := soul.NewEnforcer(d.persona.Contracts, soul.Deps{
+		Ledger: ledger,
+		Vault:  vault,
+		Cycle:  cycleOut,
+	}, d.log)
+	if err != nil {
+		return fmt.Errorf("building dragon-soul: %w", err)
+	}
+	d.log.Info("dragon-soul ready",
+		"gates", enforcer.GateCount(),
+		"audits", enforcer.AuditCount(),
+	)
+
+	// Build and run the dragon-heart.
+	dragonHeart := heart.New(
 		interval,
 		d.persona.Attention.Variance,
 		func(ctx context.Context) error {
+			// Dragon-soul gates cognition: check contracts first.
+			if v := enforcer.Check(); v != nil {
+				d.log.Info(v.Message, "until", v.Until.Format("15:04"))
+				return nil
+			}
+
 			// Gate on attention floor.
 			if !ledger.AboveFloor() {
-				d.log.Info("attention below floor — skipping tick",
+				d.log.Info("attention below floor — skipping beat",
 					"pool", ledger.Pool(),
 					"floor", d.persona.Attention.Floor,
 				)
 				return nil
 			}
-			return cycle.Run(ctx)
+
+			// Pre-beat: snapshot for post-beat audits.
+			enforcer.PreBeat()
+
+			if err := cycle.Run(ctx); err != nil {
+				return fmt.Errorf("thought cycle: %w", err)
+			}
+
+			// Post-beat: verify integrity (attention-honesty, memory-transparency).
+			if v := enforcer.Verify(); v != nil {
+				d.log.Warn("dragon-soul: post-beat audit violation",
+					"rule", v.RuleID,
+					"message", v.Message,
+				)
+			}
+
+			return nil
 		},
 		d.log,
 	)
 
-	tick.Run(ctx)
+	// Fan-in body events → aggregator + nudge the dragon-heart.
+	d.fanInBodyEvents(ctx, bodies, agg, dragonHeart)
+
+	dragonHeart.Run(ctx)
 
 	d.log.Info("daemon stopped")
 	return nil
 }
 
+// outputWirer is implemented by bodies that capture thought cycle output.
+type outputWirer interface {
+	Wire(capture soul.OutputCapture)
+}
+
+// cycleCapture adapts *thought.Cycle to soul.OutputCapture.
+// thought.OutputHook is func(text string); soul.OutputCapture expects func(string).
+type cycleCapture struct{ c *thought.Cycle }
+
+// OnOutput registers fn as the hook that receives every thought string emitted
+// by the cycle, satisfying the soul.OutputCapture interface.
+func (a cycleCapture) OnOutput(fn func(string)) {
+	a.c.OnOutput(thought.OutputHook(fn))
+}
+
 // buildBodies constructs Body instances for all enabled body configs.
-// Phase 1: only "hoard" type is supported.
-func (d *Daemon) buildBodies() ([]body.Body, error) {
+func (d *Daemon) buildBodies(ledger *attention.Ledger, agg *sensory.Aggregator) ([]body.Body, error) {
 	var bodies []body.Body
 	for _, cfg := range d.persona.Bodies {
 		if !cfg.Enabled {
 			d.log.Info("body disabled", "id", cfg.ID)
 			continue
 		}
-		b, err := d.buildBody(cfg)
+		b, err := d.buildBody(cfg, ledger, agg)
 		if err != nil {
 			return nil, fmt.Errorf("building body %s: %w", cfg.ID, err)
 		}
@@ -133,12 +213,39 @@ func (d *Daemon) buildBodies() ([]body.Body, error) {
 func (d *Daemon) vaultDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
 	return filepath.Join(home, ".config", "dragon-daemon", "memory", d.persona.Persona.Name), nil
 }
 
-func (d *Daemon) buildBody(cfg persona.BodyConfig) (body.Body, error) {
+// fanInBodyEvents starts goroutines that drain each body's event channel
+// into the aggregator and nudge the dragon-heart for immediate processing.
+func (d *Daemon) fanInBodyEvents(ctx context.Context, bodies []body.Body, agg *sensory.Aggregator, h *heart.Heart) {
+	for _, b := range bodies {
+		ch := b.Events()
+		if ch == nil {
+			continue
+		}
+		go func(id string, events <-chan sensory.Event) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case ev, ok := <-events:
+					if !ok {
+						d.log.Debug("body event channel closed", "body", id)
+						return
+					}
+					d.log.Debug("body event received", "body", id, "type", ev.Kind)
+					agg.Enqueue(ev)
+					h.Nudge()
+				}
+			}
+		}(b.ID(), ch)
+	}
+}
+
+func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg *sensory.Aggregator) (body.Body, error) {
 	switch cfg.Type {
 	case "hoard":
 		path := cfg.Path
@@ -154,7 +261,15 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig) (body.Body, error) {
 			path = home + path[1:]
 		}
 		return hoardbody.New(cfg.ID, path, d.log), nil
+	case "maw":
+		port := 7432
+		if cfg.Path != "" {
+			if p, convErr := strconv.Atoi(cfg.Path); convErr == nil {
+				port = p
+			}
+		}
+		return mawbody.New(cfg.ID, port, ledger, agg, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported body type %q (Phase 1 supports: hoard)", cfg.Type)
+		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, maw)", cfg.Type)
 	}
 }
