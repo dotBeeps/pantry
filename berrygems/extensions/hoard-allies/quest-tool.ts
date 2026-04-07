@@ -125,12 +125,15 @@ function makeId(defName: string): string {
 	return `${defName}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+type ProgressFn = ((msg: string) => void) | undefined;
+
 // ── Single Quest Dispatch ──
 
 async function dispatchSingle(
 	ally: string,
 	task: string,
 	cwd: string,
+	progress?: ProgressFn,
 ): Promise<QuestResult> {
 	const combo = parseComboName(ally);
 	if (!combo) {
@@ -160,6 +163,8 @@ async function dispatchSingle(
 		spawnedAt: Date.now(),
 		status: "running",
 	});
+
+	progress?.(`⚔️ ${allyName} the ${ally} dispatched (${cost.toFixed(1)} pts)`);
 
 	// Build system prompt with name baked in
 	const systemPrompt = api.buildAllyPrompt(combo, allyName);
@@ -198,6 +203,7 @@ async function dispatchSingle(
 
 		if (result.success) {
 			api.recordComplete(id);
+			progress?.(`✅ ${allyName} returned (${cost.toFixed(1)} pts, ${usedModel})`);
 			return {
 				allyName,
 				defName: ally,
@@ -213,6 +219,7 @@ async function dispatchSingle(
 		if (result.error) {
 			lastError = result.error;
 			if (isRetryable(result)) {
+				progress?.(`🔄 ${allyName}: ${usedModel} failed, cascading...`);
 				recordProviderFailure(state, model, result.error);
 				continue; // Try next model
 			}
@@ -232,6 +239,7 @@ async function dispatchSingle(
 async function dispatchRally(
 	quests: Array<{ ally: string; task: string }>,
 	cwd: string,
+	progress?: ProgressFn,
 ): Promise<QuestResult[]> {
 	const api = getAlliesAPI();
 
@@ -258,7 +266,7 @@ async function dispatchRally(
 	for (let i = 0; i < quests.length; i += maxParallel) {
 		const chunk = quests.slice(i, i + maxParallel);
 		const chunkResults = await Promise.allSettled(
-			chunk.map((q) => dispatchSingle(q.ally, q.task, cwd))
+			chunk.map((q) => dispatchSingle(q.ally, q.task, cwd, progress))
 		);
 
 		for (const r of chunkResults) {
@@ -287,6 +295,7 @@ async function dispatchChain(
 	steps: Array<{ ally: string; task?: string }>,
 	originalTask: string,
 	cwd: string,
+	progress?: ProgressFn,
 ): Promise<QuestResult[]> {
 	const results: QuestResult[] = [];
 	let previous = "";
@@ -298,7 +307,7 @@ async function dispatchChain(
 		task = task.replace(/\{task\}/g, originalTask);
 
 		try {
-			const result = await dispatchSingle(step.ally, task, cwd);
+			const result = await dispatchSingle(step.ally, task, cwd, progress);
 			results.push(result);
 			previous = result.response;
 		} catch (err) {
@@ -374,12 +383,17 @@ Modes:
 - Rally: { rally: [{ally, task}, ...] } — parallel quests
 - Chain: { chain: [{ally, task?}, ...] } — sequential, {previous} carries output`,
 		parameters: QuestParams,
-		execute: async (_toolCallId: string, params: QuestParamsType, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: ExtensionContext) => {
+		execute: async (_toolCallId: string, params: QuestParamsType, _signal: AbortSignal | undefined, onUpdate: ((result: { content: { type: "text"; text: string }[]; details: QuestDetails }) => void) | undefined, ctx: ExtensionContext) => {
+			const progress: ProgressFn = onUpdate
+				? (msg: string) => onUpdate(makeResult(msg, { mode: "progress", allies: [], totalCost: 0 }))
+				: undefined;
+
 			try {
 				// Determine mode
 				if (params.chain && params.chain.length > 0) {
 					const originalTask = params.task ?? "";
-					const results = await dispatchChain(params.chain, originalTask, ctx.cwd);
+					progress?.(`⛓️ Starting chain (${params.chain.length} steps)`);
+					const results = await dispatchChain(params.chain, originalTask, ctx.cwd, progress);
 					return makeResult(
 						formatResults(results, "chain"),
 						{ mode: "chain", allies: results.map((r) => r.defName), totalCost: results.reduce((s, r) => s + r.cost, 0) },
@@ -387,7 +401,8 @@ Modes:
 				}
 
 				if (params.rally && params.rally.length > 0) {
-					const results = await dispatchRally(params.rally, ctx.cwd);
+					progress?.(`⚔️ Rally: dispatching ${params.rally.length} allies`);
+					const results = await dispatchRally(params.rally, ctx.cwd, progress);
 					return makeResult(
 						formatResults(results, "rally"),
 						{ mode: "rally", allies: results.map((r) => r.defName), totalCost: results.reduce((s, r) => s + r.cost, 0) },
@@ -395,7 +410,7 @@ Modes:
 				}
 
 				if (params.ally && params.task) {
-					const result = await dispatchSingle(params.ally, params.task, ctx.cwd);
+					const result = await dispatchSingle(params.ally, params.task, ctx.cwd, progress);
 					return makeResult(
 						formatSingleResult(result),
 						{ mode: "single", allies: [result.defName], totalCost: result.cost },

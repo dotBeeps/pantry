@@ -53,7 +53,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 🔥 | dragon-breath | Carbon/energy tracking footer widget + `/carbon` command |
 | 💎 | dragon-curfew | Bedtime enforcement — blocks tool calls during curfew hours |
 | 🔥 | dragon-digestion | Tiered compaction system with progressive context management |
-| 🔥 | dragon-guard/ | Three-tier permission guard |
+| 🔥 | dragon-guard/ | Four-tier permission guard |
 | 💎 | dragon-herald | Desktop notifications on agent completion (OSC777 + notify-send) |
 | 🔥 | dragon-image-fetch | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file) |
 | 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
@@ -66,7 +66,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest` tool + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies, FrugalGPT model cascade. Dragon-guard coupling 🐣 |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest` tool + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies, FrugalGPT model cascade. Dragon-guard coupling ✅ |
 
 ### berrygems — Library
 
@@ -93,7 +93,7 @@ Shared utilities used across extensions. Not loaded directly by pi.
 | 💎 | defuddle | Extract clean markdown from web pages via Defuddle CLI |
 | 💎 | dependency-management | Cross-ecosystem dependency management (bun/uv/cargo/Go/Gradle) |
 | 💎 | docker | Dockerfiles, multi-stage builds, Compose, security |
-| 🔥 | dragon-guard | Three-tier permission guard — Dog (gated), Puppy (read-only), Dragon (full) |
+| 🔥 | dragon-guard | Four-tier permission guard — Puppy (read-only), Dog (gated), Ally (quest whitelist), Dragon (full) |
 | 🔥 | dragon-image-fetch | Use the dragon-image-fetch extension API |
 | 🔥 | dragon-parchment | Build panel extensions |
 | 🔥 | hoard-allies | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, budget-based cost tiers, decision tree |

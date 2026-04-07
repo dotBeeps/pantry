@@ -298,14 +298,15 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Named allies baked into system prompt (no pendingNames bridge needed)
 - [x] Cost + model reporting in quest results
 - [x] First successful dispatch: Wort the Silly Kobold Scout 🎉
-- [ ] Dragon-guard coupling — ally job profiles paired with guard modes
+- [x] Dragon-guard coupling — Ally mode with job whitelist enforcement
+- [x] Progress updates via onUpdate callback (⚔️ dispatched, ✅ returned, 🔄 cascading)
 - [ ] Integration with dragon-breath for carbon tracking
 
-### Phase 4 — Dragon-Guard Coupling 🐣
-- [ ] Allies run with guard profiles matching their job's tool restrictions
-- [ ] Scout/reviewer/researcher/planner → read-only guard profile
-- [ ] Coder → write-gated guard profile
-- [ ] Guard mode passed via spawn args or env var
+### Phase 4 — Polish 🐣
+- [ ] Quest tool TUI rendering (renderCall/renderResult)
+- [ ] Dispatch announcements in primary session
+- [ ] Rally/chain cost estimation before dispatch
+- [ ] dragon-breath carbon tracking integration
 
 ### Phase 5 — Inter-Agent Communication (future 💭)
 - [ ] Chatroom message passing between active agents

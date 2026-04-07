@@ -6,71 +6,63 @@
 
 ## Current State
 
-**Phase 3 (quest tool) is implemented and tested.** Extension is at 🔥 beta.
+**Phases 1-3 complete. Guard coupling done. All three quest modes tested.**
 
-First successful dispatch: **Wort the Silly Kobold Scout** — copilot/haiku, 0.5 pts, model cascade worked.
+### Test Results
+- ✅ **Single quest:** Wort, Dross, Crisp (kobold scouts), Seren (griffin coder)
+- ✅ **Rally:** Grix, Kink, Nub — 3 parallel scouts, 1.5 pts
+- ✅ **Chain:** Twig (scout) → Snark (reviewer) — 2.0 pts, found real doc debt
+- ✅ **Ally guard:** Scout blocked from writing, coder allowed. Ally → Dragon impossible.
+- ✅ **Model cascade:** Copilot first, falls back on rate limit
 
 ### What Exists
 
-- **`berrygems/extensions/hoard-allies/`** — directory extension (~1,560 lines across 5 files):
-  - `index.ts` — taxonomy, budget, events, `/allies` command, shared API on globalThis
-  - `quest-tool.ts` — quest tool (single, rally, chain modes), budget enforcement
-  - `spawn.ts` — pi process spawning (`pi --mode json`), NDJSON parsing
-  - `cascade.ts` — FrugalGPT model fallback, provider cooldown tracking
+- **`berrygems/extensions/hoard-allies/`** — directory extension (~1,600 lines):
+  - `index.ts` — taxonomy, budget, events, /allies command, shared API
+  - `quest-tool.ts` — quest tool (single/rally/chain) with onUpdate progress
+  - `spawn.ts` — pi process spawning with Ally mode env vars
+  - `cascade.ts` — FrugalGPT model fallback + cooldowns
   - `types.ts` — shared interfaces
+  - `AGENTS.md` — extension-level agent instructions
 
-- **`morsels/skills/hoard-allies/SKILL.md`** — dispatch strategy skill (~155 lines)
+- **`berrygems/extensions/dragon-guard/`** — updated with Ally mode:
+  - `state.ts` — four modes (Puppy/Dog/Ally/Dragon), ally whitelist, transition locks
+  - `index.ts` — Ally mode early return, minimal tool_call handler
 
-- **`.pi/agents/<adj>-<noun>-<job>.md`** — 13 auto-generated agent defs
-
-- **`den/features/hoard-allies/quest-design.md`** — griffin-researcher design doc
+- **`morsels/skills/hoard-allies/SKILL.md`** — dispatch strategy skill
+- **`den/features/hoard-allies/`** — spec, handoff, guard coupling spec, quest design doc
 
 ### Known Issues
 
-1. **Dragon-guard coupling** — allies hit dragon-guard in Dog Mode. Jobs should pair with guard profiles (scouts → read-only, coders → write-gated). This is the next piece of work.
-
-2. **NDJSON parsing** — the `parseSpawnOutput` function handles several event formats but hasn't been tested with all pi output modes. May need refinement.
-
-3. **Old interception code** — `tool_call`/`tool_result` interception for the built-in `subagent` tool still exists in index.ts. Can be removed once dot disables pi-subagents and the quest tool is fully validated.
-
-4. **Rally + chain untested** — single quest works, parallel and sequential modes haven't been tested yet.
+1. **NDJSON parsing** — works but hasn't been stress-tested with all pi output modes
+2. **Old interception code** — tool_call/tool_result interception for built-in subagent still in index.ts. Remove when dot disables pi-subagents.
+3. **No TUI rendering** — quest tool doesn't use renderCall/renderResult yet
+4. **No carbon tracking** — dragon-breath integration pending
 
 ## What's Next
 
-### Phase 4 — Dragon-Guard Coupling 🐣
-
-Allies should run with guard profiles matching their job. The quest tool controls WHICH tools, dragon-guard controls HOW those tools behave.
-
-- Scout/reviewer/researcher/planner → read-only guard profile (Puppy mode)
-- Coder → write-gated guard profile (Dog mode)
-- Guard mode passed via spawn args or env var
-
-This requires coordination with `berrygems/extensions/dragon-guard/`.
-
-### Phase 5+ — Future
-
-- Inter-agent chatroom
-- Long-running dispatcher sessions (prompt caching)
-- Provider-aware routing
+### Phase 4 — Polish 🐣
+- Quest tool TUI rendering (renderCall/renderResult)
+- Dispatch announcements
+- Rally/chain cost estimation
 - Dragon-breath carbon integration
+- Remove old subagent interception code
 
 ## Key Files
 
 | File | Role |
 |------|------|
 | `den/features/hoard-allies/AGENTS.md` | Full spec and phase tracker |
-| `berrygems/extensions/hoard-allies/` | The extension (5 files) |
+| `den/features/hoard-allies/guard-coupling-spec.md` | Four-tier guard design |
+| `den/features/hoard-allies/quest-design.md` | Griffin-researcher design doc |
+| `berrygems/extensions/hoard-allies/` | The extension (6 files) |
+| `berrygems/extensions/dragon-guard/` | Guard with Ally mode |
 | `morsels/skills/hoard-allies/SKILL.md` | Dispatch strategy skill |
-| `berrygems/extensions/dragon-guard/` | Guard extension (next coupling target) |
-| `berrygems/lib/settings.ts` | Settings reader (`readHoardSetting`) |
 | `ETHICS.md` | §3.7 drives the budget system |
 
 ## Verification
 
 ```bash
-# Type check
 cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
-
-# Test
-/reload  # in pi, then use quest tool to dispatch allies
+# Then /reload in pi, test: quest single, rally, chain
 ```
