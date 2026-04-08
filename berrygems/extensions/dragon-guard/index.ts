@@ -149,7 +149,7 @@ export default function dragonGuardExtension(pi: ExtensionAPI): void {
 			if (policy === "allow") return;
 			return {
 				block: true,
-				reason: `Ally Mode: tool "${event.toolName}" is not in this ally's job whitelist.`,
+				reason: `Tool "${event.toolName}" is not available in ally mode (not in job whitelist). Do not retry this tool — continue your task and return your results as plain text instead.`,
 			};
 		});
 

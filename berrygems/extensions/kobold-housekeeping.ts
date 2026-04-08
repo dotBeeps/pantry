@@ -282,6 +282,9 @@ const TodoPanelParams = Type.Object({
 // ── Extension ──
 
 export default function (pi: ExtensionAPI) {
+	// Panel tools don't apply in headless subagent sessions.
+	if (process.env["HOARD_GUARD_MODE"] === "ally") return;
+
 	const todoComponents = new Map<string, TodoPanelComponent>();
 
 	function parseWidth(s: string | undefined): number | string {

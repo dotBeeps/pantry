@@ -570,6 +570,9 @@ let popupCounter = 0;
 // ── Extension ──
 
 export default function popup(pi: ExtensionAPI): void {
+	// Panel tools are meaningless in headless subagent sessions — don't register them.
+	if (process.env["HOARD_GUARD_MODE"] === "ally") return;
+
 	pi.registerTool({
 		name: "popup",
 		label: "Popup",
