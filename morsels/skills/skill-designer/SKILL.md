@@ -23,6 +23,8 @@ Design, scaffold, and validate Agent Skills following the [agentskills.io specif
 5. **Validate** — Run the [Quality Checklist](#quality-checklist)
 6. **Review** — Check progressive disclosure balance (see [Progressive Disclosure](#progressive-disclosure))
 
+**Co-shipping rule:** If a skill documents an extension's behavior, skill updates ship with the code that adds or changes the behavior — never as a follow-up task. An undocumented feature is incomplete work.
+
 ## Archetypes
 
 Every skill fits one of three archetypes. Choose based on what the skill teaches the agent to do.

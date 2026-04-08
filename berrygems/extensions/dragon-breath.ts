@@ -412,6 +412,13 @@ function handleCarbonCommand(ctx: ExtensionContext, stats: BreathStats): void {
 	ctx.ui.notify(lines.join("\n"), "info");
 }
 
+// ── External Usage API ──────────────────────────────────────────────────────────
+
+/** Public API surface exposed via globalThis[Symbol.for("hoard.breath")]. */
+export interface BreathAPI {
+	addExternalUsage(opts: { inputTokens: number; outputTokens: number; model: string }): void;
+}
+
 // ── Extension ─────────────────────────────────────────────────────────────────
 
 export default function dragonBreath(pi: ExtensionAPI): void {
@@ -421,11 +428,33 @@ export default function dragonBreath(pi: ExtensionAPI): void {
 
 	pi.on("session_start", async (_event, ctx) => {
 		stats = reconstructStats(ctx);
+
+		const api: BreathAPI = {
+			addExternalUsage({ inputTokens, outputTokens, model }) {
+				const { wh: rateWh } = resolveEnergyRate(model);
+				const wh = computeWh(inputTokens, outputTokens, rateWh);
+				const gco2 = computeGCO2(wh, getGridIntensity());
+
+				stats.lastWh = wh;
+				stats.lastGCO2 = gco2;
+				stats.lastModel = model;
+				stats.lastRateWh = rateWh;
+				stats.sessionWh += wh;
+				stats.sessionGCO2 += gco2;
+				stats.sessionInputTokens += inputTokens;
+				stats.sessionOutputTokens += outputTokens;
+
+				renderWidget(ctx, stats);
+			},
+		};
+
+		(globalThis as any)[Symbol.for("hoard.breath")] = api;
 		renderWidget(ctx, stats);
 	});
 
 	pi.on("session_shutdown", async () => {
 		stats = emptyStats();
+		(globalThis as any)[Symbol.for("hoard.breath")] = undefined;
 	});
 
 	// ── Turn tracking ──

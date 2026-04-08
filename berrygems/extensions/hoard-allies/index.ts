@@ -4,6 +4,11 @@ import { readHoardSetting } from "../../lib/settings.ts";
 import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { registerQuestTool } from "./quest-tool.ts";
+import {
+	type Adjective, type Noun, type Job, type AllyCombo,
+	CURATED_COMBOS, comboName, parseComboName,
+	JOB_TOOLS, JOB_DEFAULTS,
+} from "../../lib/ally-taxonomy.ts";
 
 /**
  * hoard-allies — Subagent token governance for the hoard.
@@ -20,17 +25,7 @@ import { registerQuestTool } from "./quest-tool.ts";
  * Configure via hoard.allies.* in settings.json.
  */
 
-// ── Types ──
-
-type Adjective = "silly" | "clever" | "wise" | "elder";
-type Noun = "kobold" | "griffin" | "dragon";
-type Job = "scout" | "reviewer" | "coder" | "researcher" | "planner";
-
-interface AllyCombo {
-	adjective: Adjective;
-	noun: Noun;
-	job: Job;
-}
+// ── Types (AllyCombo, Adjective, Noun, Job imported from lib/ally-taxonomy) ──
 
 interface AllyInfo {
 	name: string;
@@ -41,31 +36,22 @@ interface AllyInfo {
 	status: "running" | "completed" | "failed";
 }
 
+interface BudgetState {
+	totalSpent: number;
+	questCount: number;
+	history: Array<{ ally: string; cost: number; status: "completed" | "failed"; ts: number }>;
+}
+
 interface AlliesState {
 	active: Map<string, AllyInfo>;
 	budgetUsed: number;
 	nameQueues: Record<string, string[]>;
 	pendingNames: Map<string, string[]>;
 	providerCooldowns: Map<string, number>;
+	budget: BudgetState;
 }
 
-// ── Constants: Curated Combos ──
-
-const CURATED_COMBOS: AllyCombo[] = [
-	{ adjective: "silly", noun: "kobold", job: "scout" },
-	{ adjective: "clever", noun: "kobold", job: "scout" },
-	{ adjective: "clever", noun: "kobold", job: "reviewer" },
-	{ adjective: "wise", noun: "kobold", job: "reviewer" },
-	{ adjective: "silly", noun: "griffin", job: "coder" },
-	{ adjective: "clever", noun: "griffin", job: "coder" },
-	{ adjective: "clever", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "griffin", job: "researcher" },
-	{ adjective: "elder", noun: "griffin", job: "coder" },
-	{ adjective: "elder", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "dragon", job: "planner" },
-	{ adjective: "elder", noun: "dragon", job: "planner" },
-];
+// ── Constants: Curated Combos (imported from lib/ally-taxonomy) ──
 
 // ── Constants: Name Pools ──
 
@@ -120,26 +106,7 @@ const SUMMON_RULES: Record<Noun, Noun[]> = {
 
 const MAX_SUBAGENT_DEPTH: Record<Noun, number> = { kobold: 0, griffin: 1, dragon: 2 };
 
-// ── Constants: Job Config ──
-
-const JOB_TOOLS: Record<Job, string> = {
-	scout: "read, grep, find, ls, bash, stone_send",
-	reviewer: "read, grep, find, ls, bash, stone_send",
-	coder: "read, grep, find, ls, bash, write, edit, stone_send",
-	researcher: "read, grep, find, ls, bash, stone_send",
-	planner: "read, grep, find, ls, stone_send",
-};
-
-// Skills injected into the agent def system prompt for each job.
-// Researchers get web research skills; others currently have none.
-// Per-job default timeout + check-in cadence. Quest params can override.
-const JOB_DEFAULTS: Record<Job, { timeoutMs: number; checkInIntervalMs: number }> = {
-	scout:      { timeoutMs:  60_000, checkInIntervalMs: 15_000 },
-	reviewer:   { timeoutMs: 120_000, checkInIntervalMs: 20_000 },
-	coder:      { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
-	researcher: { timeoutMs: 300_000, checkInIntervalMs: 30_000 },
-	planner:    { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
-};
+// ── Constants: Job Config (JOB_TOOLS, JOB_DEFAULTS imported from lib/ally-taxonomy) ──
 
 const JOB_SKILLS: Partial<Record<Job, string>> = {
 	scout: "hoard-sending-stone",
@@ -205,19 +172,7 @@ function calcCost(combo: AllyCombo): number {
 	return (nw[combo.noun] ?? 1) * (tm[combo.adjective] ?? 1) * (jm[combo.job] ?? 1);
 }
 
-function comboName(combo: AllyCombo): string {
-	return `${combo.adjective}-${combo.noun}-${combo.job}`;
-}
-
-function parseComboName(name: string): AllyCombo | null {
-	const parts = name.split("-");
-	if (parts.length !== 3) return null;
-	const [adjective, noun, job] = parts as [string, string, string];
-	if (!["silly", "clever", "wise", "elder"].includes(adjective)) return null;
-	if (!["kobold", "griffin", "dragon"].includes(noun)) return null;
-	if (!["scout", "reviewer", "coder", "researcher", "planner"].includes(job)) return null;
-	return { adjective: adjective as Adjective, noun: noun as Noun, job: job as Job };
-}
+// comboName and parseComboName imported from lib/ally-taxonomy
 
 // ── State Management ──
 
@@ -242,6 +197,7 @@ function initState(): AlliesState {
 		},
 		pendingNames: new Map(),
 		providerCooldowns: new Map(),
+		budget: { totalSpent: 0, questCount: 0, history: [] },
 	};
 }
 
@@ -286,6 +242,9 @@ function recordComplete(id: string): AllyInfo | undefined {
 	info.status = "completed";
 	const refund = info.cost * getRefundFraction();
 	state.budgetUsed = Math.max(0, state.budgetUsed - refund);
+	state.budget.totalSpent = state.budgetUsed;
+	state.budget.questCount++;
+	state.budget.history.push({ ally: info.defName, cost: info.cost, status: "completed", ts: Date.now() });
 	return info;
 }
 
@@ -296,6 +255,9 @@ function recordFailed(id: string): AllyInfo | undefined {
 	info.status = "failed";
 	// Full refund on failure — the work wasn't useful
 	state.budgetUsed = Math.max(0, state.budgetUsed - info.cost);
+	state.budget.totalSpent = state.budgetUsed;
+	state.budget.questCount++;
+	state.budget.history.push({ ally: info.defName, cost: info.cost, status: "failed", ts: Date.now() });
 	return info;
 }
 
@@ -545,6 +507,66 @@ function writeAgentDefs(cwd: string): void {
 
 // ── Display ──
 
+function buildBudgetDisplay(): string {
+	const state = getState();
+	const budgets = getBudgets();
+	const limit = budgets["primary"] ?? 100;
+	const { totalSpent, questCount, history } = state.budget;
+	const remaining = budgetRemaining();
+
+	if (questCount === 0 && history.length === 0) {
+		return `## Hoard Allies — Spend History
+
+No quests dispatched yet. Use the **quest** tool to send allies on quests.`;
+	}
+
+	const recentRows = history
+		.slice(-10)
+		.reverse()
+		.map((entry) => {
+			const time = new Date(entry.ts).toLocaleTimeString();
+			const statusIcon = entry.status === "completed" ? "✅" : "❌";
+			return `| ${entry.ally} | ${entry.cost.toFixed(1)} | ${statusIcon} ${entry.status} | ${time} |`;
+		})
+		.join("\n");
+
+	const historySection = recentRows
+		? `### Recent Quests (last ${Math.min(history.length, 10)})
+
+| Ally | Cost (pts) | Status | Time |
+|------|-----------|--------|------|
+${recentRows}`
+		: "### Recent Quests\n\nNo completed quests yet.";
+
+	return `## Hoard Allies — Spend History
+
+### Summary
+| Metric | Value |
+|--------|-------|
+| Total spent | ${totalSpent.toFixed(1)} pts |
+| Budget limit | ${limit} pts |
+| Remaining | ${remaining.toFixed(1)} pts |
+| Quests run | ${questCount} |
+
+${historySection}
+
+💡 ${budgetRecommendation(remaining)}`;
+}
+
+function budgetRecommendation(remaining: number): string {
+	const nw = getNounWeights();
+	const tm = getThinkingMultipliers();
+	const baseKobold = nw.kobold * tm.silly;
+	const baseGriffin = nw.griffin * tm.clever;
+	const baseDragon = nw.dragon * tm.wise;
+
+	if (remaining <= 0) return "Budget exhausted — wait for refunds from completing allies";
+	if (remaining < baseKobold) return `Only ${remaining.toFixed(1)} pts left — not enough for any dispatch`;
+	if (remaining < baseGriffin) return `${Math.floor(remaining / baseKobold)} kobold dispatch${Math.floor(remaining / baseKobold) > 1 ? "es" : ""} remaining`;
+	if (remaining < baseDragon) return `${Math.floor(remaining / baseGriffin)} griffin or ${Math.floor(remaining / baseKobold)} kobold dispatches remaining`;
+	return `${Math.floor(remaining / baseDragon)} dragon, ${Math.floor(remaining / baseGriffin)} griffin, or ${Math.floor(remaining / baseKobold)} kobold dispatches remaining`;
+}
+
 function buildTaxonomyDisplay(): string {
 	const maxP = getMaxParallel();
 	const confirm = getConfirmAbove();
@@ -578,6 +600,7 @@ ${rows}
 - **Pool:** ${budgets["primary"] ?? 100} pts total | **Used:** ${state.budgetUsed.toFixed(1)} | **Remaining:** ${remaining.toFixed(1)}
 - **Refund on complete:** ${(getRefundFraction() * 100).toFixed(0)}% of dispatch cost
 - **Refund on failure:** 100% (work wasn't useful)
+- **💡 Recommendation:** ${budgetRecommendation(remaining)}
 
 ### Active Allies
 ${activeList}
@@ -714,7 +737,31 @@ function exposeAPI(): void {
 		getAnnounce: () => getAnnounce(),
 		getConfirmAbove: () => getConfirmAbove(),
 		getJobDefaults: (job: string) => JOB_DEFAULTS[job as Job] ?? JOB_DEFAULTS.scout,
+		persistBudget: () => {
+			const persistFn = (globalThis as Record<symbol, unknown>)[Symbol.for("hoard.allies.persistBudget")] as (() => void) | undefined;
+			persistFn?.();
+		},
 	};
+}
+
+// ── Budget Persistence ──
+
+const ALLIES_PERSIST_KEY = Symbol.for("hoard.allies.persistBudget");
+
+function restoreBudgetFromBranch(entries: unknown[]): void {
+	let lastBudget: BudgetState | undefined;
+	for (const entry of entries) {
+		const e = entry as { type?: string; customType?: string; data?: unknown };
+		if (e.type === "custom" && e.customType === "allies-budget-checkpoint") {
+			const data = e.data as { budget?: BudgetState } | undefined;
+			if (data?.budget) lastBudget = data.budget;
+		}
+	}
+	if (lastBudget) {
+		const state = getState();
+		state.budget = lastBudget;
+		state.budgetUsed = lastBudget.totalSpent;
+	}
 }
 
 // ── Main Export ──
@@ -754,7 +801,7 @@ export default function hoardAllies(pi: ExtensionAPI) {
 
 					const details = { from, to, displayName: msg.displayName, content: msg.content ?? "", timestamp: ts };
 					const isForAgent = to === "primary-agent" || to === "session-room";
-					const shouldTrigger = isForAgent && msg.type === "question";
+					const shouldTrigger = isForAgent && (msg.type === "question" || msg.type === "result" || msg.type === "status");
 
 					// Try immediate delivery — fall back to queue if outside active run
 					try {
@@ -773,7 +820,14 @@ export default function hoardAllies(pi: ExtensionAPI) {
 					}
 				});
 			}
+			// Set up persist function using the current pi reference
+			(globalThis as Record<symbol, unknown>)[ALLIES_PERSIST_KEY] = () => {
+				pi.appendEntry("allies-budget-checkpoint", { budget: getState().budget });
+			};
+			// Reset active quests + names, then restore persisted budget from session tree
 			resetState();
+			const entries = ctx.sessionManager.getEntries();
+			restoreBudgetFromBranch(entries as unknown[]);
 		} catch {
 			// Non-fatal — agent defs may already exist
 		}
@@ -856,10 +910,10 @@ export default function hoardAllies(pi: ExtensionAPI) {
 			return { block: true, reason: budgetCheck.reason };
 		}
 
-		// Pop a name and record the spawn
+		// Pop a name and record the spawn — key by toolCallId for reliable tool_result correlation
 		const allyName = popName(combo.noun);
 		const cost = calcCost(combo);
-		const id = `${agentName}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+		const id = event.toolCallId;
 
 		recordSpawn(id, {
 			name: allyName,
@@ -881,18 +935,24 @@ export default function hoardAllies(pi: ExtensionAPI) {
 	pi.on("tool_result", async (event, _ctx) => {
 		if (event.toolName !== "subagent") return;
 
-		// Find the most recently spawned running ally and mark complete
+		// Match by toolCallId — the same ID used in tool_call to key recordSpawn
 		const state = getState();
-		for (const [id, info] of state.active) {
-			if (info.status === "running") {
-				if (event.isError) {
-					recordFailed(id);
-				} else {
-					recordComplete(id);
-				}
-				break;
-			}
+		const info = state.active.get(event.toolCallId);
+		if (!info) return;
+
+		if (event.isError) {
+			recordFailed(event.toolCallId);
+		} else {
+			recordComplete(event.toolCallId);
 		}
+	});
+
+	// /allies-budget command — display spend history and remaining budget
+	pi.registerCommand("allies-budget", {
+		description: "Show hoard allies spend history and remaining budget",
+		handler: async (_args, ctx) => {
+			ctx.ui.notify(buildBudgetDisplay(), "info");
+		},
 	});
 
 	// /allies command — display the taxonomy with current settings

@@ -166,3 +166,30 @@ Each dispatched ally gets a random name from a per-tier pool:
 - **Dragons:** Azurath, Thalaxis, Pyranthis, etc.
 
 Names appear in dispatch announcements, stone messages, and renderResult. Each ally's name generates a unique truecolor offset within their tier's hue range for visual distinction.
+
+## FrugalGPT Cascade
+
+When a model hits rate limits or errors, the system automatically falls back to cheaper models in the same tier. For example, if a wise-griffin-researcher's primary model is rate-limited, it tries the next available model in the griffin model list. Cooldown tracking prevents repeated hits to rate-limited providers. This happens transparently — the agent doesn't need to do anything.
+
+## Stone Async Mode
+
+When the sending stone is active (primary session has the stone server running), quest dispatches are **fire-and-forget**: the tool returns immediately with a "Dispatched" message, and results arrive later via stone_send. In non-stone sessions, quests run synchronously and return results directly. This behavioral split is automatic based on stone availability.
+
+## Check-In Defaults
+
+Each job has default timeout and check-in intervals that apply when not overridden:
+
+- scout: 60s timeout, 15s check-in
+- reviewer: 120s timeout, 20s check-in
+- coder: 180s timeout, 25s check-in
+- researcher: 300s timeout, 30s check-in
+- planner: 180s timeout, 25s check-in
+
+## TypeScript API
+
+The allies extension exposes a typed API via globalThis:
+
+```ts
+const api = (globalThis as any)[Symbol.for("hoard.allies")] as AlliesAPI;
+// AlliesAPI is exported from berrygems/extensions/hoard-allies/types.ts
+```

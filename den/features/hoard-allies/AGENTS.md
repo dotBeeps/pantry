@@ -415,3 +415,15 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 - [ ] Long-running Anthropic sonnet session as primary dispatcher (prompt caching)
 - [ ] Short-lived github-copilot allies for actual work (quota absorption)
 - [ ] Provider-aware dispatch matching ally to optimal provider
+
+### Known Issues / Papercuts
+- Quest tool `renderCall` flashes "invalid params" briefly before params resolve — race condition in render path, params not available when initial render fires
+- ~~`tool_result` completion tracking matches "most recent running" — brittle for parallel rally dispatch~~ ✅ Fixed: `event.toolCallId` correlation
+- Budget state resets on `session_start` — ~~no persistence across sessions~~ ✅ Fixed: `allies-budget-checkpoint` entries in session tree
+- ~~No `/allies-budget` command to see spend history~~ ✅ Fixed: Fable added `buildBudgetDisplay()` + `/allies-budget` command
+- ~~Chain error reporting drops successful step results when a later step fails~~ ✅ Fixed: `ChainStepError` with `partialResults`
+- Stone messages from allies queue in SSE and only deliver during `before_agent_start` — ~~check-ins and results arrive all at once instead of streaming during execution~~ ✅ Fixed: results + status trigger turns, check-ins route through stone
+- ~~Async check-in callbacks silenced in stone dispatch mode~~ ✅ Fixed: `stoneNotify`/`stoneFrozen` replace no-ops, frozen uses `status` type to trigger turns
+- `stone_send` listed in `JOB_TOOLS` but never registers in ally subprocesses — allies waste turns trying to use it. ✅ Fixed: removed from JOB_TOOLS
+- Check-in + frozen alert fire duplicate messages at same interval when ally is quiet (noisy but non-blocking)
+- Orphaned check-in timers: if ally subprocess exits without producing output, the setInterval never clears and ghost check-ins fire forever until `/reload`

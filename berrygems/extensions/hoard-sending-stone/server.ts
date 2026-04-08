@@ -34,6 +34,18 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
 				return;
 			}
 
+			// Validate required fields
+			if (!partial.content || typeof partial.content !== "string") {
+				res.writeHead(400, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ error: "missing or invalid 'content' field (string required)" }));
+				return;
+			}
+			if (!partial.from || typeof partial.from !== "string") {
+				res.writeHead(400, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ error: "missing or invalid 'from' field (string required)" }));
+				return;
+			}
+
 			const msg: StoneMessage = {
 				addressing: "both",
 				type: "status",
@@ -84,7 +96,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
 	res.end(JSON.stringify({ error: "not found" }));
 }
 
-export function startServer(): Promise<number> {
+export function startServer(preferredPort?: number): Promise<number> {
 	return new Promise((resolve, reject) => {
 		if (server) {
 			resolve(currentPort!);
@@ -92,7 +104,7 @@ export function startServer(): Promise<number> {
 		}
 
 		const s = http.createServer(handleRequest);
-		s.listen(0, "127.0.0.1", () => {
+		s.listen(preferredPort ?? 0, "127.0.0.1", () => {
 			const addr = s.address();
 			if (!addr || typeof addr === "string") {
 				reject(new Error("unexpected server address format"));

@@ -11,15 +11,18 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { readHoardSetting } from "../../lib/settings.ts";
 import { spawnPi, findPiBinary } from "./spawn.ts";
 import { availableModels, isRetryable, recordProviderFailure } from "./cascade.ts";
+import { registerAlly, appendAllyLine, deregisterAlly, registerAllyStatusTool } from "./ally-status-tool.ts";
 import type {
-	AllyCombo,
-	AllyInfo,
 	AlliesState,
-	Adjective,
-	Noun,
-	Job,
+	AlliesAPI,
 	QuestResult,
 } from "./types.ts";
+import {
+	type AllyCombo, type Noun,
+	CURATED_NAMES, parseComboName,
+	JOB_TOOLS,
+} from "../../lib/ally-taxonomy.ts";
+import { generateShortId } from "../../lib/id.ts";
 import { Text, truncateToWidth } from "@mariozechner/pi-tui";
 
 // ── Sending Stone API ──
@@ -37,44 +40,13 @@ function getState(): AlliesState {
 	return (globalThis as Record<symbol, AlliesState>)[ALLIES_STATE_KEY]!;
 }
 
-// ── Taxonomy Constants (duplicated from index for module isolation) ──
-
-const CURATED_COMBOS: AllyCombo[] = [
-	{ adjective: "silly", noun: "kobold", job: "scout" },
-	{ adjective: "clever", noun: "kobold", job: "scout" },
-	{ adjective: "clever", noun: "kobold", job: "reviewer" },
-	{ adjective: "wise", noun: "kobold", job: "reviewer" },
-	{ adjective: "silly", noun: "griffin", job: "coder" },
-	{ adjective: "clever", noun: "griffin", job: "coder" },
-	{ adjective: "clever", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "griffin", job: "researcher" },
-	{ adjective: "elder", noun: "griffin", job: "coder" },
-	{ adjective: "elder", noun: "griffin", job: "reviewer" },
-	{ adjective: "wise", noun: "dragon", job: "planner" },
-	{ adjective: "elder", noun: "dragon", job: "planner" },
-];
-
-const CURATED_NAMES = new Set(CURATED_COMBOS.map(comboName));
+// ── Taxonomy Constants (imported from lib/ally-taxonomy) ──
 
 // ── Import shared functions from index via globalThis ──
 
 const ALLIES_API_KEY = Symbol.for("hoard.allies.api");
 
-interface AlliesAPI {
-	calcCost(combo: AllyCombo): number;
-	getModels(): Record<string, string[]>;
-	getThinking(): Record<string, string>;
-	popName(noun: Noun): string;
-	buildAllyPrompt(combo: AllyCombo, allyName: string | null): string;
-	budgetRemaining(): number;
-	recordSpawn(id: string, info: AllyInfo): void;
-	recordComplete(id: string): AllyInfo | undefined;
-	recordFailed(id: string): AllyInfo | undefined;
-	getAnnounce(): boolean;
-	getConfirmAbove(): string;
-	getJobDefaults(job: string): { timeoutMs: number; checkInIntervalMs: number };
-}
+// AlliesAPI interface is in types.ts for shared access
 
 function getAlliesAPI(): AlliesAPI {
 	return (globalThis as Record<symbol, AlliesAPI>)[ALLIES_API_KEY];
@@ -114,42 +86,22 @@ type QuestParamsType = Static<typeof QuestParams>;
 
 // ── Helpers ──
 
-function comboName(combo: AllyCombo): string {
-	return `${combo.adjective}-${combo.noun}-${combo.job}`;
-}
+// comboName and parseComboName imported from lib/ally-taxonomy
 
-function parseComboName(name: string): AllyCombo | null {
-	const parts = name.split("-");
-	if (parts.length !== 3) return null;
-	const [adjective, noun, job] = parts as [string, string, string];
-	if (!["silly", "clever", "wise", "elder"].includes(adjective)) return null;
-	if (!["kobold", "griffin", "dragon"].includes(noun)) return null;
-	if (!["scout", "reviewer", "coder", "researcher", "planner"].includes(job)) return null;
-	return { adjective, noun, job } as AllyCombo;
-}
-
-const JOB_TOOLS: Record<Job, string> = {
-	scout: "read,grep,find,ls,bash,stone_send",
-	reviewer: "read,grep,find,ls,bash,stone_send",
-	coder: "read,grep,find,ls,bash,write,edit,stone_send",
-	researcher: "read,grep,find,ls,bash,stone_send",
-	planner: "read,grep,find,ls,stone_send",
-};
+// JOB_TOOLS imported from lib/ally-taxonomy
 
 const MAX_SUBAGENT_DEPTH: Record<Noun, number> = { kobold: 0, griffin: 1, dragon: 2 };
 
 function makeId(defName: string): string {
-	return `${defName}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+	return `${defName}-${Date.now()}-${generateShortId()}`;
 }
 
 type ProgressFn = ((msg: string) => void) | undefined;
 
 // ── Estimation Helpers ──
-// Parse a defName like "silly-kobold-scout" into an AllyCombo
+// Parse a defName like "silly-kobold-scout" into an AllyCombo (uses shared parseComboName for validation)
 function parseComboFromDefName(defName: string): AllyCombo | null {
-	const parts = defName.split("-");
-	if (parts.length !== 3) return null;
-	return { adjective: parts[0] as Adjective, noun: parts[1] as Noun, job: parts[2] as Job };
+	return parseComboName(defName);
 }
 
 // Estimate total cost for a list of defNames
@@ -181,16 +133,21 @@ export function formatDefName(defName: string): string {
 
 // ── Single Quest Dispatch ──
 
-async function dispatchSingle(
-	ally: string,
-	task: string,
-	cwd: string,
-	notify: (msg: string) => void,
-	progress?: ProgressFn,
-	timeoutMs?: number,
-	checkInIntervalMs?: number,
-	onFrozen?: (allyName: string, quietSecs: number) => void,
-): Promise<QuestResult> {
+/** Options for dispatching a single ally quest. */
+interface DispatchOptions {
+	ally: string;
+	task: string;
+	cwd: string;
+	notify: (msg: string) => void;
+	progress?: ProgressFn;
+	timeoutMs?: number;
+	checkInIntervalMs?: number;
+	onFrozen?: (allyName: string, quietSecs: number) => void;
+	signal?: AbortSignal;
+}
+
+async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
+	const { ally, task, cwd, notify, progress, timeoutMs, checkInIntervalMs, onFrozen, signal } = opts;
 	const combo = parseComboName(ally);
 	if (!combo) {
 		throw new Error(`Unknown ally: "${ally}". Available: ${[...CURATED_NAMES].join(", ")}`);
@@ -262,6 +219,7 @@ async function dispatchSingle(
 			defName: ally,
 			timeoutMs: effectiveTimeoutMs,
 			checkInIntervalMs: effectiveCheckInMs,
+			signal,
 			onStderrLine: (line) => appendAllyLine(spawnId, line),
 			onCheckIn: (defName: string, elapsedMs: number, sinceActivityMs: number, recentLine: string) => {
 				const secs = Math.round(elapsedMs / 1000);
@@ -279,6 +237,7 @@ async function dispatchSingle(
 
 		if (result.success) {
 			api.recordComplete(id);
+			api.persistBudget?.();
 			progress?.(`✅ ${allyName} returned (${cost.toFixed(1)} pts, ${usedModel})`);
 			return {
 				allyName,
@@ -307,6 +266,7 @@ async function dispatchSingle(
 
 	// All models failed
 	api.recordFailed(id);
+	api.persistBudget?.();
 	throw new Error(`Quest failed for ${allyName} the ${ally}. Last error: ${lastError}`);
 }
 
@@ -320,6 +280,7 @@ async function dispatchRally(
 	timeoutMs?: number,
 	checkInIntervalMs?: number,
 	onFrozen?: (allyName: string, quietSecs: number) => void,
+	signal?: AbortSignal,
 ): Promise<QuestResult[]> {
 	const api = getAlliesAPI();
 
@@ -346,17 +307,19 @@ async function dispatchRally(
 	for (let i = 0; i < quests.length; i += maxParallel) {
 		const chunk = quests.slice(i, i + maxParallel);
 		const chunkResults = await Promise.allSettled(
-			chunk.map((q) => dispatchSingle(q.ally, q.task, cwd, notify, progress, timeoutMs, checkInIntervalMs, onFrozen))
+			chunk.map((q) => dispatchSingle({ ally: q.ally, task: q.task, cwd, notify, progress, timeoutMs, checkInIntervalMs, onFrozen, signal }))
 		);
 
-		for (const r of chunkResults) {
+		for (let j = 0; j < chunkResults.length; j++) {
+			const r = chunkResults[j]!;
+			const q = chunk[j]!;
 			if (r.status === "fulfilled") {
 				results.push(r.value);
 			} else {
-				// Include error as a failed result
+				// Include error as a failed result — preserve the ally identity
 				results.push({
-					allyName: "unknown",
-					defName: "unknown",
+					allyName: q.ally,
+					defName: q.ally,
 					cost: 0,
 					model: "none",
 					response: `Quest failed: ${r.reason?.message ?? r.reason}`,
@@ -367,6 +330,21 @@ async function dispatchRally(
 	}
 
 	return results;
+}
+
+// ── Chain Step Error ──
+
+/** Thrown by dispatchChain when a step fails; carries all prior successful results. */
+class ChainStepError extends Error {
+	constructor(
+		message: string,
+		public readonly partialResults: QuestResult[],
+		public readonly failedStepIndex: number,
+		public readonly failedAlly: string,
+	) {
+		super(message);
+		this.name = "ChainStepError";
+	}
 }
 
 // ── Chain Dispatch ──
@@ -380,30 +358,29 @@ async function dispatchChain(
 	timeoutMs?: number,
 	checkInIntervalMs?: number,
 	onFrozen?: (allyName: string, quietSecs: number) => void,
+	signal?: AbortSignal,
 ): Promise<QuestResult[]> {
 	const results: QuestResult[] = [];
 	let previous = "";
 
-	for (const step of steps) {
+	for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+		const step = steps[stepIndex]!;
 		// Template replacement
 		let task = step.task ?? "{task}";
 		task = task.replace(/\{previous\}/g, previous);
 		task = task.replace(/\{task\}/g, originalTask);
 
 		try {
-			const result = await dispatchSingle(step.ally, task, cwd, notify, progress, timeoutMs, checkInIntervalMs, onFrozen);
+			const result = await dispatchSingle({ ally: step.ally, task, cwd, notify, progress, timeoutMs, checkInIntervalMs, onFrozen, signal });
 			results.push(result);
 			previous = result.response;
 		} catch (err) {
-			results.push({
-				allyName: "unknown",
-				defName: step.ally,
-				cost: 0,
-				model: "none",
-				response: `Chain step failed: ${(err as Error).message}`,
-				cascadeAttempts: 0,
-			});
-			break; // Chain stops on failure
+			throw new ChainStepError(
+				(err as Error).message,
+				[...results],
+				stepIndex,
+				step.ally,
+			);
 		}
 	}
 
@@ -411,31 +388,6 @@ async function dispatchChain(
 }
 
 // ── Result Helpers ──
-
-// ── Running ally registry ──────────────────────────────────────────────────
-interface RunningAlly {
-	id: string;
-	defName: string;
-	startMs: number;
-	stderrLines: string[];
-}
-
-const runningAllies = new Map<string, RunningAlly>();
-
-function registerAlly(id: string, defName: string): void {
-	runningAllies.set(id, { id, defName, startMs: Date.now(), stderrLines: [] });
-}
-
-function appendAllyLine(id: string, line: string): void {
-	const entry = runningAllies.get(id);
-	if (!entry) return;
-	entry.stderrLines.push(line);
-	if (entry.stderrLines.length > 200) entry.stderrLines.shift(); // rolling window
-}
-
-function deregisterAlly(id: string): void {
-	runningAllies.delete(id);
-}
 
 // ── QuestDetails ─────────────────────────────────────────────────────────────
 interface QuestDetails {
@@ -476,6 +428,20 @@ function formatResults(results: QuestResult[], mode: string): string {
 	return `*${mode === "chain" ? "Chain" : "Rally"}: ${results.length} quests, ${totalCost.toFixed(1)} pts spent, ${remaining.toFixed(1)} pts remaining*\n\n${sections}`;
 }
 
+// ── Carbon Breath Reporting ──
+
+function reportBreath(result: QuestResult): void {
+	if (!result.usage) return;
+	const breathApi = (globalThis as any)[Symbol.for("hoard.breath")];
+	if (breathApi?.addExternalUsage) {
+		breathApi.addExternalUsage({
+			inputTokens: result.usage.inputTokens,
+			outputTokens: result.usage.outputTokens,
+			model: result.model,
+		});
+	}
+}
+
 // ── Stone Result Posting ──
 
 function postResultToStone(result: QuestResult): void {
@@ -504,10 +470,12 @@ Job: scout | reviewer | coder | researcher | planner
 
 Available allies: ${[...CURATED_NAMES].join(", ")}
 
-Modes:
+Modes (use exactly one):
 - Single: { ally, task } — one quest
 - Rally: { rally: [{ally, task}, ...] } — parallel quests
-- Chain: { chain: [{ally, task?}, ...] } — sequential, {previous} carries output`,
+- Chain: { chain: [{ally, task?}, ...] } — sequential, {previous} carries output
+
+If the sending stone is active, quests dispatch asynchronously and results arrive via stone_send.`,
 		parameters: QuestParams,
 		renderCall(args, theme, _context) {
 			const params = args as QuestParamsType;
@@ -642,8 +610,45 @@ Modes:
 				const first = result.content[0];
 				return new Text(first?.type === "text" ? first.text : "", 0, 0);
 		},
-		execute: async (_toolCallId: string, params: QuestParamsType, _signal: AbortSignal | undefined, onUpdate: ((result: { content: { type: "text"; text: string }[]; details: QuestDetails }) => void) | undefined, ctx: ExtensionContext) => {
+		execute: async (_toolCallId: string, params: QuestParamsType, signal: AbortSignal | undefined, onUpdate: ((result: { content: { type: "text"; text: string }[]; details: QuestDetails }) => void) | undefined, ctx: ExtensionContext) => {
 			try {
+			// ── Mode validation ──
+			const hasChain = params.chain && params.chain.length > 0;
+			const hasRally = params.rally && params.rally.length > 0;
+			const hasSingle = !!params.ally;
+			const modeCount = [hasChain, hasRally, hasSingle].filter(Boolean).length;
+
+			if (modeCount === 0) {
+				return makeResult(
+					"No quest mode specified. Use exactly one of:\n" +
+					"- Single: { ally: \"silly-kobold-scout\", task: \"...\" }\n" +
+					"- Rally: { rally: [{ally: \"...\", task: \"...\"}, ...] }\n" +
+					"- Chain: { chain: [{ally: \"...\", task: \"...\"}, ...] }",
+					{ mode: "error", allies: [], totalCost: 0, error: true },
+				);
+			}
+
+			if (modeCount > 1) {
+				return makeResult(
+					`Multiple quest modes specified (${[hasChain && "chain", hasRally && "rally", hasSingle && "single"].filter(Boolean).join(", ")}). Use exactly one mode per call.`,
+					{ mode: "error", allies: [], totalCost: 0, error: true },
+				);
+			}
+
+			if (hasSingle && !params.task) {
+				return makeResult(
+					"Single quest mode requires both 'ally' and 'task' parameters.",
+					{ mode: "error", allies: [], totalCost: 0, error: true },
+				);
+			}
+
+			if (hasChain && !params.task && params.chain!.some((s) => s.task?.includes("{task}"))) {
+				return makeResult(
+					"Chain step uses {task} placeholder but no 'task' parameter was provided.",
+					{ mode: "error", allies: [], totalCost: 0, error: true },
+				);
+			}
+
 			// ── Pre-flight: confirmation gate + announce ──
 			const alliesApi = getAlliesAPI();
 			const defNames: string[] = params.chain
@@ -684,23 +689,42 @@ Modes:
 			const onFrozen = (name: string, quietSecs: number) =>
 				ctx.ui.notify(`⚠️ ${name} may be stuck — ${quietSecs}s since last activity`, "warning");
 			const stone = getStoneAPI();
-			// Safe no-ops for fire-and-forget mode (no active run after tool returns)
-			const safeNotify = (_msg: string) => {};
-			const safeFrozen = (_name: string, _secs: number) => {};
+			// In stone mode, route check-ins and frozen alerts through the stone instead of no-ops
+			let lastFrozenMs = 0;
+			const stoneNotify = (msg: string) => {
+				// Skip regular check-in if frozen alert just fired (they overlap at the same interval)
+				if (Date.now() - lastFrozenMs < 2000) return;
+				void stone?.send({ from: "quest", type: "progress", addressing: "primary-agent", content: msg }).catch(() => undefined);
+			};
+			const stoneFrozen = (name: string, quietSecs: number) => {
+				lastFrozenMs = Date.now();
+				void stone?.send({ from: "quest", type: "status", addressing: "primary-agent", content: `⚠️ ${name} may be stuck — ${quietSecs}s since last activity` }).catch(() => undefined);
+			};
+			const safeNotify = stone ? stoneNotify : (_msg: string) => {};
+			const safeFrozen = stone ? stoneFrozen : (_name: string, _secs: number) => {};
 
-			{
-				// Determine mode
+			// Determine mode
 				if (params.chain && params.chain.length > 0) {
 					const originalTask = params.task ?? "";
 					if (stone) {
 						progress?.("\u26D3\uFE0F Chain: dispatching " + params.chain.length + " steps");
-						dispatchChain(params.chain, originalTask, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen)
-							.then((results) => results.forEach(postResultToStone))
-							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Chain failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined));
+						dispatchChain(params.chain, originalTask, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen, signal)
+							.then((results) => { results.forEach(reportBreath); results.forEach(postResultToStone); })
+							.catch((err: Error) => {
+							if (err instanceof ChainStepError && err.partialResults.length > 0) {
+								const priorText = formatResults(err.partialResults, "chain");
+								const msg = `⛓️ Chain failed at step ${err.failedStepIndex + 1} (${err.failedAlly}): ${err.message}\n\n**Prior successful steps:**\n\n${priorText}`;
+								void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: msg, metadata: { error: true } }).catch(() => undefined);
+							} else {
+								const step = err instanceof ChainStepError ? `step ${err.failedStepIndex + 1} (${err.failedAlly})` : "unknown step";
+								void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Chain failed at ${step}: ${err.message}`, metadata: { error: true } }).catch(() => undefined);
+							}
+						});
 						return makeResult(`\u26D3\uFE0F Dispatched chain \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⛓️ Starting chain (${params.chain.length} steps)`);
-					const results = await dispatchChain(params.chain, originalTask, ctx.cwd, notify, progress, params.timeoutMs, params.checkInIntervalMs, onFrozen);
+					const results = await dispatchChain(params.chain, originalTask, ctx.cwd, notify, progress, params.timeoutMs, params.checkInIntervalMs, onFrozen, signal);
+					results.forEach(reportBreath);
 					return makeResult(
 						formatResults(results, "chain"),
 						{ mode: "chain", allies: results.map((r) => r.defName), totalCost: results.reduce((s, r) => s + r.cost, 0), displayNames: results.map((r) => r.allyName) },
@@ -710,13 +734,14 @@ Modes:
 				if (params.rally && params.rally.length > 0) {
 					if (stone) {
 						progress?.("\u2694\uFE0F Rally: dispatching " + params.rally.length + " allies");
-						dispatchRally(params.rally, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen)
-							.then((results) => results.forEach(postResultToStone))
+						dispatchRally(params.rally, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen, signal)
+							.then((results) => { results.forEach(reportBreath); results.forEach(postResultToStone); })
 							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Rally failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined));
 						return makeResult(`\u2694\uFE0F Dispatched rally \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⚔️ Rally: dispatching ${params.rally.length} allies`);
-					const results = await dispatchRally(params.rally, ctx.cwd, notify, progress, params.timeoutMs, params.checkInIntervalMs, onFrozen);
+					const results = await dispatchRally(params.rally, ctx.cwd, notify, progress, params.timeoutMs, params.checkInIntervalMs, onFrozen, signal);
+					results.forEach(reportBreath);
 					return makeResult(
 						formatResults(results, "rally"),
 						{ mode: "rally", allies: results.map((r) => r.defName), totalCost: results.reduce((s, r) => s + r.cost, 0), displayNames: results.map((r) => r.allyName) },
@@ -725,12 +750,13 @@ Modes:
 
 				if (params.ally && params.task) {
 					if (stone) {
-						dispatchSingle(params.ally, params.task, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen)
-							.then(postResultToStone)
+						dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify: safeNotify, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen: safeFrozen, signal })
+							.then((r) => { reportBreath(r); postResultToStone(r); })
 							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Quest failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined));
 						return makeResult(`\u{1F5E1}\uFE0F Dispatched \u2014 ${params.ally} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
-					const result = await dispatchSingle(params.ally, params.task, ctx.cwd, notify, progress, params.timeoutMs, params.checkInIntervalMs, onFrozen);
+					const result = await dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify, progress, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen, signal });
+					reportBreath(result);
 					return makeResult(
 						formatSingleResult(result),
 						{ mode: "single", allies: [result.defName], totalCost: result.cost, displayNames: [result.allyName] },
@@ -741,8 +767,22 @@ Modes:
 					`Invalid quest parameters. Use one of:\n- Single: { ally: "silly-kobold-scout", task: "..." }\n- Rally: { rally: [{ally: "...", task: "..."}, ...] }\n- Chain: { chain: [{ally: "...", task: "..."}, ...] }`,
 					{ mode: "error", allies: [], totalCost: 0, error: true },
 				);
-			}
 			} catch (err) {
+				if (err instanceof ChainStepError) {
+					const stepLabel = `step ${err.failedStepIndex + 1} (${err.failedAlly})`;
+					if (err.partialResults.length > 0) {
+						const priorText = formatResults(err.partialResults, "chain");
+						const msg = `⛓️ Chain failed at ${stepLabel}: ${err.message}\n\n**Prior successful steps:**\n\n${priorText}`;
+						return makeResult(msg, {
+							mode: "chain",
+							allies: err.partialResults.map((r) => r.defName),
+							totalCost: err.partialResults.reduce((s, r) => s + r.cost, 0),
+							error: true,
+							displayNames: err.partialResults.map((r) => r.allyName),
+						});
+					}
+					return makeResult(`⛓️ Chain failed at ${stepLabel}: ${err.message}`, { mode: "error", allies: [], totalCost: 0, error: true });
+				}
 				return makeResult(
 					`Quest failed: ${(err as Error).message ?? String(err)}`,
 					{ mode: "error", allies: [], totalCost: 0, error: true },
@@ -751,39 +791,6 @@ Modes:
 		},
 	});
 
-	// ally_status is only available in the primary session or guild-master — not to regular allies.
-	if (process.env["HOARD_GUARD_MODE"] !== "ally") {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(pi.registerTool as any)({
-			name: "ally_status",
-			description: "Check the current status and recent log output of one or all running allies. Use to diagnose stuck or slow allies.",
-			parameters: Type.Object({
-				ally: Type.Optional(Type.String({ description: "Ally defName to check (e.g. 'wise-griffin-researcher'). Omit to list all running allies." })),
-				lines: Type.Optional(Type.Number({ description: "Number of recent log lines to return (default: 20)" })),
-			}),
-			execute: async (_id: string, params: { ally?: string; lines?: number }) => {
-				const lineCount = params.lines ?? 20;
-
-				if (runningAllies.size === 0) {
-					return { content: [{ type: "text" as const, text: "No allies currently running." }] };
-				}
-
-				const entries = params.ally
-					? [...runningAllies.values()].filter((a) => a.defName.includes(params.ally!))
-					: [...runningAllies.values()];
-
-				if (entries.length === 0) {
-					return { content: [{ type: "text" as const, text: `No running ally matching "${params.ally}". Running: ${[...runningAllies.values()].map((a) => a.defName).join(", ")}` }] };
-				}
-
-				const sections = entries.map((entry) => {
-					const elapsed = Math.round((Date.now() - entry.startMs) / 1000);
-					const recent = entry.stderrLines.slice(-lineCount).join("\n");
-					return `**${entry.defName}** — ${elapsed}s elapsed\n${recent || "(no output yet)"}`.trim();
-				});
-
-				return { content: [{ type: "text" as const, text: sections.join("\n\n---\n\n") }] };
-			},
-		});
-	}
+	// Register ally_status diagnostic tool (separate module)
+	registerAllyStatusTool(pi);
 }

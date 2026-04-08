@@ -1,15 +1,35 @@
 /**
  * types.ts — Shared types for hoard-allies.
+ *
+ * Taxonomy types (Adjective, Noun, Job, AllyCombo) are canonical in lib/ally-taxonomy.ts.
+ * Re-exported here for backward compatibility within the extension.
  */
 
-export type Adjective = "silly" | "clever" | "wise" | "elder";
-export type Noun = "kobold" | "griffin" | "dragon";
-export type Job = "scout" | "reviewer" | "coder" | "researcher" | "planner";
+export type { Adjective, Noun, Job, AllyCombo } from "../../lib/ally-taxonomy.ts";
+import type { AllyCombo, Noun } from "../../lib/ally-taxonomy.ts";
 
-export interface AllyCombo {
-	adjective: Adjective;
-	noun: Noun;
-	job: Job;
+/** Persistent budget state stored in the session tree. */
+export interface BudgetState {
+	totalSpent: number;
+	questCount: number;
+	history: Array<{ ally: string; cost: number; status: "completed" | "failed"; ts: number }>;
+}
+
+/** Public API surface exposed via globalThis[Symbol.for("hoard.allies")]. */
+export interface AlliesAPI {
+	calcCost(combo: AllyCombo): number;
+	getModels(): Record<string, string[]>;
+	getThinking(): Record<string, string>;
+	popName(noun: Noun): string;
+	buildAllyPrompt(combo: AllyCombo, allyName: string | null): string;
+	budgetRemaining(): number;
+	recordSpawn(id: string, info: AllyInfo): void;
+	recordComplete(id: string): AllyInfo | undefined;
+	recordFailed(id: string): AllyInfo | undefined;
+	persistBudget?(): void;
+	getAnnounce(): boolean;
+	getConfirmAbove(): string;
+	getJobDefaults(job: string): { timeoutMs: number; checkInIntervalMs: number };
 }
 
 export interface AllyInfo {
@@ -27,6 +47,7 @@ export interface AlliesState {
 	nameQueues: Record<string, string[]>;
 	pendingNames: Map<string, string[]>;
 	providerCooldowns: Map<string, number>;
+	budget: BudgetState;
 }
 
 export interface QuestResult {

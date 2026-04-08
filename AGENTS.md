@@ -387,6 +387,23 @@ Tone files in `berrygems/styles/`. Controls document writing voice only — does
 - **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags
 - **Skill frontmatter** — YAML between `---` fences, `name` and `description` required
 
+### berrygems Conventions
+
+**Shared library layer:** Extract utilities to `berrygems/lib/` on second use. Never duplicate code between extensions with a comment justifying it.
+
+- `readHoardSetting()` from `lib/settings.ts` for ALL settings access — never hand-roll JSON parsing
+- `generateShortId()` / `generateId()` from `lib/id.ts` for ID generation — never `Math.random().toString(36)`
+- `parseComboName()` from `lib/ally-taxonomy.ts` for combo validation — never `as` casts on string splits
+- Before writing any utility, `grep berrygems/lib/` for existing solutions
+
+Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`, `local-server`, `sse-client`, `panel-chrome`, `compaction-templates`, `animated-image`, `animated-image-player`, `giphy-source`, `lsp-client`
+
+**Structural rules:**
+- One tool registration per file. 300+ lines in an extension file = split candidate.
+- >4 function parameters → options object. No exceptions.
+- Skills and code co-ship. Adding a behavior without updating the skill is incomplete work.
+- Cross-extension communication via `globalThis` + `Symbol.for()` — never direct imports between extensions.
+
 ### Go Conventions (dragon-daemon)
 
 **Naming:**

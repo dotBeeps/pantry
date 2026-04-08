@@ -327,6 +327,45 @@ For panel extensions specifically, see the `dragon-parchment` skill.
 ❌ **Fire-and-forget overlays without `done()` callback** — leaks UI state.
 ✅ Always call `done()` on escape/cancel/confirm to close overlays.
 
+❌ **Duplicating utilities locally with a "module isolation" comment** — maintenance hazard.
+✅ Extract to `berrygems/lib/` on second use. A comment justifying duplication is a refactor trigger.
+
+❌ **Hand-rolling settings parsing** — every extension re-reading `settings.json` manually.
+✅ Use `readHoardSetting()` from `berrygems/lib/settings.ts` for all settings access.
+
+❌ **Registering multiple tools in one file** — god files grow fast.
+✅ One file per tool registration. 300+ lines in an extension file = split candidate.
+
+❌ **Using `as` casts on parsed/external input** — silent type lies.
+✅ Validate with a function returning `T | null`. See TypeScript skill for details.
+
+## Shared Library Layer
+
+Extensions should build on shared utilities, not reinvent them:
+
+```
+Extensions (tool registration, event hooks, UI)
+        ↓ imports
+Shared libs — berrygems/lib/ (generic, reusable)
+        ↓ imports
+Pi platform (@mariozechner/pi-*)
+```
+
+**Before writing any utility function,** `grep berrygems/lib/` for existing solutions.
+
+Current shared libs:
+- `settings.ts` — `readHoardSetting()` for all settings access
+- `ally-taxonomy.ts` — Ally type enums, combos, cost calculation
+- `pi-spawn.ts` — Pi subprocess spawning, NDJSON parsing
+- `id.ts` — Standardized ID generation (`crypto.randomUUID`)
+- `cooldown.ts` — Generic timed exclusion tracker
+- `local-server.ts` — HTTP server lifecycle + SSE broadcaster
+- `sse-client.ts` — SSE client with reconnection
+- `panel-chrome.ts` — Border/focus/header/footer rendering, 19 skins
+- `compaction-templates.ts` — Structured summary templates
+
+**Extract on second use:** if two extensions need the same helper, it goes in `lib/` immediately. Never duplicate with a comment explaining why.
+
 ## Quality Checklist
 
 - [ ] Extension exports a default function receiving `ExtensionAPI`

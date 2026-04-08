@@ -115,3 +115,32 @@ Primary (Ember)          Subagent (ally)          Guild-master (Maren)
 - All communication is local (`127.0.0.1`), no auth
 - Messages are structured JSON (`StoneMessage` type)
 - All subscribers see all messages — filtering is client-side
+
+## TypeScript API (globalThis)
+
+The sending stone exposes a programmatic API for other extensions:
+
+```ts
+import type { StoneAPI } from "berrygems/extensions/hoard-sending-stone/types.ts";
+const stone = (globalThis as any)[Symbol.for("hoard.stone")] as StoneAPI | undefined;
+
+// Subscribe to messages
+const unsub = stone?.onMessage((msg) => {
+  console.log(`${msg.from}: ${msg.content}`);
+});
+
+// Send a message
+await stone?.send({
+  from: "my-extension",
+  type: "status",
+  addressing: "primary-agent",
+  content: "Hello from my extension",
+});
+
+// Get the server port
+const port = stone?.port();
+```
+
+## Message Types
+
+The valid message types are: `"question"`, `"status"`, `"result"`, `"progress"`. These are enforced by the stone_send tool schema.
