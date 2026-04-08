@@ -123,11 +123,30 @@ const MAX_SUBAGENT_DEPTH: Record<Noun, number> = { kobold: 0, griffin: 1, dragon
 // ── Constants: Job Config ──
 
 const JOB_TOOLS: Record<Job, string> = {
-	scout: "read, grep, find, ls, bash",
-	reviewer: "read, grep, find, ls, bash",
-	coder: "read, grep, find, ls, bash, write, edit",
-	researcher: "read, grep, find, ls, bash",
-	planner: "read, grep, find, ls",
+	scout: "read, grep, find, ls, bash, stone_send",
+	reviewer: "read, grep, find, ls, bash, stone_send",
+	coder: "read, grep, find, ls, bash, write, edit, stone_send",
+	researcher: "read, grep, find, ls, bash, stone_send",
+	planner: "read, grep, find, ls, stone_send",
+};
+
+// Skills injected into the agent def system prompt for each job.
+// Researchers get web research skills; others currently have none.
+// Per-job default timeout + check-in cadence. Quest params can override.
+const JOB_DEFAULTS: Record<Job, { timeoutMs: number; checkInIntervalMs: number }> = {
+	scout:      { timeoutMs:  60_000, checkInIntervalMs: 15_000 },
+	reviewer:   { timeoutMs: 120_000, checkInIntervalMs: 20_000 },
+	coder:      { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
+	researcher: { timeoutMs: 300_000, checkInIntervalMs: 30_000 },
+	planner:    { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
+};
+
+const JOB_SKILLS: Partial<Record<Job, string>> = {
+	scout: "hoard-sending-stone",
+	reviewer: "hoard-sending-stone",
+	coder: "hoard-sending-stone",
+	researcher: "hoard-sending-stone, defuddle, native-web-search",
+	planner: "hoard-sending-stone",
 };
 
 // ── Settings Readers ──
@@ -344,13 +363,25 @@ List your findings as:
 3. Anything you couldn't complete or concerns`,
 
 		researcher: `## Your Job
-- Research topics, APIs, libraries, patterns
-- Read documentation and source code thoroughly
+- Research topics, APIs, libraries, patterns, and documentation
+- Search the web and read source code thoroughly
 - Synthesize findings into structured reports
 - Compare options with pros/cons when relevant
 
+## Web Research Tools
+You have two web tools available via bash:
+
+**defuddle** — fetch and clean a URL into readable markdown:
+\`\`\`bash
+defuddle https://example.com/docs
+\`\`\`
+
+**native-web-search** — run web searches via bash (see the native-web-search skill for exact usage and path).
+
+Use defuddle to fetch and read specific pages. Use native-web-search for keyword queries. Use curl as a fallback. Don't guess when you can look it up.
+
 ## Rules
-- Cite all sources (file paths, documentation sections)
+- Cite all sources (URLs, file paths, documentation sections)
 - Distinguish facts from opinions/recommendations
 - Keep reports focused on what was asked
 - Flag gaps in available information
@@ -358,7 +389,7 @@ List your findings as:
 ## Output Format
 1. Summary (key findings in 2-3 sentences)
 2. Details (organized by topic/question)
-3. Sources (all references cited)
+3. Sources (all URLs and references cited)
 4. Gaps (what you couldn't determine)`,
 
 		planner: `## Your Job
@@ -402,12 +433,24 @@ function spawnBudgetLine(combo: AllyCombo): string {
 	return `You may dispatch subagents (${allowed} tier only). Your budget: ${budget} points.`;
 }
 
+const CALLING_HOME_SECTION = `## Calling Home
+If you get stuck, hit an unexpected blocker, or need clarification, send a short message home via the sending stone.
+Access it via: \`(globalThis as any)[Symbol.for("hoard.stone")]?.send({ from: "your-name", type: "question", addressing: "primary-agent", content: "..." })\`
+
+**Format:** Lead with a concise 1-2 liner: what you're trying to do and what's blocking you. Only send longer explanations in follow-up messages if asked.
+
+Example: \"Trying to fetch Node.js IPC docs via defuddle but getting a 403. Should I try curl instead?\"
+
+Do NOT send home every minor issue — exhaust your own tools first. Call home when you're genuinely stuck or need a decision that isn't yours to make.`;
+
 function buildAllyPrompt(combo: AllyCombo, allyName: string | null): string {
 	return `${identityLine(allyName, combo)}
 
 ${tierBehavior(combo)}
 
 ${jobPrompt(combo)}
+
+${CALLING_HOME_SECTION}
 
 ## Budget
 ${spawnBudgetLine(combo)}
@@ -462,11 +505,12 @@ function generateAgentDef(combo: AllyCombo): string {
 	const depth = MAX_SUBAGENT_DEPTH[combo.noun];
 	const prompt = buildAllyPrompt(combo, null);
 
+	const skills = JOB_SKILLS[combo.job];
 	return `---
 name: ${name}
 description: ${comboDescription(combo)}
 tools: ${JOB_TOOLS[combo.job]}
-model: ${model}
+${skills ? `skills: ${skills}\n` : ""}model: ${model}
 thinking: ${thinking}
 maxSubagentDepth: ${depth}
 ---
@@ -667,6 +711,9 @@ function exposeAPI(): void {
 		recordSpawn,
 		recordComplete,
 		recordFailed,
+		getAnnounce: () => getAnnounce(),
+		getConfirmAbove: () => getConfirmAbove(),
+		getJobDefaults: (job: string) => JOB_DEFAULTS[job as Job] ?? JOB_DEFAULTS.scout,
 	};
 }
 
@@ -682,6 +729,50 @@ export default function hoardAllies(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		try {
 			writeAgentDefs(ctx.cwd);
+			// Surface incoming stone messages — queue for next turn, notify immediately
+			const STONE_QUEUE_KEY = Symbol.for("hoard.stone.queue");
+			if (!(globalThis as any)[STONE_QUEUE_KEY]) (globalThis as any)[STONE_QUEUE_KEY] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+			const stoneQueue = (globalThis as any)[STONE_QUEUE_KEY] as Array<{ agentContent: string; details: unknown; shouldTrigger?: boolean }>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+			const stoneApi = (globalThis as Record<symbol, { onMessage?: (h: (msg: unknown) => void) => () => void } | undefined>)[Symbol.for("hoard.stone")];
+			if (stoneApi?.onMessage) {
+				stoneApi.onMessage((raw) => {
+					const msg = raw as { from?: string; type?: string; content?: string; addressing?: string; displayName?: string; timestamp?: number };
+					const from = msg.from ?? "ally";
+					const fromName = msg.displayName ?? from;
+					const to = msg.addressing ?? "session-room";
+					const toName = to === "session-room" ? "Room" : to === "primary-agent" ? "Primary Agent" : to === "user" ? "User" : to === "guild-master" ? "Guild Master" : to;
+					const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+					const agentContent = [
+						`**Stone Message**`,
+						`- **From:** ${fromName} (${from})`,
+						`- **To:** ${toName} (${to})`,
+						`- **Time:** ${ts}`,
+						`- **Message:** ${msg.content ?? ""}`,
+					].join("\n");
+
+					const details = { from, to, displayName: msg.displayName, content: msg.content ?? "", timestamp: ts };
+					const isForAgent = to === "primary-agent" || to === "session-room";
+					const shouldTrigger = isForAgent && msg.type === "question";
+
+					// Try immediate delivery — fall back to queue if outside active run
+					try {
+						pi.sendMessage(
+							{
+								customType: "stone-message",
+								content: agentContent,
+								display: true,
+								details,
+							},
+							{ triggerTurn: shouldTrigger },
+						);
+					} catch {
+						// Outside active run — queue for next turn
+						stoneQueue.push({ agentContent, details, shouldTrigger });
+					}
+				});
+			}
 			resetState();
 		} catch {
 			// Non-fatal — agent defs may already exist
@@ -691,6 +782,24 @@ export default function hoardAllies(pi: ExtensionAPI) {
 	// Inject taxonomy awareness into system prompt
 	// Skip persona prompt for subagents to save tokens
 	pi.on("before_agent_start", async (_event, ctx) => {
+		// Drain stone message queue — inject as bordered messages now that a turn is active
+		const STONE_QUEUE_KEY = Symbol.for("hoard.stone.queue");
+		const stoneQueue = (globalThis as any)[STONE_QUEUE_KEY] as Array<{ agentContent: string; details: unknown; shouldTrigger?: boolean }> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+		if (stoneQueue && stoneQueue.length > 0) {
+			const queued = stoneQueue.splice(0);
+			for (const { agentContent, details, shouldTrigger } of queued) {
+				pi.sendMessage(
+					{
+						customType: "stone-message",
+						content: agentContent,
+						display: true,
+						details,
+					},
+					{ triggerTurn: shouldTrigger ?? false },
+				);
+			}
+		}
+
 		if (!ctx.hasUI) {
 			// Subagent — strip the global APPEND_SYSTEM.md persona prompt
 			const stripAppend = readHoardSetting<boolean>("allies.stripAppendForSubagents", true);

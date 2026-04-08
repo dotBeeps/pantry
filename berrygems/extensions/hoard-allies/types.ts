@@ -54,6 +54,11 @@ export interface SpawnOptions {
 	thinking?: string;
 	maxSubagentDepth?: number;
 	signal?: AbortSignal;
+	timeoutMs?: number;
+	defName?: string;
+	checkInIntervalMs?: number;
+	onCheckIn?: (defName: string, elapsedMs: number, sinceActivityMs: number, recentLine: string) => void;
+	onStderrLine?: (line: string) => void;
 }
 
 export interface SpawnResult {

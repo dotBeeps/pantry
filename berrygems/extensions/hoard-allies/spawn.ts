@@ -53,6 +53,8 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 		// Task goes as trailing positional arg
 		args.push(`Task: ${opts.task}`);
 
+		const stonePort = (globalThis as any)[Symbol.for("hoard.stone")]?.port?.();
+
 		return await new Promise<SpawnResult>((resolve) => {
 			const proc = spawn(opts.piPath, args, {
 				cwd: opts.cwd,
@@ -60,6 +62,8 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 					...process.env,
 					HOARD_GUARD_MODE: "ally",
 					HOARD_ALLY_TOOLS: opts.tools ?? "",
+					HOARD_ALLY_DEFNAME: opts.defName ?? "",
+					...(stonePort != null ? { HOARD_STONE_PORT: String(stonePort) } : {}),
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 			});
@@ -71,17 +75,44 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 				stdout += chunk.toString();
 			});
 
-			proc.stderr?.on("data", (chunk: Buffer) => {
-				stderr += chunk.toString();
-			});
+			// stderr captured below alongside check-in activity tracking
+
+			// Merge caller signal + optional timeout into one abort controller
+			const ac = new AbortController();
+			let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+			let checkInTimer: ReturnType<typeof setInterval> | undefined;
+			const startMs = Date.now();
+			let lastActivityMs = Date.now();
+			let lastStderrLine = "";
 
 			if (opts.signal) {
-				opts.signal.addEventListener("abort", () => {
-					proc.kill("SIGTERM");
-				});
+				opts.signal.addEventListener("abort", () => ac.abort("caller cancelled"));
 			}
+			if (opts.timeoutMs) {
+				timeoutTimer = setTimeout(() => ac.abort("timeout"), opts.timeoutMs);
+			}
+			if (opts.checkInIntervalMs && opts.onCheckIn) {
+				const defName = opts.defName ?? "ally";
+				checkInTimer = setInterval(() => {
+					opts.onCheckIn!(defName, Date.now() - startMs, Date.now() - lastActivityMs, lastStderrLine);
+				}, opts.checkInIntervalMs);
+			}
+			ac.signal.addEventListener("abort", () => proc.kill("SIGTERM"));
+
+			proc.stderr.on("data", (data: Buffer) => {
+				const chunk = data.toString();
+				const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
+				if (lines.length > 0) {
+					lastStderrLine = lines[lines.length - 1];
+					lastActivityMs = Date.now();
+					for (const line of lines) opts.onStderrLine?.(line);
+				}
+				stderr += chunk;
+			});
 
 			proc.on("close", (code) => {
+				if (timeoutTimer) clearTimeout(timeoutTimer);
+				if (checkInTimer) clearInterval(checkInTimer);
 				const result = parseSpawnOutput(stdout, stderr, code ?? 1);
 				resolve(result);
 			});
