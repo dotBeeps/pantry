@@ -288,7 +288,7 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Updated root AGENTS.md
 - [x] ETHICS.md now unconditionally required reading
 
-### Phase 3 — Quest Tool (Dispatch Absorption) 🔥
+### Phase 3 — Quest Tool (Dispatch Absorption) ✅
 - [x] Graduate to directory extension (index.ts + modules)
 - [x] `quest` tool registration (single, rally, chain modes)
 - [x] Process spawning via `pi --mode json` child processes
@@ -302,11 +302,109 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Progress updates via onUpdate callback (⚔️ dispatched, ✅ returned, 🔄 cascading)
 - [ ] Integration with dragon-breath for carbon tracking
 
-### Phase 4 — Polish 🐣
-- [ ] Quest tool TUI rendering (renderCall/renderResult)
-- [ ] Dispatch announcements in primary session
-- [ ] Rally/chain cost estimation before dispatch
+### Phase 4 — Polish + Async Dispatch 🔥
+- [x] Quest tool TUI rendering (renderCall/renderResult) — two-line layout, display names, cost estimates
+- [x] Dispatch announcements in primary session
+- [x] Rally/chain cost estimation in renderCall
+- [x] Confirm gate — ctx.ui.select() for griffin+ tier dispatch
+- [x] Check-in intervals with stderr lines + frozen detection
+- [x] ally_status tool (primary session only) — query running ally logs on demand
+- [x] Async fire-and-forget dispatch via hoard-sending-stone
+- [x] stone_send tool whitelisted for all ally jobs
+- [x] hoard-sending-stone skill loaded for all allies (calling-home instructions)
+- [x] Researcher job: defuddle + native-web-search skills, web research prompt
+- [x] dragon-guard: recovery-friendly block messages for blocked tools
+- [x] dragon-scroll + kobold-housekeeping: skip registration in ally mode
+- [x] Display names in results ("Zig the Silly Kobold Scout")
+- [x] Custom message renderer: bordered boxes, truecolor per-agent colors, word-wrap, truncation
+- [x] Turn triggering: only `type: "question"` auto-triggers agent, results queue
 - [ ] dragon-breath carbon tracking integration
+
+### Phase 5 — Taxonomy Decoupling + Budget Rework 🥚 ⚠️ WIP
+
+> **Status:** Spec in progress. No code written yet. Decisions locked, implementation pending.
+
+#### Core Changes
+
+**Adjective dimension goes away.** The `adjective` field (`silly/clever/wise/elder`) is replaced by an explicit `thinking` field. Any `(thinking × noun × job)` combination is valid — no more 13 hardcoded curated combos. Agent defs are generated on-demand when a quest is dispatched.
+
+**No more defName string.** `AllyCombo` stores fields separately: `{ thinking: Thinking, noun: Noun, job: Job }`. Quest params change from `ally: "wise-kobold-scout"` (string) to `ally: { noun: "kobold", thinking: "wise", job: "scout" }` (object).
+
+**Display format:** `"Zig the Wise Kobold Scout"` — title case, spaces, no hyphens. `thinking + noun + job` all explicit.
+
+#### Taxonomy
+
+**Thinking levels** (replaces adjective; thematic names kept):
+
+| Level | Thinking | Multiplier | Notes |
+|-------|----------|-----------|-------|
+| `silly` | none | 1.0× | No reasoning overhead |
+| `clever` | low | 1.5× | Light reasoning |
+| `wise` | medium | 2.0× | Solid reasoning |
+| `elder` | high | 2.5× | Deep reasoning |
+| `extended` | max | 4.0× | Anthropic extended thinking (dragon only, via dragon-lab) |
+
+Not all thinking levels available for all nouns: kobold supports silly/clever, griffin supports silly–elder, dragon supports all.
+
+**Noun** (model tier — unchanged concept, new provider priorities):
+
+| Noun | Intent | Priority cascade |
+|------|--------|-----------------|
+| `kobold` | lightweight, fast, free if possible | github-copilot/haiku → glm-* → anthropic/haiku (last resort) |
+| `griffin` | balanced performance + cost | github-copilot/sonnet-4.6 → gpt-4.1/glm-* → anthropic/sonnet (last resort) |
+| `dragon` | high base performance | github-copilot/opus-4.6 → anthropic/opus (last resort) |
+
+Provider priority: **github-copilot first** (subscription = free), **zai GLM models second** (subscription = free), **anthropic direct last** (real token cost).
+
+Exact model strings for GLM/zai to be confirmed with dot — use placeholders `"zai/glm-*"` until then.
+
+**Job** (unchanged — tools + system prompt only):
+scout, reviewer, coder, researcher, planner — same tool whitelists and prompts as current.
+
+#### Budget Formula (revised)
+
+```
+cost = noun_base × thinking_multiplier × job_multiplier
+```
+
+| Dimension | Old | New |
+|-----------|-----|-----|
+| kobold base | 1 | 1 |
+| griffin base | 5 | 4 |
+| dragon base | 25 | 12 |
+| silly mult | 1.0 | 1.0 |
+| clever mult | 1.5 | 1.5 |
+| wise mult | 2.0 | 2.0 |
+| elder mult | 3.0 | **2.5** |
+| extended mult | — | 4.0 |
+| job multipliers | unchanged | unchanged |
+
+**Why pts aren't dollars:** With github-copilot as the priority provider, pts measure *quality/capability expense*, not real token cost. The formula rate-limits thoughtful choices and forces intentional trade-offs.
+
+**Reference costs under new formula:**
+```
+silly-kobold-scout:     1 × 1.0 × 0.5 =  0.5 pts   ← swarm tier
+wise-kobold-reviewer:   1 × 2.0 × 1.0 =  2.0 pts   ← NEW valid combo
+clever-griffin-coder:   4 × 1.5 × 1.5 =  9.0 pts   ← workhorse
+elder-griffin-coder:    4 × 2.5 × 1.5 = 15.0 pts   ← heavy implementation
+wise-dragon-planner:   12 × 2.0 × 1.2 = 28.8 pts   ← big picture (fits 30pt budget)
+elder-dragon-planner:  12 × 2.5 × 1.2 = 36.0 pts   ← major planning (fits 40-50pt budget)
+elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fits 50pt, nothing else)
+```
+
+#### Budget Pool
+
+- **Primary pool: 50 pts** (down from 100)
+- Per-quest budget set via budget interview (see quest-budget-interview feature)
+- Design intent: primary agent delegates ONE elder dragon for big-picture work, OR a team of griffins, OR a swarm of kobolds — but not all three. Budget forces the choice.
+
+#### Implementation Plan
+
+1. `types.ts` — replace `AllyCombo { adjective, noun, job }` with `{ thinking, noun, job }`; add `Thinking` type
+2. `index.ts` — remove `CURATED_COMBOS`; generate defs on-demand before dispatch; update `calcCost`; update provider cascade; update pool sizes; update `/allies` display
+3. `quest-tool.ts` — change params from string defName to object; update `renderCall`/`renderResult`; update helpers (`estimateCost`, `needsConfirm`, `formatDefName`)
+4. `morsels/skills/hoard-allies/SKILL.md` — full rewrite for new system
+5. Root `AGENTS.md` — update taxonomy table and ally list
 
 ### Phase 5 — Inter-Agent Communication (future 💭)
 - [ ] Chatroom message passing between active agents

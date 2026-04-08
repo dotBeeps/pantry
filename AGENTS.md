@@ -59,6 +59,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
 | 🐣 | dragon-lab | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider |
 | 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
+| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send tool, bordered message renderer with per-agent truecolor. Powers future Maren voice. |
 | 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
 | 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
 | 🔥 | dragon-review | Code review via `/review` and `/end-review` commands |
@@ -66,7 +67,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest` tool + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies, FrugalGPT model cascade. Dragon-guard coupling ✅ |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` command. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement, named allies, FrugalGPT model cascade, async dispatch via sending-stone, ally_status tool. Dragon-guard coupling ✅. Phase 4 (polish) 🔥, Phase 5 (decoupling + Maren + budget interview) 🥚 |
 
 ### berrygems — Library
 

@@ -17,11 +17,13 @@ A 3D matrix: **adjective** (thinking) × **noun** (model) × **job** (role).
 | elder | high | | | researcher | Gathering, synthesis |
 | | | | | planner | Strategy, specs |
 
-Combined: `<adjective>-<noun>-<job>` → e.g. `wise-griffin-reviewer` = sonnet + medium thinking + code review role.
+Combined: `<adjective>-<noun>-<job>` → e.g. `wise-griffin-researcher` = sonnet + medium thinking + research role.
+
+> **Phase 5 (planned):** The taxonomy is being decoupled — any `(thinking × noun × job)` combo will be valid, not just the 13 curated ones. Budget formula is being reworked. See `den/features/hoard-allies/AGENTS.md` for details.
 
 ## Budget System
 
-Allies are **budget-gated, not count-gated**. Each combo has a cost calculated as:
+Allies are **budget-gated, not count-gated**. Each combo has a cost:
 
 ```
 cost = noun_weight × thinking_multiplier × job_multiplier
@@ -33,27 +35,51 @@ cost = noun_weight × thinking_multiplier × job_multiplier
 | Thinking | silly=1, clever=1.5, wise=2, elder=3 |
 | Job | scout=0.5, reviewer=1, coder=1.5, researcher=1, planner=1.2 |
 
-Primary session budget: **100 pts** (configurable). Refund: 50% on completion, 100% on failure.
+Primary session budget: **100 pts** (configurable).
 
-A silly-kobold-scout costs **0.5 pts** — you can dispatch 200 of them. An elder-dragon-planner costs **90 pts** — that's nearly your entire budget. This reflects real resource consumption per ETHICS.md §3.7.
+## Job Tool Whitelists
 
-## Available Agents (13 curated combos)
+Each job has a strict tool whitelist enforced by dragon-guard:
 
-| Agent | Formula | Cost | Use Case |
-|-------|---------|------|----------|
-| `silly-kobold-scout` | 1 × 1 × 0.5 | 0.5 | File discovery, listing, structure mapping |
-| `clever-kobold-scout` | 1 × 1.5 × 0.5 | 0.75 | Scanning with light reasoning |
-| `clever-kobold-reviewer` | 1 × 1.5 × 1 | 1.5 | Simple validation, frontmatter checks |
-| `wise-kobold-reviewer` | 1 × 2 × 1 | 2.0 | Pattern matching, moderate code review |
-| `silly-griffin-coder` | 5 × 1 × 1.5 | 7.5 | Straightforward code generation |
-| `clever-griffin-coder` | 5 × 1.5 × 1.5 | 11.25 | Feature implementation, refactoring |
-| `clever-griffin-reviewer` | 5 × 1.5 × 1 | 7.5 | Thorough code review, architecture analysis |
-| `wise-griffin-reviewer` | 5 × 2 × 1 | 10.0 | Deep review, spec alignment |
-| `wise-griffin-researcher` | 5 × 2 × 1 | 10.0 | Research, synthesis, multi-source comparison |
-| `elder-griffin-coder` | 5 × 3 × 1.5 | 22.5 | Complex refactoring, multi-file changes |
-| `elder-griffin-reviewer` | 5 × 3 × 1 | 15.0 | Security review, ethics compliance |
-| `wise-dragon-planner` | 25 × 2 × 1.2 | 60.0 | Major spec authoring, architecture decisions |
-| `elder-dragon-planner` | 25 × 3 × 1.2 | 90.0 | Foundational decisions — justify this! |
+| Job | Tools |
+|-----|-------|
+| scout | read, grep, find, ls, bash, stone_send |
+| reviewer | read, grep, find, ls, bash, stone_send |
+| coder | read, grep, find, ls, bash, write, edit, stone_send |
+| researcher | read, grep, find, ls, bash, stone_send |
+| planner | read, grep, find, ls, stone_send |
+
+**All jobs** get the `stone_send` tool for cross-agent communication and the `hoard-sending-stone` skill for guidance on when/how to call home.
+
+**Researchers** additionally get `defuddle` and `native-web-search` skills for web research.
+
+## Async Dispatch (via Sending Stone)
+
+When the hoard-sending-stone extension is running, quest dispatch is **fire-and-forget**:
+
+1. Quest tool spawns allies and returns **immediately** — no session blocking
+2. Each ally POSTs its result home via the stone when complete
+3. Results appear as bordered boxes in the primary session with per-agent colors
+4. Agent receives results on next turn (or immediately if `type: "question"`)
+
+**Turn triggering:**
+- `type: "question"` → auto-triggers agent (ally needs help)
+- `type: "result"` → queued, agent sees it on next natural turn
+- All other types → queued silently
+
+**Fallback:** If stone is unavailable, dispatch falls back to blocking mode (allies complete before tool returns).
+
+## Calling Home
+
+All allies can send messages via the `stone_send` tool:
+
+```
+stone_send(to: "primary-agent", message: "short description of issue")
+```
+
+**Rules:** Lead with a concise 1-2 liner — what you're doing and what's blocking you. Only send longer explanations in follow-up messages if asked. Exhaust your own tools before calling home.
+
+See the `hoard-sending-stone` skill for full messaging details.
 
 ## The Rule
 
@@ -87,68 +113,56 @@ How much reasoning?
 
 ### Parallel Scouts (cheap, fast)
 ```json
-{"tasks": [
-  {"agent": "silly-kobold-scout", "task": "List all .go files in dragon-daemon/internal/"},
-  {"agent": "silly-kobold-scout", "task": "List all .ts files in berrygems/extensions/"},
-  {"agent": "silly-kobold-scout", "task": "List all SKILL.md files with line counts"}
+{ "rally": [
+  { "ally": "silly-kobold-scout", "task": "List all .go files in dragon-daemon/" },
+  { "ally": "silly-kobold-scout", "task": "List all .ts files in berrygems/" }
 ]}
 ```
-**Cost: 1.5 pts** for all three scouts.
+**Cost: 1.0 pts** — two scouts, instant return, results via stone.
 
-### Scout → Review Chain (escalating)
+### Scout → Coder Chain (escalating)
 ```json
-{"chain": [
-  {"agent": "silly-kobold-scout", "task": "Find all files related to {task}"},
-  {"agent": "clever-kobold-reviewer", "task": "Review the files found: {previous}"}
+{ "chain": [
+  { "ally": "clever-kobold-scout", "task": "Find all files related to {task}" },
+  { "ally": "clever-griffin-coder", "task": "Implement changes based on: {previous}" }
 ]}
 ```
-**Cost: 2.0 pts** for both steps.
+**Cost: 12.0 pts** — scout cheaply, coder acts on findings.
 
-### Parallel Review (different dimensions)
+### Research Rally
 ```json
-{"tasks": [
-  {"agent": "clever-kobold-reviewer", "task": "Check frontmatter in all SKILL.md files"},
-  {"agent": "clever-griffin-reviewer", "task": "Review ethics compliance of consent/ package"}
+{ "rally": [
+  { "ally": "wise-griffin-researcher", "task": "Research approach A using web search" },
+  { "ally": "wise-griffin-researcher", "task": "Research approach B using web search" }
 ]}
 ```
-**Cost: 9.0 pts** — kobold handles the mechanical check, griffin handles the judgment call.
+**Cost: 20.0 pts** — parallel research with web access, results arrive as they finish.
 
-### Implementation with Scouting
-```json
-{"chain": [
-  {"agent": "clever-kobold-scout", "task": "Find all usages of old API pattern"},
-  {"agent": "clever-griffin-coder", "task": "Migrate the found usages: {previous}"}
-]}
+## Monitoring Running Allies
+
+**`ally_status` tool** (primary session only): Check on running allies, see their recent log output.
 ```
-**Cost: 12.0 pts** — scout cheaply, then coder acts on findings.
+ally_status()              — list all running allies
+ally_status(ally: "name")  — check a specific ally's logs
+ally_status(lines: 50)     — get more log lines
+```
+
+**Check-ins:** Allies automatically report stderr activity at job-specific intervals (scouts: 15s, researchers: 30s). Frozen detection warns if an ally goes silent for 2× their check-in interval.
 
 ## Guidelines
 
-- **Max parallel agents:** configurable (default 4). Avoid rate limits.
-- **Prefer more kobolds over fewer griffins** — three kobold scouts (1.5 pts) cost less than one griffin reviewer (7.5 pts)
-- **Chain when possible** — scouts first, then escalate only findings that need it
-- **Match job to role** — don't use a coder for analysis, don't use a scout for implementation
-- **Dragon dispatch requires justification** — if you're sending a dragon, say why
-
-## When to Dispatch vs Do It Yourself
-
-**Dispatch when:**
-- A task has 3+ independent subtasks that can run simultaneously
-- You'd otherwise read 5+ files sequentially before synthesizing
-- You need to check multiple quality dimensions in parallel
-- The task involves scanning a large codebase for patterns
-
-**Don't dispatch when:**
-- The task is simple enough to handle in a few tool calls
-- Subtasks depend on each other's output (use chains if needed)
-- You'd be sending 1 agent to do 1 small thing
-- You're already in a subagent (check your spawn budget)
+- **Prefer more kobolds over fewer griffins** — three scouts (1.5 pts) < one griffin reviewer (7.5 pts)
+- **Chain when possible** — scouts first, then escalate what needs it
+- **Match job to role** — don't use a coder for analysis
+- **Dragon dispatch requires justification** — say why
+- **Max parallel agents:** configurable (default 4)
+- **Confirm gate:** griffin+ tier dispatches require user confirmation (configurable via `hoard.allies.confirmAbove`)
 
 ## Named Allies
 
-Each dispatched ally gets a name from a shuffled pool:
-- **Kobolds:** Grix, Snark, Blik, Twig, Pip, Fizz, etc. (30 names)
-- **Griffins:** Aldric, Kestrel, Talon, Sable, Argent, etc. (28 names)
-- **Dragons:** Azurath, Thalaxis, Pyranthis, Veridian, etc. (14 names)
+Each dispatched ally gets a random name from a per-tier pool:
+- **Kobolds:** Grix, Snark, Blik, Twig, Pip, etc.
+- **Griffins:** Aldric, Kestrel, Talon, Sable, etc.
+- **Dragons:** Azurath, Thalaxis, Pyranthis, etc.
 
-Names make dispatch announcements more readable and tracking easier.
+Names appear in dispatch announcements, stone messages, and renderResult. Each ally's name generates a unique truecolor offset within their tier's hue range for visual distinction.
