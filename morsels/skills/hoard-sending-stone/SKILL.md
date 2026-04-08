@@ -80,13 +80,12 @@ stone.send({ from: "my-name", type: "status", addressing: "wise-griffin-coder",
 
 ## Message Types
 
-| Type | When to use |
-|------|-------------|
-| `question` | You need help or a decision |
-| `progress` | Meaningful milestone update |
-| `result` | Task complete, here's what you found/built |
-| `check_in` | Periodic heartbeat (usually automated) |
-| `status` | Responding to a status query |
+| Type | When to use | Triggers agent turn? |
+|------|-------------|---------------------|
+| `question` | You need help or a decision | ✅ Yes |
+| `result` | Task complete, here's what you found/built | ✅ Yes |
+| `status` | Frozen/stuck alerts, important status changes | ✅ Yes |
+| `progress` | Regular check-in heartbeats, milestone updates | ❌ No (renders when possible) |
 
 ## Receiving Messages
 

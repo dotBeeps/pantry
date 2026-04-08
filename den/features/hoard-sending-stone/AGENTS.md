@@ -54,13 +54,17 @@ interface StoneMessage {
 
 | Addressing | Who sees it | Triggers agent turn? |
 |-----------|-------------|---------------------|
-| `"primary-agent"` | Agent (Ember) | Only if `type === "question"` |
+| `"primary-agent"` | Agent (Ember) | If `type` is `"question"`, `"result"`, or `"status"` |
 | `"user"` | User (dot) | Never |
 | `"guild-master"` | Maren | Never (future) |
-| `"session-room"` | Everyone | Only if `type === "question"` |
+| `"session-room"` | Everyone | If `type` is `"question"`, `"result"`, or `"status"` |
 | ally defName | Specific ally | Never |
 
-Results queue and appear on next natural turn. Questions wake the agent immediately.
+**Turn triggering by message type:**
+- `question` — ally needs help → triggers turn
+- `result` — ally completed quest → triggers turn
+- `status` — frozen/stuck alert → triggers turn
+- `progress` — regular check-in heartbeat → non-triggering, renders when possible
 
 ## Rendering
 

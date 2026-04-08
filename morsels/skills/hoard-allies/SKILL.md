@@ -43,15 +43,15 @@ Each job has a strict tool whitelist enforced by dragon-guard:
 
 | Job | Tools |
 |-----|-------|
-| scout | read, grep, find, ls, bash, stone_send |
-| reviewer | read, grep, find, ls, bash, stone_send |
-| coder | read, grep, find, ls, bash, write, edit, stone_send |
-| researcher | read, grep, find, ls, bash, stone_send |
-| planner | read, grep, find, ls, stone_send |
-
-**All jobs** get the `stone_send` tool for cross-agent communication and the `hoard-sending-stone` skill for guidance on when/how to call home.
+| scout | read, grep, find, ls, bash |
+| reviewer | read, grep, find, ls, bash |
+| coder | read, grep, find, ls, bash, write, edit |
+| researcher | read, grep, find, ls, bash |
+| planner | read, grep, find, ls |
 
 **Researchers** additionally get `defuddle` and `native-web-search` skills for web research.
+
+> **Note:** Allies do NOT have `stone_send` — the primary session handles all cross-agent communication via check-ins and async result dispatch.
 
 ## Async Dispatch (via Sending Stone)
 
@@ -63,23 +63,21 @@ When the hoard-sending-stone extension is running, quest dispatch is **fire-and-
 4. Agent receives results on next turn (or immediately if `type: "question"`)
 
 **Turn triggering:**
-- `type: "question"` → auto-triggers agent (ally needs help)
-- `type: "result"` → queued, agent sees it on next natural turn
-- All other types → queued silently
+- `type: "question"` → auto-triggers agent turn (ally needs help)
+- `type: "result"` → auto-triggers agent turn (ally completed quest)
+- `type: "status"` → auto-triggers agent turn (frozen/stuck alerts)
+- `type: "progress"` → non-triggering (regular check-in heartbeats)
 
 **Fallback:** If stone is unavailable, dispatch falls back to blocking mode (allies complete before tool returns).
 
-## Calling Home
+## Check-Ins & Monitoring
 
-All allies can send messages via the `stone_send` tool:
+The primary session monitors allies via periodic check-ins (configurable via `checkInIntervalMs`). Check-in progress messages stream as non-triggering stone messages. If an ally goes quiet too long, a frozen alert fires as a `status` message that triggers an agent turn.
 
-```
-stone_send(to: "primary-agent", message: "short description of issue")
-```
+## Commands
 
-**Rules:** Lead with a concise 1-2 liner — what you're doing and what's blocking you. Only send longer explanations in follow-up messages if asked. Exhaust your own tools before calling home.
-
-See the `hoard-sending-stone` skill for full messaging details.
+- `/allies` — show taxonomy, available combos, and current configuration
+- `/allies-budget` — show spend history, budget limits, remaining budget, and recent quest log (last 10)
 
 ## The Rule
 

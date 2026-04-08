@@ -50,7 +50,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 
 | | extension | description |
 |---|---|---|
-| 🔥 | dragon-breath | Carbon/energy tracking footer widget + `/carbon` command |
+| 🔥 | dragon-breath | Carbon/energy tracking footer widget + `/carbon` command + `BreathAPI` globalThis for external usage reporting |
 | 💎 | dragon-curfew | Bedtime enforcement — blocks tool calls during curfew hours |
 | 🔥 | dragon-digestion | Tiered compaction system with progressive context management |
 | 🔥 | dragon-guard/ | Four-tier permission guard |
@@ -67,7 +67,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` command. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement, named allies, FrugalGPT model cascade, async dispatch via sending-stone, ally_status tool. Dragon-guard coupling ✅. Phase 4 (polish) 🔥, Phase 5 (decoupling + Maren + budget interview) 🥚 |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Dragon-guard coupling ✅. Phase 4 (polish) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
 
 ### berrygems — Library
 
