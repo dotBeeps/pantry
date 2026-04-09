@@ -17,6 +17,7 @@ import (
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
 	hoardbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/hoard"
 	mawbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/maw"
+	mcpbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/mcp"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
@@ -70,7 +71,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	d.log.Info("memory vault open", "dir", vault.VaultDir())
 
-	bodies, err := d.buildBodies(ledger, agg)
+	bodies, err := d.buildBodies(ledger, agg, vault)
 	if err != nil {
 		return fmt.Errorf("building bodies: %w", err)
 	}
@@ -192,14 +193,14 @@ func (a cycleCapture) OnOutput(fn func(string)) {
 }
 
 // buildBodies constructs Body instances for all enabled body configs.
-func (d *Daemon) buildBodies(ledger *attention.Ledger, agg *sensory.Aggregator) ([]body.Body, error) {
+func (d *Daemon) buildBodies(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]body.Body, error) {
 	var bodies []body.Body
 	for _, cfg := range d.persona.Bodies {
 		if !cfg.Enabled {
 			d.log.Info("body disabled", "id", cfg.ID)
 			continue
 		}
-		b, err := d.buildBody(cfg, ledger, agg)
+		b, err := d.buildBody(cfg, ledger, agg, vault)
 		if err != nil {
 			return nil, fmt.Errorf("building body %s: %w", cfg.ID, err)
 		}
@@ -245,7 +246,7 @@ func (d *Daemon) fanInBodyEvents(ctx context.Context, bodies []body.Body, agg *s
 	}
 }
 
-func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg *sensory.Aggregator) (body.Body, error) {
+func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) (body.Body, error) {
 	switch cfg.Type {
 	case "hoard":
 		path := cfg.Path
@@ -269,7 +270,15 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 			}
 		}
 		return mawbody.New(cfg.ID, port, ledger, agg, d.log), nil
+	case "mcp":
+		port := 9000
+		if cfg.Path != "" {
+			if p, convErr := strconv.Atoi(cfg.Path); convErr == nil {
+				port = p
+			}
+		}
+		return mcpbody.New(cfg.ID, port, vault, ledger, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, maw)", cfg.Type)
+		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, maw, mcp)", cfg.Type)
 	}
 }
