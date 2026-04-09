@@ -15,12 +15,13 @@ import (
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
-	doggybody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/doggy"
 	hoardbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/hoard"
-	mcpbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/mcp"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi"
+	psidoggy "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/doggy"
+	psimcp "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/mcp"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/thought"
@@ -71,12 +72,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	d.log.Info("memory vault open", "dir", vault.VaultDir())
 
+	// Build and start bodies — external systems the daemon inhabits.
 	bodies, err := d.buildBodies(ledger, agg, vault)
 	if err != nil {
 		return fmt.Errorf("building bodies: %w", err)
 	}
-
-	// Start body lifecycle — watchers, connections, etc.
 	var startedBodies []body.Body
 	for _, b := range bodies {
 		if err := b.Start(ctx); err != nil {
@@ -92,13 +92,33 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Build and start psi interfaces — communication surfaces exposed to the world.
+	ifaces, err := d.buildInterfaces(ledger, agg, vault)
+	if err != nil {
+		return fmt.Errorf("building interfaces: %w", err)
+	}
+	var startedIfaces []psi.Interface
+	for _, iface := range ifaces {
+		if err := iface.Start(ctx); err != nil {
+			return fmt.Errorf("starting interface %s: %w", iface.ID(), err)
+		}
+		startedIfaces = append(startedIfaces, iface)
+	}
+	defer func() {
+		for _, iface := range startedIfaces {
+			if err := iface.Stop(); err != nil {
+				d.log.Error("stopping interface", "id", iface.ID(), "err", err)
+			}
+		}
+	}()
+
 	cycle := thought.New(d.persona, ledger, agg, bodies, vault, oauth, d.log)
 
-	// Wire thought output to any bodies that support it (e.g. maw).
+	// Wire thought output to psi interfaces that act as output sinks (e.g. doggy SSE stream).
 	cycleOut := cycleCapture{c: cycle}
-	for _, b := range bodies {
-		if w, ok := b.(outputWirer); ok {
-			w.Wire(cycleOut)
+	for _, iface := range ifaces {
+		if sink, ok := iface.(psi.OutputSink); ok {
+			sink.Wire(cycleOut)
 		}
 	}
 
@@ -111,6 +131,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.log.Info("daemon ready",
 		"thought_interval", interval,
 		"bodies", len(bodies),
+		"interfaces", len(ifaces),
 		"attention", ledger.Status(),
 	)
 
@@ -168,18 +189,14 @@ func (d *Daemon) Run(ctx context.Context) error {
 		d.log,
 	)
 
-	// Fan-in body events → aggregator + nudge the dragon-heart.
+	// Fan-in events from bodies and psi interfaces → aggregator + nudge the heart.
 	d.fanInBodyEvents(ctx, bodies, agg, dragonHeart)
+	d.fanInIfaceEvents(ctx, ifaces, agg, dragonHeart)
 
 	dragonHeart.Run(ctx)
 
 	d.log.Info("daemon stopped")
 	return nil
-}
-
-// outputWirer is implemented by bodies that capture thought cycle output.
-type outputWirer interface {
-	Wire(capture soul.OutputCapture)
 }
 
 // cycleCapture adapts *thought.Cycle to soul.OutputCapture.
@@ -208,6 +225,24 @@ func (d *Daemon) buildBodies(ledger *attention.Ledger, agg *sensory.Aggregator, 
 		d.log.Info("body loaded", "id", cfg.ID, "type", cfg.Type)
 	}
 	return bodies, nil
+}
+
+// buildInterfaces constructs psi Interface instances for all enabled interface configs.
+func (d *Daemon) buildInterfaces(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]psi.Interface, error) {
+	var ifaces []psi.Interface
+	for _, cfg := range d.persona.Interfaces {
+		if !cfg.Enabled {
+			d.log.Info("interface disabled", "id", cfg.ID)
+			continue
+		}
+		iface, err := d.buildInterface(cfg, ledger, agg, vault)
+		if err != nil {
+			return nil, fmt.Errorf("building interface %s: %w", cfg.ID, err)
+		}
+		ifaces = append(ifaces, iface)
+		d.log.Info("interface loaded", "id", cfg.ID, "type", cfg.Type)
+	}
+	return ifaces, nil
 }
 
 // vaultDir returns the path to this persona's memory vault.
@@ -246,7 +281,34 @@ func (d *Daemon) fanInBodyEvents(ctx context.Context, bodies []body.Body, agg *s
 	}
 }
 
-func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) (body.Body, error) {
+// fanInIfaceEvents starts goroutines that drain each psi interface's event channel
+// into the aggregator and nudge the dragon-heart for immediate processing.
+func (d *Daemon) fanInIfaceEvents(ctx context.Context, ifaces []psi.Interface, agg *sensory.Aggregator, h *heart.Heart) {
+	for _, iface := range ifaces {
+		ch := iface.Events()
+		if ch == nil {
+			continue
+		}
+		go func(id string, events <-chan sensory.Event) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case ev, ok := <-events:
+					if !ok {
+						d.log.Debug("interface event channel closed", "interface", id)
+						return
+					}
+					d.log.Debug("interface event received", "interface", id, "type", ev.Kind)
+					agg.Enqueue(ev)
+					h.Nudge()
+				}
+			}
+		}(iface.ID(), ch)
+	}
+}
+
+func (d *Daemon) buildBody(cfg persona.BodyConfig, _ *attention.Ledger, _ *sensory.Aggregator, _ *memory.Vault) (body.Body, error) {
 	switch cfg.Type {
 	case "hoard":
 		path := cfg.Path
@@ -262,6 +324,13 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 			path = home + path[1:]
 		}
 		return hoardbody.New(cfg.ID, path, d.log), nil
+	default:
+		return nil, fmt.Errorf("unsupported body type %q (supported: hoard)", cfg.Type)
+	}
+}
+
+func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) (psi.Interface, error) {
+	switch cfg.Type {
 	case "doggy":
 		port := 7432
 		if cfg.Path != "" {
@@ -269,7 +338,7 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 				port = p
 			}
 		}
-		return doggybody.New(cfg.ID, port, ledger, agg, d.log), nil
+		return psidoggy.New(cfg.ID, port, ledger, agg, d.log), nil
 	case "mcp":
 		port := 9000
 		if cfg.Path != "" {
@@ -277,8 +346,8 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 				port = p
 			}
 		}
-		return mcpbody.New(cfg.ID, port, vault, ledger, d.log), nil
+		return psimcp.New(cfg.ID, port, vault, ledger, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, doggy, mcp)", cfg.Type)
+		return nil, fmt.Errorf("unsupported interface type %q (supported: doggy, mcp)", cfg.Type)
 	}
 }

@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body/doggy"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi/doggy"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 )
 
@@ -69,19 +69,19 @@ func minimalLedger() *attention.Ledger {
 	return attention.New(p, slog.Default())
 }
 
-// startTestBody starts a real doggy server on a free port and returns its base URL.
+// startTestIface starts a real doggy server on a free port and returns its base URL.
 // The server is stopped via t.Cleanup.
-func startTestBody(t *testing.T) string {
+func startTestIface(t *testing.T) string {
 	t.Helper()
 
-	_, base := startTestBodyFull(t)
+	_, base := startTestIfaceFull(t)
 
 	return base
 }
 
-// startTestBodyFull is like startTestBody but also returns the *doggy.Body so
+// startTestIfaceFull is like startTestIface but also returns the *doggy.Interface so
 // callers can call Wire or inspect it directly.
-func startTestBodyFull(t *testing.T) (*doggy.Body, string) {
+func startTestIfaceFull(t *testing.T) (*doggy.Interface, string) {
 	t.Helper()
 
 	port := freePort(t)
@@ -119,7 +119,7 @@ func startTestBodyFull(t *testing.T) (*doggy.Body, string) {
 func TestDoggy_GetState(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	resp, err := http.Get(base + "/state") //nolint:noctx // test — no context needed
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestDoggy_GetState(t *testing.T) {
 func TestDoggy_GetState_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	resp, err := http.Post(base+"/state", "application/json", http.NoBody) //nolint:noctx // test
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestDoggy_GetState_MethodNotAllowed(t *testing.T) {
 func TestDoggy_PostMessage_OK(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	body := bytes.NewBufferString(`{"text":"hello world"}`)
 
@@ -168,7 +168,7 @@ func TestDoggy_PostMessage_OK(t *testing.T) {
 func TestDoggy_PostMessage_EmptyText(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	body := bytes.NewBufferString(`{"text":""}`)
 
@@ -184,7 +184,7 @@ func TestDoggy_PostMessage_EmptyText(t *testing.T) {
 func TestDoggy_PostMessage_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	body := bytes.NewBufferString(`not json`)
 
@@ -200,7 +200,7 @@ func TestDoggy_PostMessage_InvalidJSON(t *testing.T) {
 func TestDoggy_PostMessage_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	resp, err := http.Get(base + "/message") //nolint:noctx // test
 	require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestDoggy_PostMessage_MethodNotAllowed(t *testing.T) {
 func TestDoggy_Stream_ReceivesThought(t *testing.T) {
 	t.Parallel()
 
-	b, base := startTestBodyFull(t)
+	b, base := startTestIfaceFull(t)
 
 	sc := &stubCapture{}
 	b.Wire(sc)
@@ -272,7 +272,7 @@ func TestDoggy_Stream_ReceivesThought(t *testing.T) {
 func TestDoggy_Stream_Headers(t *testing.T) {
 	t.Parallel()
 
-	base := startTestBody(t)
+	base := startTestIface(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

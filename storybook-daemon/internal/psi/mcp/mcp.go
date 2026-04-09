@@ -1,6 +1,6 @@
-// Package mcp implements an MCP (Model Context Protocol) server body that
-// exposes the daemon's memory vault, attention state, and session registration
-// to external AI coding tools via streamable HTTP.
+// Package mcp implements an MCP (Model Context Protocol) server psi interface
+// that exposes the daemon's memory vault, attention state, and session
+// registration to external AI coding tools via streamable HTTP.
 package mcp
 
 import (
@@ -15,7 +15,6 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 )
@@ -28,9 +27,10 @@ type session struct {
 	Harness   string `json:"harness"`
 }
 
-// Body is the MCP server body. It exposes the daemon's memory vault and
-// attention state to external AI coding tools via the Model Context Protocol.
-type Body struct {
+// Interface is the MCP server psi interface. It exposes the daemon's memory
+// vault and attention state to external AI coding tools via the Model Context
+// Protocol.
+type Interface struct {
 	id     string
 	port   int
 	vault  *memory.Vault
@@ -44,9 +44,9 @@ type Body struct {
 	cancel context.CancelFunc
 }
 
-// New creates an MCP Body that serves on the given port.
-func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Body {
-	return &Body{
+// New creates an MCP Interface that serves on the given port.
+func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Interface {
+	return &Interface{
 		id:       id,
 		port:     port,
 		vault:    vault,
@@ -56,22 +56,18 @@ func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log
 	}
 }
 
-// ID returns the configured body identifier.
-func (b *Body) ID() string { return b.id }
+// ID returns the configured interface identifier.
+func (b *Interface) ID() string { return b.id }
 
-// Type returns the static discriminator string for this body kind.
-func (b *Body) Type() string { return "mcp" }
+// Type returns the static discriminator string for this interface kind.
+func (b *Interface) Type() string { return "mcp" }
 
-// Tools returns nil — the MCP body exposes tools via the MCP protocol, not
-// through the daemon's internal tool routing.
-func (b *Body) Tools() []body.ToolDef { return nil }
-
-// Events returns nil — the MCP body does not emit sensory events.
-func (b *Body) Events() <-chan sensory.Event { return nil }
+// Events returns nil — the MCP interface does not emit inbound sensory events.
+func (b *Interface) Events() <-chan sensory.Event { return nil }
 
 // Start launches the MCP streamable HTTP server. It returns as soon as the
 // server goroutine is running; ctx cancellation triggers graceful shutdown.
-func (b *Body) Start(ctx context.Context) error {
+func (b *Interface) Start(ctx context.Context) error {
 	mcpServer := b.buildServer()
 
 	handler := gomcp.NewStreamableHTTPHandler(func(_ *http.Request) *gomcp.Server {
@@ -110,33 +106,15 @@ func (b *Body) Start(ctx context.Context) error {
 }
 
 // Stop shuts the server down gracefully.
-func (b *Body) Stop() error {
+func (b *Interface) Stop() error {
 	if b.cancel != nil {
 		b.cancel()
 	}
 	return nil
 }
 
-// State returns a BodyState summary for the aggregator snapshot.
-func (b *Body) State(_ context.Context) (sensory.BodyState, error) {
-	b.mu.Lock()
-	count := len(b.sessions)
-	b.mu.Unlock()
-
-	return sensory.BodyState{
-		ID:      b.id,
-		Type:    "mcp",
-		Summary: fmt.Sprintf("[mcp: listening on :%d, %d active sessions]", b.port, count),
-	}, nil
-}
-
-// Execute is a no-op — the MCP body handles requests via the MCP protocol.
-func (b *Body) Execute(_ context.Context, name string, _ map[string]any) (string, error) {
-	return "", fmt.Errorf("mcp body has no internal tools: %q", name)
-}
-
 // buildServer constructs and configures the MCP server with all tool handlers.
-func (b *Body) buildServer() *gomcp.Server {
+func (b *Interface) buildServer() *gomcp.Server {
 	server := gomcp.NewServer(
 		&gomcp.Implementation{
 			Name:    "storybook-daemon",
@@ -197,7 +175,7 @@ type stubOutput struct {
 
 // ── Tool registration ───────────────────────────────────────
 
-func (b *Body) registerTools(server *gomcp.Server) {
+func (b *Interface) registerTools(server *gomcp.Server) {
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "register_session",
 		Description: "Register an AI coding session with the daemon. Call this at startup so the daemon knows who is connected.",
@@ -241,7 +219,7 @@ func (b *Body) registerTools(server *gomcp.Server) {
 
 // ── Tool handlers ───────────────────────────────────────────
 
-func (b *Body) handleRegisterSession(_ context.Context, _ *gomcp.CallToolRequest, input registerSessionInput) (*gomcp.CallToolResult, registerSessionOutput, error) {
+func (b *Interface) handleRegisterSession(_ context.Context, _ *gomcp.CallToolRequest, input registerSessionInput) (*gomcp.CallToolResult, registerSessionOutput, error) {
 	s := session{
 		SessionID: input.SessionID,
 		Provider:  input.Provider,
@@ -266,7 +244,7 @@ func (b *Body) handleRegisterSession(_ context.Context, _ *gomcp.CallToolRequest
 	}, nil
 }
 
-func (b *Body) handleMemorySearch(_ context.Context, _ *gomcp.CallToolRequest, input memorySearchInput) (*gomcp.CallToolResult, any, error) {
+func (b *Interface) handleMemorySearch(_ context.Context, _ *gomcp.CallToolRequest, input memorySearchInput) (*gomcp.CallToolResult, any, error) {
 	limit := input.Limit
 	if limit <= 0 {
 		limit = 10
@@ -308,7 +286,7 @@ func (b *Body) handleMemorySearch(_ context.Context, _ *gomcp.CallToolRequest, i
 	}, nil, nil
 }
 
-func (b *Body) handleMemoryRead(_ context.Context, _ *gomcp.CallToolRequest, input memoryReadInput) (*gomcp.CallToolResult, any, error) {
+func (b *Interface) handleMemoryRead(_ context.Context, _ *gomcp.CallToolRequest, input memoryReadInput) (*gomcp.CallToolResult, any, error) {
 	note, err := b.vault.Get(input.Title)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading note %q: %w", input.Title, err)
@@ -346,7 +324,7 @@ func (b *Body) handleMemoryRead(_ context.Context, _ *gomcp.CallToolRequest, inp
 	}, nil, nil
 }
 
-func (b *Body) handleMemoryWrite(_ context.Context, _ *gomcp.CallToolRequest, input memoryWriteInput) (*gomcp.CallToolResult, memoryWriteOutput, error) {
+func (b *Interface) handleMemoryWrite(_ context.Context, _ *gomcp.CallToolRequest, input memoryWriteInput) (*gomcp.CallToolResult, memoryWriteOutput, error) {
 	kind := memory.Kind(input.Kind)
 
 	// Validate kind.
@@ -369,7 +347,7 @@ func (b *Body) handleMemoryWrite(_ context.Context, _ *gomcp.CallToolRequest, in
 	}, nil
 }
 
-func (b *Body) handleAttentionState(_ context.Context, _ *gomcp.CallToolRequest, _ struct{}) (*gomcp.CallToolResult, attentionStateOutput, error) {
+func (b *Interface) handleAttentionState(_ context.Context, _ *gomcp.CallToolRequest, _ struct{}) (*gomcp.CallToolResult, attentionStateOutput, error) {
 	return nil, attentionStateOutput{
 		Pool:   b.ledger.Pool(),
 		Status: b.ledger.Status(),
@@ -380,7 +358,7 @@ type stubInput struct {
 	// empty — stubs accept no meaningful input
 }
 
-func (b *Body) handleStub(_ context.Context, _ *gomcp.CallToolRequest, _ stubInput) (*gomcp.CallToolResult, stubOutput, error) {
+func (b *Interface) handleStub(_ context.Context, _ *gomcp.CallToolRequest, _ stubInput) (*gomcp.CallToolResult, stubOutput, error) {
 	return nil, stubOutput{
 		Status:  "not_implemented",
 		Message: "This tool is not yet implemented. It will be wired in a future phase.",

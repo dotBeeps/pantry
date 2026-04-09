@@ -3,11 +3,12 @@ package persona
 
 // Persona is the top-level persona YAML structure.
 type Persona struct {
-	Persona   Config          `yaml:"persona"`
-	Attention AttentionConfig `yaml:"attention"`
-	Costs     CostConfig      `yaml:"costs"`
-	Bodies    []BodyConfig    `yaml:"bodies"`
-	Contracts []Contract      `yaml:"contracts"`
+	Persona    Config            `yaml:"persona"`
+	Attention  AttentionConfig   `yaml:"attention"`
+	Costs      CostConfig        `yaml:"costs"`
+	Bodies     []BodyConfig      `yaml:"bodies"`
+	Interfaces []InterfaceConfig `yaml:"interfaces"`
+	Contracts  []Contract        `yaml:"contracts"`
 }
 
 // Config holds character identity settings.
@@ -44,6 +45,16 @@ type BodyConfig struct {
 	Type    string  `yaml:"type"`   // hoard | minecraft | app | api
 	Weight  float64 `yaml:"weight"` // fraction of attention budget claimed
 	Enabled bool    `yaml:"enabled"`
+}
+
+// InterfaceConfig describes a psi interface the persona exposes to the world.
+// Unlike bodies, interfaces are communication surfaces (dot's chat, MCP tools)
+// rather than external systems the daemon senses from.
+type InterfaceConfig struct {
+	ID      string `yaml:"id"`
+	Path    string `yaml:"path"`
+	Type    string `yaml:"type"` // doggy | mcp
+	Enabled bool   `yaml:"enabled"`
 }
 
 // Contract is a simple rule applied after each thought cycle.

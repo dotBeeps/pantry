@@ -1,6 +1,6 @@
-// Package doggy implements the HTTP+SSE body that exposes the daemon's
+// Package doggy implements the HTTP+SSE psi interface that exposes the daemon's
 // thought stream, attention state, and direct-message ingestion over a local
-// HTTP server. This is dot's control interface — her body in the system.
+// HTTP server. This is dot's control surface — her window into the daemon.
 package doggy
 
 import (
@@ -14,14 +14,13 @@ import (
 	"time"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 )
 
-// Body is the doggy HTTP+SSE body. It exposes the daemon's thought stream,
-// attention state, and a direct-message channel to dot over a local HTTP server.
-type Body struct {
+// Interface is the doggy HTTP+SSE psi interface. It exposes the daemon's thought
+// stream, attention state, and a direct-message channel to dot.
+type Interface struct {
 	id     string
 	port   int
 	ledger *attention.Ledger
@@ -35,10 +34,10 @@ type Body struct {
 	cancel context.CancelFunc
 }
 
-// New creates a doggy Body. Wire must be called before Start to connect the
-// thought stream.
-func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, log *slog.Logger) *Body {
-	return &Body{
+// New creates a doggy Interface. Wire must be called before Start to connect
+// the thought stream.
+func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, log *slog.Logger) *Interface {
+	return &Interface{
 		id:      id,
 		port:    port,
 		ledger:  ledger,
@@ -48,29 +47,27 @@ func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator,
 	}
 }
 
-// Wire connects the doggy body to the thought cycle output stream.
+// Wire connects the doggy interface to the thought cycle output stream.
 // Call this after the thought cycle is created, before the heart starts.
-func (b *Body) Wire(capture soul.OutputCapture) {
+func (b *Interface) Wire(capture soul.OutputCapture) {
 	capture.OnOutput(func(text string) {
 		b.broadcastJSON(map[string]string{"type": "thought", "text": text})
 	})
 }
 
-// ID returns the configured body identifier.
-func (b *Body) ID() string { return b.id }
+// ID returns the configured interface identifier.
+func (b *Interface) ID() string { return b.id }
 
-// Type returns the static discriminator string for this body kind.
-func (b *Body) Type() string { return "doggy" }
+// Type returns the static discriminator string for this interface kind.
+func (b *Interface) Type() string { return "doggy" }
 
-// Tools returns nil — the doggy body exposes no agent tools.
-func (b *Body) Tools() []body.ToolDef { return nil }
-
-// Events returns nil — the doggy body does not emit sensory events.
-func (b *Body) Events() <-chan sensory.Event { return nil }
+// Events returns nil — inbound messages are pushed directly to the aggregator
+// via POST /message rather than via an events channel.
+func (b *Interface) Events() <-chan sensory.Event { return nil }
 
 // Start launches the HTTP server. It returns as soon as the server goroutine
 // is running; ctx cancellation triggers a graceful shutdown.
-func (b *Body) Start(ctx context.Context) error {
+func (b *Interface) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stream", b.handleStream)
 	mux.HandleFunc("/state", b.handleState)
@@ -105,36 +102,22 @@ func (b *Body) Start(ctx context.Context) error {
 }
 
 // Stop shuts the server down gracefully.
-func (b *Body) Stop() error {
+func (b *Interface) Stop() error {
 	if b.cancel != nil {
 		b.cancel()
 	}
 	return nil
 }
 
-// State returns a BodyState summary for the aggregator snapshot.
-func (b *Body) State(_ context.Context) (sensory.BodyState, error) {
-	return sensory.BodyState{
-		ID:      b.id,
-		Type:    "doggy",
-		Summary: fmt.Sprintf("[doggy: listening on :%d]", b.port),
-	}, nil
-}
-
-// Execute is a no-op — doggy exposes no tools.
-func (b *Body) Execute(_ context.Context, name string, _ map[string]any) (string, error) {
-	return "", fmt.Errorf("doggy body has no tools: %q", name)
-}
-
 // addClient registers a new SSE subscriber channel.
-func (b *Body) addClient(ch chan string) {
+func (b *Interface) addClient(ch chan string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.clients[ch] = struct{}{}
 }
 
 // removeClient deregisters and closes an SSE subscriber channel.
-func (b *Body) removeClient(ch chan string) {
+func (b *Interface) removeClient(ch chan string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	delete(b.clients, ch)
@@ -143,7 +126,7 @@ func (b *Body) removeClient(ch chan string) {
 
 // broadcastJSON marshals v and fans it out to all connected SSE clients.
 // Slow clients are skipped rather than blocked.
-func (b *Body) broadcastJSON(v any) {
+func (b *Interface) broadcastJSON(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		b.log.Error("doggy: broadcast marshal", "err", err)
@@ -163,7 +146,7 @@ func (b *Body) broadcastJSON(v any) {
 
 // handleStream serves the SSE endpoint. Each connected client receives
 // thought events broadcast by Wire and keepalive pings every 30 s.
-func (b *Body) handleStream(w http.ResponseWriter, r *http.Request) {
+func (b *Interface) handleStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -208,7 +191,7 @@ type stateSnapshot struct {
 }
 
 // handleState returns a JSON snapshot of the current attention pool.
-func (b *Body) handleState(w http.ResponseWriter, r *http.Request) {
+func (b *Interface) handleState(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -229,7 +212,7 @@ type messageRequest struct {
 
 // handleMessage accepts a POST with {"text":"..."} and enqueues a "message"
 // sensory event so the next thought cycle sees dot's input.
-func (b *Body) handleMessage(w http.ResponseWriter, r *http.Request) {
+func (b *Interface) handleMessage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

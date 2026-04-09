@@ -1,7 +1,6 @@
 package mcp_test
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	mcpbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/mcp"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
+	mcpiface "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/mcp"
 )
 
 func testPersona() *persona.Persona {
@@ -40,7 +39,7 @@ func testPersona() *persona.Persona {
 	}
 }
 
-func setupBody(t *testing.T) (*mcpbody.Body, int) {
+func setupIface(t *testing.T) (*mcpiface.Interface, int) {
 	t.Helper()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -51,33 +50,30 @@ func setupBody(t *testing.T) (*mcpbody.Body, int) {
 	vault, err := memory.Open(vaultDir, log)
 	require.NoError(t, err)
 
-	// Use port 0 to let OS pick a free port — but the Body uses a fixed addr
+	// Use port 0 to let OS pick a free port — but the Interface uses a fixed addr
 	// string, so we pick a high ephemeral port to reduce collision risk.
 	port := 19384
-	b := mcpbody.New("test-mcp", port, vault, ledger, log)
+	b := mcpiface.New("test-mcp", port, vault, ledger, log)
 
 	return b, port
 }
 
-func TestBody_StartStopClean(t *testing.T) {
-	b, _ := setupBody(t)
+func TestMCP_StartStopClean(t *testing.T) {
+	b, _ := setupIface(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	require.NoError(t, b.Start(ctx))
 	assert.Equal(t, "mcp", b.Type())
 	assert.Equal(t, "test-mcp", b.ID())
-	assert.Nil(t, b.Tools())
 	assert.Nil(t, b.Events())
 	require.NoError(t, b.Stop())
 }
 
-func TestBody_RegisterSession(t *testing.T) {
-	b, port := setupBody(t)
+func TestMCP_RegisterSession(t *testing.T) {
+	b, port := setupIface(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	require.NoError(t, b.Start(ctx))
 	defer func() { require.NoError(t, b.Stop()) }()

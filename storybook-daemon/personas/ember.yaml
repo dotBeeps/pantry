@@ -47,18 +47,17 @@ bodies:
     weight: 0.4
     enabled: true
 
-  - id: doggy-ember
+interfaces:
+  - id: doggy
     type: doggy
-    # doggy body uses path as the port number string
+    # port number as string
     path: "7432"
-    weight: 0.4
     enabled: true
 
-  - id: mcp-ember
+  - id: mcp
     type: mcp
     # MCP tool server port
     path: "9432"
-    weight: 0.2
     enabled: true
 
 contracts:
