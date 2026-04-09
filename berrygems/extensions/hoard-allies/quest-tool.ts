@@ -714,8 +714,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 				});
 			}
 
-			// Heartbeat pulse — sends a subtle time message to the quest room every 15s
-			const HEARTBEAT_MS = 15_000;
+			// Heartbeat pulse — sends a subtle time message to the quest room every 60s
+			const HEARTBEAT_MS = 60_000;
 			const heartbeatTimer = stone ? setInterval(() => {
 				const ts = new Date().toLocaleTimeString();
 				void stone.send({ from: "quest", type: "status", addressing: "session-room", content: `⏱ ${ts}` }).catch(() => undefined);
