@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "storybook-ember": {
+      "url": "http://127.0.0.1:9432/mcp"
+    },
+    "storybook-maren": {
+      "url": "http://127.0.0.1:9433/mcp"
+    }
+  }
+}
