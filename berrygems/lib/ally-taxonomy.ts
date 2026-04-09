@@ -83,11 +83,11 @@ export function calcCost(combo: AllyCombo): number {
 // ── Job Config ──
 
 export const JOB_TOOLS: Record<Job, string> = {
-	scout: "read,grep,find,ls,bash,write_notes,stone_send,stone_receive",
-	reviewer: "read,grep,find,ls,bash,write_notes,stone_send,stone_receive",
-	coder: "read,grep,find,ls,bash,write,edit,write_notes,stone_send,stone_receive",
-	researcher: "read,grep,find,ls,bash,write_notes,stone_send,stone_receive",
-	planner: "read,grep,find,ls,write_notes,stone_send,stone_receive",
+	scout: "read,grep,find,ls,bash",
+	reviewer: "read,grep,find,ls,bash",
+	coder: "read,grep,find,ls,bash,write,edit",
+	researcher: "read,grep,find,ls,bash",
+	planner: "read,grep,find,ls",
 };
 
 export const JOB_DEFAULTS: Record<Job, { timeoutMs: number; checkInIntervalMs: number }> = {

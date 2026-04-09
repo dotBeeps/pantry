@@ -31,6 +31,8 @@ The primary session owns the server; ally sessions get a send-only client.
 - `stone.port` setting: `0` or `undefined` = auto-assign; otherwise binds to the specified port
 - `stone_send` tool schema uses `Type.Union` of four string literals: `"question"`, `"status"`, `"result"`, `"progress"`
 - `stone_send` and `stone_receive` both include `promptSnippet` and `promptGuidelines` — these are **required** for extension tools to appear in the system prompt's "Available tools" and "Guidelines" sections. Without them, the LLM only sees a bare XML schema block.
+- **Imperative description framing** — `stone_send` description leads with "MUST BE USED to deliver your final result"; `stone_receive` leads with "MUST BE USED immediately after sending a type='question'". This is intentional: Anthropic research shows imperative trigger language ("MUST BE USED when X") produces significantly more consistent unprompted invocation than descriptive framing ("Use to..."). Do not soften these descriptions.
+- **Result delivery is mandatory** — `stone_send(type="result")` is the only valid final output path for an ally. The first promptGuideline for `stone_send` makes this explicit. This constraint is load-bearing — the primary agent cannot see ally plain-text output.
 - `stone_receive` tool is ally-only — polls `pendingMessages[]` at 200ms interval, max 120s wait
 - Rendering logic lives exclusively in `renderer.ts`; `index.ts` only calls `registerStoneRenderer()`
 - `Symbol.for("hoard.stone.internals")` holds `{ port, sseReq, handlers }` — survives `/reload` without leaking listeners

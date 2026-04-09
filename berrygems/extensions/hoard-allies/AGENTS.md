@@ -45,10 +45,13 @@ hoard-allies/
 - **FrugalGPT cascade** — `github-copilot → anthropic → google`. Free quota before paid API.
 - **Stone-aware monitoring** — quest dispatcher subscribes to stone `onMessage`, tracks `allyLastStoneMs` per ally. Timer check-ins suppressed within `SUPPRESS_WINDOW_MS` (35s) when ally self-reports. Per-ally frozen gate (`lastFrozenPerAlly`), case-insensitive matching, recurring report requirement (value > 0).
 - **Chunked exploration** — ally system prompt instructs: read → `write_notes` → `stone_send` progress → repeat → compile. Prevents long inference silences.
-- **Tool prompt integration** — all extension-registered tools (`write_notes`, `stone_send`, `stone_receive`) include `promptSnippet` and `promptGuidelines`. This is required for the LLM to see tools in the system prompt. See `extension-designer` skill for the pattern.
+- **Tool prompt integration** — all extension-registered tools (`write_notes`, `stone_send`, `stone_receive`, `quest`) include `promptSnippet` and `promptGuidelines`. Required for the LLM to see tools in the system prompt. See `extension-designer` skill for the pattern.
+- **Imperative description language** — tool descriptions and promptGuidelines use "MUST BE USED" / "Use PROACTIVELY" framing, not "Use to..." descriptions. Anthropic research shows imperative language significantly increases unprompted invocation. `quest` and `stone_send` are the primary examples — preserve this framing when updating them.
+- **`quest` uses `(pi.registerTool as any)`** — required to pass `promptSnippet`/`promptGuidelines` which are not in Pi's public `ToolDefinition` type. Callback types are explicitly annotated (`QuestParamsType`, `AgentToolResult<QuestDetails>`, `ToolRenderResultOptions`, `RenderTheme`) to compensate. Do not revert to `pi.registerTool(...)` without also adding these to the type definition.
 - **Bidirectional dialog** — allies subscribe to primary's SSE stream, poll via `stone_receive`, get passive injection via `tool_result` hook.
 - **write_notes scoping** — path-traversal guarded with `normalize(resolve(...))` check, scoped to `.pi/ally-notes/`.
-- **Clean exit prompt** — allies told to deliver results and stop. No loitering, no offering to do more work.
+- **Result delivery mandate** — allies MUST call `stone_send(type="result", to="primary-agent")` before ending their session. Plain text output is invisible to the primary agent. The `CALLING_HOME_SECTION` in `index.ts` makes this explicit with an indented example and a "not optional" warning. Never soften this — it is load-bearing.
+- **Clean exit** — after the result stone, allies stop. No loitering, no offering to do more work, no socializing.
 
 ## Anti-Patterns
 

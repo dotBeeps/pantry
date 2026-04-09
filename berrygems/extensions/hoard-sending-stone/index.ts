@@ -12,7 +12,10 @@ import * as http from "http";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { startServer, stopServer } from "./server.js";
 import { sendToStone } from "./client.js";
@@ -25,309 +28,451 @@ const JSON_PATH = path.join(os.homedir(), ".pi", "hoard-sending-stone.json");
 const INTERNALS_KEY = Symbol.for("hoard.stone.internals");
 
 interface StoneInternals {
-	port: number | null;
-	sseReq: http.ClientRequest | null;
-	handlers: Set<(msg: StoneMessage) => void>;
+  port: number | null;
+  sseReq: http.ClientRequest | null;
+  handlers: Set<(msg: StoneMessage) => void>;
 }
 
 function getInternals(): StoneInternals {
-	let internals = (globalThis as any)[INTERNALS_KEY] as StoneInternals | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
-	if (!internals) {
-		internals = { port: null, sseReq: null, handlers: new Set() };
-		(globalThis as any)[INTERNALS_KEY] = internals; // eslint-disable-line @typescript-eslint/no-explicit-any
-	}
-	return internals;
+  let internals = (globalThis as any)[INTERNALS_KEY] as
+    | StoneInternals
+    | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!internals) {
+    internals = { port: null, sseReq: null, handlers: new Set() };
+    (globalThis as any)[INTERNALS_KEY] = internals; // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+  return internals;
 }
 
 // ── stone_send Tool Registration ─────────────────────────────────────────────
 
-function registerStoneSendTool(pi: ExtensionAPI, stoneAPI: StoneAPI, senderFrom: string, senderDisplayName?: string): void {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	(pi.registerTool as any)({
-		name: "stone_send",
-		description: "Send a message via the sending stone to the room, a specific agent, or dot. Use to communicate with running allies, ask questions, or broadcast updates.",
-		promptSnippet: "Send messages to allies, the primary agent, or the room via the sending stone",
-		promptGuidelines: [
-			"Use stone_send to communicate with other agents — status updates, questions, or results",
-			"Address messages: 'session-room' (broadcast), 'primary-agent' (to lead), or an ally defName (direct)",
-			"Include message type: 'status' for updates, 'question' for queries, 'result' for deliverables, 'progress' for check-ins",
-			"Use @Name in messages for urgent pings — marks the message with ⚡ priority",
-		],
-		parameters: Type.Object({
-			to: Type.Optional(Type.String({ description: "Who to address: \"primary-agent\", \"user\", \"guild-master\", \"session-room\", or an ally defName. Default: \"session-room\"" })),
-			message: Type.String({ description: "The message to send" }),
-			type: Type.Optional(Type.Union([
-				Type.Literal("question"),
-				Type.Literal("status"),
-				Type.Literal("result"),
-				Type.Literal("progress"),
-			], { description: "Message type: \"question\", \"status\", \"result\", \"progress\". Default: \"status\"" })),
-		}),
-		execute: async (_id: string, params: { to?: string; message: string; type?: string }) => {
-			const addressing = params.to ?? "session-room";
-			const msgType = params.type ?? "status";
+function registerStoneSendTool(
+  pi: ExtensionAPI,
+  stoneAPI: StoneAPI,
+  senderFrom: string,
+  senderDisplayName?: string,
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (pi.registerTool as any)({
+    name: "stone_send",
+    description:
+      "MUST BE USED to deliver your final result when working as an ally — results sent as plain text are invisible to the primary agent. Use PROACTIVELY after each significant step completes. type='result' triggers primary agent attention; type='progress' is passive non-interrupting; type='question' when blocked and waiting for a reply. Do not finish your quest without sending type='result'.",
+    promptSnippet:
+      "Send messages to allies, the primary agent, or the room via the sending stone",
+    promptGuidelines: [
+      "ALWAYS send type='result' before your session ends — never let your final output be free text. The primary agent cannot see plain text output from ally sessions.",
+      "Send type='progress' after each major step so the primary knows you are working.",
+      "Send type='question' when blocked by a genuine ambiguity — then call stone_receive to wait for the reply before continuing.",
+      "Address messages: 'session-room' (broadcast), 'primary-agent' (to lead), or an ally defName (direct)",
+      "Use @Name in messages for urgent pings - marks the message with priority",
+    ],
+    parameters: Type.Object({
+      to: Type.Optional(
+        Type.String({
+          description:
+            'Who to address: "primary-agent", "user", "guild-master", "session-room", or an ally defName. Default: "session-room"',
+        }),
+      ),
+      message: Type.String({ description: "The message to send" }),
+      type: Type.Optional(
+        Type.Union(
+          [
+            Type.Literal("question"),
+            Type.Literal("status"),
+            Type.Literal("result"),
+            Type.Literal("progress"),
+          ],
+          {
+            description:
+              'Message type: "question", "status", "result", "progress". Default: "status"',
+          },
+        ),
+      ),
+    }),
+    execute: async (
+      _id: string,
+      params: { to?: string; message: string; type?: string },
+    ) => {
+      const addressing = params.to ?? "session-room";
+      const msgType = params.type ?? "status";
 
-			// Detect @mentions for urgency signaling
-			const hasMention = /@\w+/.test(params.message);
-			const metadata = hasMention ? { urgent: true } : undefined;
+      // Detect @mentions for urgency signaling
+      const hasMention = /@\w+/.test(params.message);
+      const metadata = hasMention ? { urgent: true } : undefined;
 
-			try {
-				await stoneAPI.send({
-					from: senderFrom,
-					...(senderDisplayName ? { displayName: senderDisplayName } : {}),
-					type: msgType as "status",
-					addressing,
-					content: params.message,
-					...(metadata ? { metadata } : {}),
-				});
-				return { content: [{ type: "text" as const, text: `✉️ Sent to ${addressing}: ${params.message}` }] };
-			} catch (err) {
-				return { content: [{ type: "text" as const, text: `Failed to send: ${(err as Error).message}` }] };
-			}
-		},
-	});
+      try {
+        await stoneAPI.send({
+          from: senderFrom,
+          ...(senderDisplayName ? { displayName: senderDisplayName } : {}),
+          type: msgType as "status",
+          addressing,
+          content: params.message,
+          ...(metadata ? { metadata } : {}),
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✉️ Sent to ${addressing}: ${params.message}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to send: ${(err as Error).message}`,
+            },
+          ],
+        };
+      }
+    },
+  });
 }
 
 // ── Extension Entry Point ────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
-	// Ally sessions get a client-only stone API with SSE subscription for bidirectional dialog
-	if (process.env["HOARD_GUARD_MODE"] === "ally") {
-		const allyDefName = process.env["HOARD_ALLY_DEFNAME"] ?? "ally";
-		const allyName = process.env["HOARD_ALLY_NAME"] || undefined;
-		const stonePort = Number(process.env["HOARD_STONE_PORT"]) || null;
-		const allyHandlers = new Set<(msg: StoneMessage) => void>();
-		const pendingMessages: StoneMessage[] = [];
+  // Ally sessions get a client-only stone API with SSE subscription for bidirectional dialog
+  if (process.env["HOARD_GUARD_MODE"] === "ally") {
+    const allyDefName = process.env["HOARD_ALLY_DEFNAME"] ?? "ally";
+    const allyName = process.env["HOARD_ALLY_NAME"] || undefined;
+    const stonePort = Number(process.env["HOARD_STONE_PORT"]) || null;
+    const allyHandlers = new Set<(msg: StoneMessage) => void>();
+    const pendingMessages: StoneMessage[] = [];
 
-		const allyStoneAPI: StoneAPI = {
-			onMessage(handler: (msg: StoneMessage) => void): () => void {
-				allyHandlers.add(handler);
-				return () => { allyHandlers.delete(handler); };
-			},
-			async send(msg) { await sendToStone(msg); },
-			port() { return stonePort; },
-		};
-		(globalThis as any)[STONE_KEY] = allyStoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const allyStoneAPI: StoneAPI = {
+      onMessage(handler: (msg: StoneMessage) => void): () => void {
+        allyHandlers.add(handler);
+        return () => {
+          allyHandlers.delete(handler);
+        };
+      },
+      async send(msg) {
+        await sendToStone(msg);
+      },
+      port() {
+        return stonePort;
+      },
+    };
+    (globalThis as any)[STONE_KEY] = allyStoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-		registerStoneSendTool(pi, allyStoneAPI, allyDefName, allyName);
+    registerStoneSendTool(pi, allyStoneAPI, allyDefName, allyName);
 
-		// ── SSE subscription: listen for messages from primary ──
-		let sseRequest: ReturnType<typeof http.get> | undefined;
-		if (stonePort) {
-			try {
-				sseRequest = http.get(
-					{ hostname: "127.0.0.1", port: stonePort, path: "/stream", headers: { Accept: "text/event-stream" } },
-					(res) => {
-						let buf = "";
-						res.on("data", (chunk: Buffer) => {
-							buf += chunk.toString();
-							const lines = buf.split("\n");
-							buf = lines.pop() ?? "";
-							for (const line of lines) {
-								if (!line.startsWith("data:")) continue;
-								const raw = line.slice(5).trim();
-								if (!raw) continue;
-								try {
-									const msg = JSON.parse(raw) as StoneMessage;
-									// Only accept messages addressed to us or to session-room
-									const addr = msg.addressing ?? "session-room";
-									const isForUs = addr === allyDefName || addr === "session-room";
-									// Ignore our own messages
-									const isFromUs = (msg.from ?? "") === allyDefName;
-									if (isForUs && !isFromUs) {
-										pendingMessages.push(msg);
-										for (const h of allyHandlers) h(msg);
-									}
-								} catch { /* ignore malformed */ }
-							}
-						});
-						res.on("error", () => {});
-					},
-				);
-				sseRequest.on("error", () => {});
-			} catch { /* ignore */ }
-		}
+    // Activate extension tools via session_start — during extension loading
+    // the runtime isn't initialized yet, so pi.setActiveTools() would throw.
+    // session_start fires after _bindExtensionCore sets up the runtime.
+    pi.on("session_start" as any, () => {
+      try {
+        const current = pi.getActiveTools();
+        const needed = ["stone_send", "stone_receive"];
+        const missing = needed.filter((t) => !current.includes(t));
+        if (missing.length > 0) pi.setActiveTools([...current, ...missing]);
+      } catch {
+        // Non-fatal — tools may already be active or API unavailable
+      }
+    });
 
-		// Clean up SSE connection on session shutdown
-		pi.on("session_shutdown" as any, () => {
-			sseRequest?.destroy();
-		});
+    // ── SSE subscription: listen for messages from primary ──
+    let sseRequest: ReturnType<typeof http.get> | undefined;
+    if (stonePort) {
+      try {
+        sseRequest = http.get(
+          {
+            hostname: "127.0.0.1",
+            port: stonePort,
+            path: "/stream",
+            headers: { Accept: "text/event-stream" },
+          },
+          (res) => {
+            let buf = "";
+            res.on("data", (chunk: Buffer) => {
+              buf += chunk.toString();
+              const lines = buf.split("\n");
+              buf = lines.pop() ?? "";
+              for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+                const raw = line.slice(5).trim();
+                if (!raw) continue;
+                try {
+                  const msg = JSON.parse(raw) as StoneMessage;
+                  // Only accept messages addressed to us or to session-room
+                  const addr = msg.addressing ?? "session-room";
+                  const isForUs =
+                    addr === allyDefName || addr === "session-room";
+                  // Ignore our own messages
+                  const isFromUs = (msg.from ?? "") === allyDefName;
+                  if (isForUs && !isFromUs) {
+                    pendingMessages.push(msg);
+                    for (const h of allyHandlers) h(msg);
+                  }
+                } catch {
+                  /* ignore malformed */
+                }
+              }
+            });
+            res.on("error", () => {});
+          },
+        );
+        sseRequest.on("error", () => {});
+      } catch {
+        /* ignore */
+      }
+    }
 
-		// ── stone_receive tool: poll for incoming messages ──
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(pi.registerTool as any)({
-			name: "stone_receive",
-			description: "Check for incoming messages from the primary agent or other allies. Waits up to `wait` seconds for a message to arrive. Use after sending a question via stone_send to wait for a reply.",
-			promptSnippet: "Check for incoming stone messages from the primary agent or other allies",
-			promptGuidelines: [
-				"Use stone_receive to poll for replies after sending a question via stone_send",
-				"Messages are also injected passively into tool_result responses — you don't always need to explicitly call stone_receive",
-				"Keep wait times short (5-10s) to avoid blocking your work — check back if needed",
-			],
-			parameters: Type.Object({
-				wait: Type.Optional(Type.Number({ description: "Max seconds to wait for a message (default: 30, max: 120)" })),
-			}),
-			execute: async (_id: string, params: { wait?: number }) => {
-				const maxWait = Math.min(params.wait ?? 30, 120) * 1000;
-				const startMs = Date.now();
+    // Clean up SSE connection on session shutdown
+    pi.on("session_shutdown" as any, () => {
+      sseRequest?.destroy();
+    });
 
-				// Drain any already-pending messages first
-				if (pendingMessages.length > 0) {
-					const msgs = pendingMessages.splice(0);
-					const formatted = msgs.map((m) =>
-						`📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
-					).join("\n\n");
-					return { content: [{ type: "text" as const, text: formatted }] };
-				}
+    // ── stone_receive tool: poll for incoming messages ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (pi.registerTool as any)({
+      name: "stone_receive",
+      description:
+        "MUST BE USED immediately after sending a type='question' via stone_send — block and wait for the primary agent's reply before continuing. Also use proactively at task start to drain any pending directives. Do not guess at blocked decisions; call stone_receive and wait.",
+      promptSnippet:
+        "Check for incoming stone messages from the primary agent or other allies",
+      promptGuidelines: [
+        "ALWAYS call stone_receive after stone_send(type='question') — do not continue work until you have a reply or timeout.",
+        "Call stone_receive at task start to drain any pending directives before beginning.",
+        "Messages are also injected passively into tool_result responses - you don't always need to explicitly poll for progress updates.",
+        "Keep wait times short (5-10s) to avoid blocking your work - check back if needed",
+      ],
+      parameters: Type.Object({
+        wait: Type.Optional(
+          Type.Number({
+            description:
+              "Max seconds to wait for a message (default: 30, max: 120)",
+          }),
+        ),
+      }),
+      execute: async (_id: string, params: { wait?: number }) => {
+        const maxWait = Math.min(params.wait ?? 30, 120) * 1000;
+        const startMs = Date.now();
 
-				// Poll for new messages
-				while (Date.now() - startMs < maxWait) {
-					await new Promise((r) => setTimeout(r, 200));
-					if (pendingMessages.length > 0) {
-						const msgs = pendingMessages.splice(0);
-						const formatted = msgs.map((m) =>
-							`📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
-						).join("\n\n");
-						return { content: [{ type: "text" as const, text: formatted }] };
-					}
-				}
+        // Drain any already-pending messages first
+        if (pendingMessages.length > 0) {
+          const msgs = pendingMessages.splice(0);
+          const formatted = msgs
+            .map(
+              (m) =>
+                `📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`,
+            )
+            .join("\n\n");
+          return { content: [{ type: "text" as const, text: formatted }] };
+        }
 
-				return { content: [{ type: "text" as const, text: `No messages received after ${Math.round(maxWait / 1000)}s. Continue with your best judgment.` }] };
-			},
-		});
+        // Poll for new messages
+        while (Date.now() - startMs < maxWait) {
+          await new Promise((r) => setTimeout(r, 200));
+          if (pendingMessages.length > 0) {
+            const msgs = pendingMessages.splice(0);
+            const formatted = msgs
+              .map(
+                (m) =>
+                  `📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`,
+              )
+              .join("\n\n");
+            return { content: [{ type: "text" as const, text: formatted }] };
+          }
+        }
 
-		// ── tool_result hook: inject pending messages passively ──
-		pi.on("tool_result", (event) => {
-			if (pendingMessages.length === 0) return undefined;
-			// Don't inject into stone_receive results (it handles its own messages)
-			if (event.toolName === "stone_receive") return undefined;
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No messages received after ${Math.round(maxWait / 1000)}s. Continue with your best judgment.`,
+            },
+          ],
+        };
+      },
+    });
 
-			const msgs = pendingMessages.splice(0);
-			const injection = msgs.map((m) =>
-				`\n\n📨 Incoming message from ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
-			).join("");
+    // ── tool_result hook: inject pending messages passively ──
+    pi.on("tool_result", (event) => {
+      if (pendingMessages.length === 0) return undefined;
+      // Don't inject into stone_receive results (it handles its own messages)
+      if (event.toolName === "stone_receive") return undefined;
 
-			const existingContent = event.content ?? [];
-			const existingText = existingContent.find((c): c is { type: "text"; text: string } => c.type === "text");
-			if (existingText) {
-				return {
-					content: existingContent.map((c) =>
-						c === existingText ? { ...c, text: c.text + injection } : c
-					),
-				};
-			}
-			return {
-				content: [...existingContent, { type: "text" as const, text: injection.trim() }],
-			};
-		});
+      const msgs = pendingMessages.splice(0);
+      const injection = msgs
+        .map(
+          (m) =>
+            `\n\n📨 Incoming message from ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`,
+        )
+        .join("");
 
-		return;
-	}
+      const existingContent = event.content ?? [];
+      const existingText = existingContent.find(
+        (c): c is { type: "text"; text: string } => c.type === "text",
+      );
+      if (existingText) {
+        return {
+          content: existingContent.map((c) =>
+            c === existingText ? { ...c, text: c.text + injection } : c,
+          ),
+        };
+      }
+      return {
+        content: [
+          ...existingContent,
+          { type: "text" as const, text: injection.trim() },
+        ],
+      };
+    });
 
-	const internals = getInternals();
+    return;
+  }
 
-	// ── Settings ──
-	const primaryDisplayName = readHoardSetting<string>("contributor.name", "Agent");
-	const maxLines = readHoardSetting<number>("stone.maxLines", 8);
-	const preferredPort = readHoardSetting<number | undefined>("stone.port", undefined);
+  const internals = getInternals();
 
-	// ── Register message renderer ──
-	registerStoneRenderer(pi, { primaryDisplayName, maxLines });
+  // ── Settings ──
+  const primaryDisplayName = readHoardSetting<string>(
+    "contributor.name",
+    "Agent",
+  );
+  const maxLines = readHoardSetting<number>("stone.maxLines", 8);
+  const preferredPort = readHoardSetting<number | undefined>(
+    "stone.port",
+    undefined,
+  );
 
-	// ── Cleanup from previous load (handles /reload) ──
-	if (internals.sseReq) {
-		internals.sseReq.destroy();
-		internals.sseReq = null;
-	}
-	if (internals.port != null) {
-		stopServer();
-		try { if (fs.existsSync(JSON_PATH)) fs.unlinkSync(JSON_PATH); } catch {}
-		internals.port = null;
-	}
-	internals.handlers.clear();
+  // ── Register message renderer ──
+  registerStoneRenderer(pi, { primaryDisplayName, maxLines });
 
-	// ── SSE stream ──
+  // ── Cleanup from previous load (handles /reload) ──
+  if (internals.sseReq) {
+    internals.sseReq.destroy();
+    internals.sseReq = null;
+  }
+  if (internals.port != null) {
+    stopServer();
+    try {
+      if (fs.existsSync(JSON_PATH)) fs.unlinkSync(JSON_PATH);
+    } catch {}
+    internals.port = null;
+  }
+  internals.handlers.clear();
 
-	function openSSEStream(port: number): void {
-		try {
-			const req = http.get(
-				{ hostname: "127.0.0.1", port, path: "/stream", headers: { Accept: "text/event-stream" } },
-				(res) => {
-					let buf = "";
-					res.on("data", (chunk: Buffer) => {
-						buf += chunk.toString();
-						const lines = buf.split("\n");
-						buf = lines.pop() ?? "";
-						for (const line of lines) {
-							if (!line.startsWith("data:")) continue;
-							const raw = line.slice(5).trim();
-							if (!raw) continue;
-							try {
-								const msg = JSON.parse(raw) as StoneMessage;
-								for (const h of internals.handlers) h(msg);
-							} catch { /* ignore malformed payloads */ }
-						}
-					});
-					res.on("error", () => {});
-				},
-			);
-			req.on("error", () => {});
-			internals.sseReq = req;
-		} catch { /* ignore */ }
-	}
+  // ── SSE stream ──
 
-	// ── Stone API ──
+  function openSSEStream(port: number): void {
+    try {
+      const req = http.get(
+        {
+          hostname: "127.0.0.1",
+          port,
+          path: "/stream",
+          headers: { Accept: "text/event-stream" },
+        },
+        (res) => {
+          let buf = "";
+          res.on("data", (chunk: Buffer) => {
+            buf += chunk.toString();
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.startsWith("data:")) continue;
+              const raw = line.slice(5).trim();
+              if (!raw) continue;
+              try {
+                const msg = JSON.parse(raw) as StoneMessage;
+                for (const h of internals.handlers) h(msg);
+              } catch {
+                /* ignore malformed payloads */
+              }
+            }
+          });
+          res.on("error", () => {});
+        },
+      );
+      req.on("error", () => {});
+      internals.sseReq = req;
+    } catch {
+      /* ignore */
+    }
+  }
 
-	function postToSelf(msg: Partial<StoneMessage> & { content: string; from: string }): Promise<void> {
-		const port = internals.port;
-		if (port == null) return Promise.resolve();
-		const body = JSON.stringify(msg);
-		return new Promise<void>((resolve) => {
-			const req = http.request(
-				{ hostname: "127.0.0.1", port, path: "/message", method: "POST",
-				  headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
-				(res) => { res.resume(); resolve(); },
-			);
-			req.on("error", () => resolve());
-			req.write(body);
-			req.end();
-		});
-	}
+  // ── Stone API ──
 
-	const stoneAPI: StoneAPI = {
-		onMessage(handler: (msg: StoneMessage) => void): () => void {
-			internals.handlers.add(handler);
-			return () => { internals.handlers.delete(handler); };
-		},
-		async send(msg) { await postToSelf(msg); },
-		port() { return internals.port; },
-	};
+  function postToSelf(
+    msg: Partial<StoneMessage> & { content: string; from: string },
+  ): Promise<void> {
+    const port = internals.port;
+    if (port == null) return Promise.resolve();
+    const body = JSON.stringify(msg);
+    return new Promise<void>((resolve) => {
+      const req = http.request(
+        {
+          hostname: "127.0.0.1",
+          port,
+          path: "/message",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(body),
+          },
+        },
+        (res) => {
+          res.resume();
+          resolve();
+        },
+      );
+      req.on("error", () => resolve());
+      req.write(body);
+      req.end();
+    });
+  }
 
-	(globalThis as any)[STONE_KEY] = stoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const stoneAPI: StoneAPI = {
+    onMessage(handler: (msg: StoneMessage) => void): () => void {
+      internals.handlers.add(handler);
+      return () => {
+        internals.handlers.delete(handler);
+      };
+    },
+    async send(msg) {
+      await postToSelf(msg);
+    },
+    port() {
+      return internals.port;
+    },
+  };
 
-	// ── Register stone_send tool ──
-	registerStoneSendTool(pi, stoneAPI, "primary-agent", primaryDisplayName);
+  (globalThis as any)[STONE_KEY] = stoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-	// ── Start server immediately (works on /reload too) ──
+  // ── Register stone_send tool ──
+  registerStoneSendTool(pi, stoneAPI, "primary-agent", primaryDisplayName);
 
-	(async () => {
-		try {
-			const port = await startServer(preferredPort);
-			internals.port = port;
-			fs.mkdirSync(path.dirname(JSON_PATH), { recursive: true });
-			fs.writeFileSync(JSON_PATH, JSON.stringify({ port, pid: process.pid }), "utf8");
-			openSSEStream(port);
-		} catch (err) {
-			console.warn(`[sending-stone] server start failed: ${String(err)}`);
-		}
-	})();
+  // ── Start server immediately (works on /reload too) ──
 
-	pi.on("session_shutdown", async () => {
-		try {
-			if (internals.sseReq) { internals.sseReq.destroy(); internals.sseReq = null; }
-			stopServer();
-			internals.port = null;
-			if (fs.existsSync(JSON_PATH)) fs.unlinkSync(JSON_PATH);
-		} catch {}
-	});
+  (async () => {
+    try {
+      const port = await startServer(preferredPort);
+      internals.port = port;
+      fs.mkdirSync(path.dirname(JSON_PATH), { recursive: true });
+      fs.writeFileSync(
+        JSON_PATH,
+        JSON.stringify({ port, pid: process.pid }),
+        "utf8",
+      );
+      openSSEStream(port);
+    } catch (err) {
+      console.warn(`[sending-stone] server start failed: ${String(err)}`);
+    }
+  })();
+
+  pi.on("session_shutdown", async () => {
+    try {
+      if (internals.sseReq) {
+        internals.sseReq.destroy();
+        internals.sseReq = null;
+      }
+      stopServer();
+      internals.port = null;
+      if (fs.existsSync(JSON_PATH)) fs.unlinkSync(JSON_PATH);
+    } catch {}
+  });
 }
