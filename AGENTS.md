@@ -12,7 +12,7 @@ ETHICS.md has been co-signed by both parties and is not advisory — it is bindi
 
 ### The Dragon — Architecture
 
-**dragon-daemon/** is the formless core — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, attention economy, and deterministic ethical contract enforcement. It connects to **bodies** that give it form in different environments.
+**storybook-daemon/** is the formless core — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, attention economy, and deterministic ethical contract enforcement. It connects to **bodies** that give it form in different environments.
 
 **Bodies** are how the daemon interacts with the world. The daemon can either **inhabit** a body (active — the daemon IS the session) or **direct** it (passive — the daemon sends instructions, spawns subagents). This keeps core context clean of working noise.
 
@@ -140,11 +140,11 @@ Shared utilities used across extensions. Not loaded directly by pi.
 | 🔥 | skill-designer | Build agent skills |
 | 💎 | typescript-check | Run tsc/eslint, interpret errors, fix patterns |
 
-### dragon-daemon
+### storybook-daemon
 
 | | component | description |
 |---|---|---|
-| 🐣 | dragon-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell) 🐣, Phase 4: dragon pi body (HTTP+SSE) + Qt/QML desktop window 🥚 |
+| 🐣 | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell) 🐣, Phase 4: dragon pi body (HTTP+SSE) + Qt/QML desktop window 🥚 |
 
 ### dragon-cubed
 
@@ -183,7 +183,7 @@ hoard/
 │   ├── leylines/     NeoForge mod (Kotlin, Gradle)
 │   ├── rumble/       Baritone extension (Kotlin, Gradle)
 │   └── AGENTS.md     Body-specific agent instructions
-├── dragon-daemon/    Go persona daemon (the formless core)
+├── storybook-daemon/    Go persona daemon (the formless core)
 │   ├── cmd/          Cobra CLI (run --persona <name>)
 │   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, heart, soul, daemon)
 │   ├── AGENTS.md     Daemon-specific agent instructions
@@ -205,7 +205,7 @@ pi install https://github.com/dotBeeps/hoard
 pi install /path/to/hoard
 
 # Build the daemon (when implemented)
-cd dragon-daemon && go build -o dragon-daemon .
+cd storybook-daemon && go build -o storybook-daemon .
 ```
 
 - **No build step for berrygems** — pi loads `.ts` files directly via jiti
@@ -242,17 +242,17 @@ tsc --project berrygems/tsconfig.json 2>&1 | grep "<filename>"
 - No eslint config yet — type checking is the primary gate
 - No test framework yet — manual testing via `/reload` in pi
 
-### dragon-daemon (Go)
+### storybook-daemon (Go)
 
 ```bash
 # Lint — strict static analysis (includes vet + 30+ linters)
-cd dragon-daemon && golangci-lint run ./...
+cd storybook-daemon && golangci-lint run ./...
 
 # Build — verify compilation
-cd dragon-daemon && go build -o dragon-daemon .
+cd storybook-daemon && go build -o storybook-daemon .
 ```
 
-- Uses `.golangci.yml` in `dragon-daemon/` (v2 format)
+- Uses `.golangci.yml` in `storybook-daemon/` (v2 format)
 - Key strict linters: `errcheck`, `wrapcheck`, `errorlint`, `gosec`, `revive`, `gocritic`, `exhaustive`
 - `fmt.Print*` banned outside `cmd/` (use `log/slog`)
 - `gofumpt` formatting enforced
@@ -275,15 +275,15 @@ cd dragon-cubed/soulgem && go vet ./...
 cd dragon-cubed && ./gradlew build
 ```
 
-- SoulGem follows the same Go conventions as dragon-daemon
+- SoulGem follows the same Go conventions as storybook-daemon
 - Leylines/Rumble use Kotlin with NeoForge/Baritone APIs
 - Gradle wrapper pinned in repo
 
 ### Pre-Commit Checklist
 
 1. `tsc --project berrygems/tsconfig.json` — zero errors
-2. `cd dragon-daemon && golangci-lint run ./...` — zero issues
-3. `cd dragon-daemon && go build ./...` — compiles clean
+2. `cd storybook-daemon && golangci-lint run ./...` — zero issues
+3. `cd storybook-daemon && go build ./...` — compiles clean
 4. `cd dragon-cubed/soulgem && go build ./...` — compiles clean
 5. `cd dragon-cubed && ./gradlew build` — Leylines + Rumble compile (requires JDK 21)
 6. Test extension changes with `/reload` in pi
@@ -406,7 +406,7 @@ Tone files in `berrygems/styles/`. Controls document writing voice only — does
 
 - **TypeScript** — tabs for indentation, double quotes, semicolons; `satisfies` over `as`; no `any` without comment
 - **Go** — strict conventions enforced via `.golangci.yml` (see below)
-- **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags
+- **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags; use hyphens `-` instead of em-dashes `—`
 - **Skill frontmatter** — YAML between `---` fences, `name` and `description` required
 
 ### berrygems Conventions
@@ -426,7 +426,7 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - Skills and code co-ship. Adding a behavior without updating the skill is incomplete work.
 - Cross-extension communication via `globalThis` + `Symbol.for()` — never direct imports between extensions.
 
-### Go Conventions (dragon-daemon)
+### Go Conventions (storybook-daemon)
 
 **Naming:**
 - `MixedCaps`/`mixedCaps` only. Never underscores in exported names.
@@ -468,7 +468,7 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - E.g. `//nolint:gosec // G204: git args are not user-controlled`.
 - Enforced by `nolintlint`.
 
-**Linting:** `golangci-lint run ./...` using `dragon-daemon/.golangci.yml`. Zero issues required before merge.
+**Linting:** `golangci-lint run ./...` using `storybook-daemon/.golangci.yml`. Zero issues required before merge.
 
 ## Commits
 

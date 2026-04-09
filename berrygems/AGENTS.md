@@ -13,7 +13,7 @@ When we hit technical ceilings in what the agent can do, this is where we forge 
 
 ## Relationship to the Hoard
 
-- **dragon-daemon** is the persistent core — mind, soul, connectors. berrygems tools are what the daemon *uses* when inhabiting a pi session.
+- **storybook-daemon** is the persistent core — mind, soul, connectors. berrygems tools are what the daemon *uses* when inhabiting a pi session.
 - **morsels** teach agents *how* to use berrygems. Several skills exist specifically to document berrygem APIs (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
 - **ETHICS.md** governs everything. berrygems implements user-facing consent UX (dragon-guard), privacy controls, and transparency features.
 

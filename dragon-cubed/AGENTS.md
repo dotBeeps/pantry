@@ -103,7 +103,7 @@ Scopes: `leylines`, `rumble`, `soulgem`, `protocol`, `ci`.
 
 ## Relationship to the Hoard
 
-- **dragon-daemon** is the persistent core. dragon-cubed is one of its bodies — when the daemon inhabits or directs this body, it acts through SoulGem to control a Minecraft agent.
+- **storybook-daemon** is the persistent core. dragon-cubed is one of its bodies — when the daemon inhabits or directs this body, it acts through SoulGem to control a Minecraft agent.
 - **berrygems** are not used here — this body doesn't run inside pi. Future integration: daemon routes commands to SoulGem over HTTP/WebSocket using the `body.Body` interface.
 - **ETHICS.md** applies to: observation consent (game state monitoring), chat log privacy (player messages), no tracking of other players.
 

@@ -1,0 +1,225 @@
+# Dragon Daemon — strict golangci-lint configuration
+# golangci-lint v2 format. Based on golangci-lint's own config,
+# Prometheus, and Docker/Moby patterns.
+version: "2"
+
+run:
+  go: "1.23"
+  timeout: 5m
+
+# ── Formatters ──────────────────────────────────────────────
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra-rules: true
+      module-path: github.com/dotBeeps/hoard/storybook-daemon
+
+# ── Linters ─────────────────────────────────────────────────
+linters:
+  default: standard
+  enable:
+    # ── Error handling ──
+    - errname           # ErrFoo / FooError naming
+    - errorlint         # correct error wrapping/comparison
+    - wrapcheck         # wrap external package errors
+    - nilnil            # catch ambiguous (nil, nil) returns
+
+    # ── Correctness ──
+    - exhaustive        # all enum values handled in switch
+    - bodyclose         # HTTP response body must be closed
+    - noctx             # HTTP requests should pass context
+    - contextcheck      # context.Context propagation
+    - fatcontext        # nested contexts in loops
+    - reassign          # top-level variable reassignment
+
+    # ── Style & consistency ──
+    - revive            # metalinter (configured below)
+    - gocritic          # bugs, perf, style (configured below)
+    - unconvert         # unnecessary type conversions
+    - misspell          # English typos in comments/strings
+    - dupword           # duplicate words
+    - nakedret          # no naked returns
+    - nolintlint        # nolint directive discipline
+    - predeclared       # shadowing predeclared identifiers
+    - usestdlibvars     # use http.StatusOK etc
+    - wastedassign      # assignments never read
+    - prealloc          # slice preallocation hints
+
+    # ── Security ──
+    - gosec             # security checks
+
+    # ── Bans ──
+    - forbidigo         # ban specific functions
+
+    # ── Misc ──
+    - perfsprint        # faster string formatting
+    - intrange          # range-over-int (Go 1.22+)
+    - copyloopvar       # loop variable copy issues
+
+  disable:
+    - exhaustruct       # too strict: all struct fields
+    - ireturn           # too strict: returning interfaces
+    - varnamelen        # too opinionated
+    - wsl               # whitespace enforcement
+    - funlen            # prefer complexity over line count
+    - gochecknoglobals  # impractical
+
+  # ── Per-linter settings ────────────────────────────────────
+  settings:
+    revive:
+      rules:
+        - name: bare-return
+        - name: bool-literal-in-expr
+        - name: confusing-results
+        - name: constant-logical-expr
+        - name: context-as-argument
+        - name: defer
+        - name: duplicated-imports
+        - name: early-return
+          arguments: [preserve-scope]
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+          arguments: [checkPrivateReceivers, sayRepetitiveInsteadOfStutters]
+        - name: increment-decrement
+        - name: indent-error-flow
+          arguments: [preserve-scope]
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+          arguments: [preserve-scope]
+        - name: time-equal
+        - name: unconditional-recursion
+        - name: unexported-naming
+        - name: unexported-return
+        - name: unhandled-error
+          arguments:
+            - "fmt\\.Fprint"
+            - "fmt\\.Fprintf"
+            - "fmt\\.Fprintln"
+        - name: unnecessary-stmt
+        - name: use-any
+        - name: use-errors-new
+        - name: useless-break
+        - name: var-declaration
+        - name: var-naming
+
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+        - unnamedResult
+        - whyNoLint          # nolintlint handles this
+
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-signifies-exhaustive: true
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+
+    nilnil:
+      checked-types:
+        - ptr
+        - func
+        - iface
+        - map
+        - chan
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+    wrapcheck:
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pkg: ^fmt$
+          pattern: ^fmt\.Print
+          msg: "Use log/slog structured logging instead of fmt.Print*."
+
+    nakedret:
+      max-func-lines: 0     # disallow all naked returns
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment     # useful but noisy
+
+    gosec:
+      excludes:
+        - G104               # errcheck handles this
+        - G304               # file inclusion — too many false positives
+
+    staticcheck:
+      checks:
+        - all
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    usestdlibvars:
+      http-method: true
+      http-status-code: true
+
+  # ── Exclusion rules ────────────────────────────────────────
+  exclusions:
+    presets: []              # explicit only — no hidden defaults
+
+    rules:
+      # Relax errcheck/wrapcheck in tests
+      - path: _test\.go
+        linters:
+          - errcheck
+          - wrapcheck
+
+      # Allow fmt.Print in cmd/ entrypoints
+      - path: (^cmd/|main\.go)
+        text: "fmt\\.Print"
+        linters:
+          - forbidigo
+
+      # Common shadow variables
+      - text: '^shadow: declaration of "(ctx|err|ok)" shadows declaration'
+        linters:
+          - govet
+
+    warn-unused: true
+
+# ── Issues ──────────────────────────────────────────────────
+issues:
+  max-issues-per-linter: 0   # show all
+  max-same-issues: 0         # show every instance
+
+# ── Severity ────────────────────────────────────────────────
+severity:
+  default: error
+  rules:
+    - linters:
+        - misspell
+        - dupword
+      severity: warning
