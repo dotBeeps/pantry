@@ -42,9 +42,9 @@ costs:
   perceive: 5
 
 bodies:
-  - id: maw-maren
-    type: maw
-    # Different port from Ember's maw — each persona gets its own endpoint
+  - id: doggy-maren
+    type: doggy
+    # Different port from Ember's doggy — each persona gets its own endpoint
     path: "7433"
     weight: 0.5
     enabled: true

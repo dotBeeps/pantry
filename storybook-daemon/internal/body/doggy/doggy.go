@@ -1,7 +1,7 @@
-// Package maw implements the HTTP+SSE body that exposes the dragon daemon's
+// Package doggy implements the HTTP+SSE body that exposes the daemon's
 // thought stream, attention state, and direct-message ingestion over a local
-// HTTP server.
-package maw
+// HTTP server. This is dot's control interface — her body in the system.
+package doggy
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 )
 
-// Body is the maw HTTP+SSE body. It exposes the daemon's thought stream,
+// Body is the doggy HTTP+SSE body. It exposes the daemon's thought stream,
 // attention state, and a direct-message channel to dot over a local HTTP server.
 type Body struct {
 	id     string
@@ -35,7 +35,7 @@ type Body struct {
 	cancel context.CancelFunc
 }
 
-// New creates a maw Body. Wire must be called before Start to connect the
+// New creates a doggy Body. Wire must be called before Start to connect the
 // thought stream.
 func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, log *slog.Logger) *Body {
 	return &Body{
@@ -48,7 +48,7 @@ func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator,
 	}
 }
 
-// Wire connects the maw body to the thought cycle output stream.
+// Wire connects the doggy body to the thought cycle output stream.
 // Call this after the thought cycle is created, before the heart starts.
 func (b *Body) Wire(capture soul.OutputCapture) {
 	capture.OnOutput(func(text string) {
@@ -60,12 +60,12 @@ func (b *Body) Wire(capture soul.OutputCapture) {
 func (b *Body) ID() string { return b.id }
 
 // Type returns the static discriminator string for this body kind.
-func (b *Body) Type() string { return "maw" }
+func (b *Body) Type() string { return "doggy" }
 
-// Tools returns nil — the maw body exposes no agent tools.
+// Tools returns nil — the doggy body exposes no agent tools.
 func (b *Body) Tools() []body.ToolDef { return nil }
 
-// Events returns nil — the maw body does not emit sensory events.
+// Events returns nil — the doggy body does not emit sensory events.
 func (b *Body) Events() <-chan sensory.Event { return nil }
 
 // Start launches the HTTP server. It returns as soon as the server goroutine
@@ -86,9 +86,9 @@ func (b *Body) Start(ctx context.Context) error {
 	b.cancel = cancel
 
 	go func() {
-		b.log.Info("maw: listening", "port", b.port)
+		b.log.Info("doggy: listening", "port", b.port)
 		if err := b.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			b.log.Error("maw: server error", "err", err)
+			b.log.Error("doggy: server error", "err", err)
 		}
 	}()
 
@@ -97,7 +97,7 @@ func (b *Body) Start(ctx context.Context) error {
 		shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutCancel()
 		if err := b.server.Shutdown(shutCtx); err != nil { //nolint:contextcheck // Stop() has no ctx param; shutdown needs its own budget
-			b.log.Error("maw: shutdown error", "err", err)
+			b.log.Error("doggy: shutdown error", "err", err)
 		}
 	}()
 
@@ -116,14 +116,14 @@ func (b *Body) Stop() error {
 func (b *Body) State(_ context.Context) (sensory.BodyState, error) {
 	return sensory.BodyState{
 		ID:      b.id,
-		Type:    "maw",
-		Summary: fmt.Sprintf("[maw: listening on :%d]", b.port),
+		Type:    "doggy",
+		Summary: fmt.Sprintf("[doggy: listening on :%d]", b.port),
 	}, nil
 }
 
-// Execute is a no-op — maw exposes no tools.
+// Execute is a no-op — doggy exposes no tools.
 func (b *Body) Execute(_ context.Context, name string, _ map[string]any) (string, error) {
-	return "", fmt.Errorf("maw body has no tools: %q", name)
+	return "", fmt.Errorf("doggy body has no tools: %q", name)
 }
 
 // addClient registers a new SSE subscriber channel.
@@ -146,7 +146,7 @@ func (b *Body) removeClient(ch chan string) {
 func (b *Body) broadcastJSON(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		b.log.Error("maw: broadcast marshal", "err", err)
+		b.log.Error("doggy: broadcast marshal", "err", err)
 		return
 	}
 	msg := "data: " + string(data)
@@ -219,7 +219,7 @@ func (b *Body) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(snap); err != nil {
-		b.log.Error("maw: state encode", "err", err)
+		b.log.Error("doggy: state encode", "err", err)
 	}
 }
 
@@ -244,7 +244,7 @@ func (b *Body) handleMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.agg.Enqueue(sensory.Event{
-		Source:  "maw",
+		Source:  "doggy",
 		Kind:    "message",
 		Content: req.Text,
 		At:      time.Now(),

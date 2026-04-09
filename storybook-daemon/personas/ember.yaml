@@ -47,9 +47,9 @@ bodies:
     weight: 0.4
     enabled: true
 
-  - id: maw-ember
-    type: maw
-    # maw body uses path as the port number string
+  - id: doggy-ember
+    type: doggy
+    # doggy body uses path as the port number string
     path: "7432"
     weight: 0.4
     enabled: true

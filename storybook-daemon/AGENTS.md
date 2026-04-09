@@ -29,7 +29,7 @@ storybook-daemon/
 │   │   ├── fsnotify/ Filesystem watcher body
 │   │   ├── github/   GitHub event body
 │   │   ├── hoard/    Hoard-aware body (watches this repo)
-│   │   ├── maw/      HTTP+SSE body — bidirectional dialog with pi sessions
+│   │   ├── doggy/      HTTP+SSE body — bidirectional dialog with pi sessions
 │   │   └── mcp/      MCP server body — exposes vault, attention, stone to CC/OpenCode/VSCode
 │   ├── consent/      Consent state machine — risk tiers (low/med/high), dual-key
 │   ├── daemon/       Top-level orchestration, lifecycle
@@ -76,7 +76,7 @@ The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics
 | 2 — Soul            | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                      |
 | 2.5 — Soul Shore-up | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                      |
 | 3 — New Bodies      | 🐣     | GitHub body ✅, maw body ✅ (HTTP+SSE pi dialog), MCP body ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned |
-| 4 — Qt/QML          | 🥚     | Desktop window — Qt/QML frontend talking to maw/MCP bodies                                                                                                                                              |
+| 4 — Qt/QML          | 🥚     | Desktop window — Qt/QML frontend talking to doggy/MCP bodies                                                                                                                                            |
 
 ## Attention Economy
 

@@ -44,6 +44,7 @@ Three conceptual pillars implemented in this phase:
 **🦎 Dragon-Body** (`internal/body/hoard/watcher.go`) — Filesystem observation via fsnotify. Watches the hoard repo root + `.git/refs/heads/` for commits. 100ms debounce window coalesces rapid writes. Events classified as `commit` (ref changes) or `file_change` (everything else, excluding .git internals). Body interface gained `Start(ctx)` / `Stop()` / `Events()` lifecycle methods.
 
 **👻 Dragon-Soul** (`internal/soul/`) — Ethical contract enforcer with two enforcement phases:
+
 - **Gates** (pre-beat): block thought cycles when violated. `minimum-rest` parses `HH:MM-HH:MM` time windows with midnight crossing support.
 - **Audits** (post-beat): verify integrity after each cycle.
   - `attention-honesty`: snapshots ledger before beat, drains audit trail after, verifies arithmetic consistency (no fabricated metrics).
@@ -85,36 +86,40 @@ New soul files: `framing_audit.go`, `consent_gate.go`, `tier.go`
 The daemon currently has one body type (hoard repo watcher). Phase 3 expands what Ember can sense and do:
 
 **New body types:**
+
 - **GitHub body** — sense: PR events, issue mentions, CI status. Tools: comment on PRs, create issues, trigger workflows. Needs: `gh` CLI or GitHub API + pi OAuth token.
 - **Pi session body** — sense: active pi sessions (via IPC or filesystem). Tools: send messages to running pi instances, read session state. Enables the daemon to coordinate with interactive coding sessions.
 - **Shell body** — sense: cron-like triggers, system events. Tools: run shell commands (gated by soul contracts). Needs: new soul gate for command allowlists.
 
 **Enhanced hoard body:**
+
 - Watch multiple repos (not just the hoard monorepo)
 - Sense branch switches, stash events, merge conflicts
 - `git_status` and `git_diff` tools for richer awareness
 
 **Infrastructure:**
+
 - Body registration from persona YAML (already works, just needs new type handlers)
 - Per-body soul contracts (e.g. shell body gets a command allowlist gate)
 - Cross-body event correlation (e.g. "file changed AND PR is open for this branch")
 
-### Phase 4 — Maw 🐣 in-progress
+### Phase 4 — Doggy 🐣 in-progress
 
 Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 
-**Maw** — the dragon's mouth. A body (`internal/body/maw/`) that exposes the daemon's inner life to dot via HTTP+SSE. Paired with a Qt/QML desktop app (`hoard/maw/`).
+**Doggy** — dot's body. A body (`internal/body/doggy/`) that exposes the daemon's inner life to dot via HTTP+SSE. Paired with a Qt/QML desktop app (`hoard/doggy/`).
 
-**4A ✅ Maw body** (2026-04-08):
-- `internal/body/maw/maw.go` — full Body implementation
+**4A ✅ Doggy body** (2026-04-08):
+
+- `internal/body/doggy/doggy.go` — full Body implementation
   - `GET /stream`: SSE thought events + 30s keepalive + flush-on-connect
   - `GET /state`: JSON snapshot (attention pool + timestamp)
-  - `POST /message`: enqueues maw/message sensory event
+  - `POST /message`: enqueues doggy/message sensory event
   - `Wire(soul.OutputCapture)`: hooks into thought cycle output
-- `internal/body/maw/maw_test.go` — 8 tests
-- `internal/daemon/daemon.go` — "maw" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
+- `internal/body/doggy/doggy_test.go` — 8 tests
+- `internal/daemon/daemon.go` — "doggy" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
 
-**4B 🥚 Qt scaffold + stream** — MawConnection SSE client, ThoughtStream.qml
+**4B 🥚 Qt scaffold + stream** — DoggyConnection SSE client, ThoughtStream.qml
 **4C 🥚 State panel** — attention gauge, body list, contract indicators
 **4D 🥚 Input bar** — direct message send
 
@@ -149,7 +154,7 @@ dragon-daemon/
     body/body.go                  Body interface (ID, Type, State, Tools, Events, Start, Stop)
     body/hoard/hoard.go           git log, daily journal, log_to_hoard, event channel
     body/hoard/watcher.go         fsnotify file/commit watcher with debounce
-    body/maw/maw.go               HTTP+SSE body: thought stream, state, message injection
+    body/doggy/doggy.go           HTTP+SSE body: thought stream, state, message injection
     daemon/daemon.go              lifecycle orchestrator, fan-in, soul wiring, outputWirer
     heart/heart.go                heartbeat with jitter + event-driven nudge
     memory/note.go                Note struct + frontmatter + Kind enum

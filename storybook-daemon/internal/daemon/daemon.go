@@ -15,8 +15,8 @@ import (
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
+	doggybody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/doggy"
 	hoardbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/hoard"
-	mawbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/maw"
 	mcpbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/mcp"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
@@ -262,14 +262,14 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 			path = home + path[1:]
 		}
 		return hoardbody.New(cfg.ID, path, d.log), nil
-	case "maw":
+	case "doggy":
 		port := 7432
 		if cfg.Path != "" {
 			if p, convErr := strconv.Atoi(cfg.Path); convErr == nil {
 				port = p
 			}
 		}
-		return mawbody.New(cfg.ID, port, ledger, agg, d.log), nil
+		return doggybody.New(cfg.ID, port, ledger, agg, d.log), nil
 	case "mcp":
 		port := 9000
 		if cfg.Path != "" {
@@ -279,6 +279,6 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, ledger *attention.Ledger, agg
 		}
 		return mcpbody.New(cfg.ID, port, vault, ledger, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, maw, mcp)", cfg.Type)
+		return nil, fmt.Errorf("unsupported body type %q (supported: hoard, doggy, mcp)", cfg.Type)
 	}
 }

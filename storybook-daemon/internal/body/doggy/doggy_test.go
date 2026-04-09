@@ -1,4 +1,4 @@
-package maw_test
+package doggy_test
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body/maw"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/body/doggy"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 )
@@ -39,7 +39,7 @@ func (s *stubCapture) fire(text string) {
 	}
 }
 
-// freePort grabs an ephemeral port and immediately releases it so the maw
+// freePort grabs an ephemeral port and immediately releases it so the doggy
 // server can bind to it. The kernel may reassign the port between Close and
 // Listen; this is acceptable for tests.
 func freePort(t *testing.T) int {
@@ -69,7 +69,7 @@ func minimalLedger() *attention.Ledger {
 	return attention.New(p, slog.Default())
 }
 
-// startTestBody starts a real maw server on a free port and returns its base URL.
+// startTestBody starts a real doggy server on a free port and returns its base URL.
 // The server is stopped via t.Cleanup.
 func startTestBody(t *testing.T) string {
 	t.Helper()
@@ -79,15 +79,15 @@ func startTestBody(t *testing.T) string {
 	return base
 }
 
-// startTestBodyFull is like startTestBody but also returns the *maw.Body so
+// startTestBodyFull is like startTestBody but also returns the *doggy.Body so
 // callers can call Wire or inspect it directly.
-func startTestBodyFull(t *testing.T) (*maw.Body, string) {
+func startTestBodyFull(t *testing.T) (*doggy.Body, string) {
 	t.Helper()
 
 	port := freePort(t)
 	ledger := minimalLedger()
 	agg := sensory.New(20)
-	b := maw.New("test", port, ledger, agg, slog.Default())
+	b := doggy.New("test", port, ledger, agg, slog.Default())
 
 	require.NoError(t, b.Start(context.Background()))
 
@@ -109,14 +109,14 @@ func startTestBodyFull(t *testing.T) (*maw.Body, string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	t.Fatal("maw server did not start in time")
+	t.Fatal("doggy server did not start in time")
 
 	return nil, ""
 }
 
-// TestMaw_GetState verifies that GET /state returns 200 with JSON containing
+// TestDoggy_GetState verifies that GET /state returns 200 with JSON containing
 // an "attention" field.
-func TestMaw_GetState(t *testing.T) {
+func TestDoggy_GetState(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -134,8 +134,8 @@ func TestMaw_GetState(t *testing.T) {
 	assert.Contains(t, payload, "attention", "response body must have 'attention' field")
 }
 
-// TestMaw_GetState_MethodNotAllowed verifies that POST /state is rejected.
-func TestMaw_GetState_MethodNotAllowed(t *testing.T) {
+// TestDoggy_GetState_MethodNotAllowed verifies that POST /state is rejected.
+func TestDoggy_GetState_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -148,8 +148,8 @@ func TestMaw_GetState_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
-// TestMaw_PostMessage_OK verifies that a well-formed POST /message gets 204.
-func TestMaw_PostMessage_OK(t *testing.T) {
+// TestDoggy_PostMessage_OK verifies that a well-formed POST /message gets 204.
+func TestDoggy_PostMessage_OK(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -164,8 +164,8 @@ func TestMaw_PostMessage_OK(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 }
 
-// TestMaw_PostMessage_EmptyText verifies that an empty text field yields 400.
-func TestMaw_PostMessage_EmptyText(t *testing.T) {
+// TestDoggy_PostMessage_EmptyText verifies that an empty text field yields 400.
+func TestDoggy_PostMessage_EmptyText(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -180,8 +180,8 @@ func TestMaw_PostMessage_EmptyText(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// TestMaw_PostMessage_InvalidJSON verifies that malformed JSON yields 400.
-func TestMaw_PostMessage_InvalidJSON(t *testing.T) {
+// TestDoggy_PostMessage_InvalidJSON verifies that malformed JSON yields 400.
+func TestDoggy_PostMessage_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -196,8 +196,8 @@ func TestMaw_PostMessage_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// TestMaw_PostMessage_MethodNotAllowed verifies that GET /message is rejected.
-func TestMaw_PostMessage_MethodNotAllowed(t *testing.T) {
+// TestDoggy_PostMessage_MethodNotAllowed verifies that GET /message is rejected.
+func TestDoggy_PostMessage_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
@@ -210,9 +210,9 @@ func TestMaw_PostMessage_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
-// TestMaw_Stream_ReceivesThought connects to GET /stream, fires a thought via
+// TestDoggy_Stream_ReceivesThought connects to GET /stream, fires a thought via
 // an OutputCapture hook, and asserts the SSE event carries it.
-func TestMaw_Stream_ReceivesThought(t *testing.T) {
+func TestDoggy_Stream_ReceivesThought(t *testing.T) {
 	t.Parallel()
 
 	b, base := startTestBodyFull(t)
@@ -248,9 +248,8 @@ func TestMaw_Stream_ReceivesThought(t *testing.T) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "data:") {
-			gotData = strings.TrimPrefix(line, "data:")
-			gotData = strings.TrimSpace(gotData)
+		if after, ok := strings.CutPrefix(line, "data:"); ok {
+			gotData = strings.TrimSpace(after)
 
 			break
 		}
@@ -268,9 +267,9 @@ func TestMaw_Stream_ReceivesThought(t *testing.T) {
 	assert.Equal(t, wantText, text)
 }
 
-// TestMaw_Stream_Headers checks that GET /stream sets the correct SSE headers
+// TestDoggy_Stream_Headers checks that GET /stream sets the correct SSE headers
 // and responds with 200.
-func TestMaw_Stream_Headers(t *testing.T) {
+func TestDoggy_Stream_Headers(t *testing.T) {
 	t.Parallel()
 
 	base := startTestBody(t)
