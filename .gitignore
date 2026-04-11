@@ -5,6 +5,26 @@ node_modules/
 *~
 .pi/
 
+# Claude Code: track project config, ignore per-machine / session state
+.claude/settings.local.json
+.claude/worktrees/
+.claude/projects/
+.claude/cache/
+.claude/file-history/
+.claude/backups/
+.claude/paste-cache/
+.claude/agent-memory/
+.claude/history.jsonl
+.claude/mcp-needs-auth-cache.json
+# Rules under .claude/rules/ are auto-copied from ~/.claude/ by SessionStart
+# hooks. Ignore all, allowlist project-specific ones committed directly.
+.claude/rules/*
+!.claude/rules/testing.md
+!.claude/rules/context7.md
+
+# Unsloth compiled cache — regenerated every training run
+**/unsloth_compiled_cache/
+
 # dragon-cubed (Gradle/Kotlin)
 .gradle/
 build/
