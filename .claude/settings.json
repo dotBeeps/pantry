@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "fish .claude/hooks/stop-phase-gate.fish"
+          },
+          {
+            "type": "command",
+            "command": "fish .claude/hooks/stop-parity-check.fish"
           }
         ]
       }
