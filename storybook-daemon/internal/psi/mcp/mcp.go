@@ -52,13 +52,14 @@ type Interface struct {
 // New creates an MCP Interface that serves on the given port.
 // questMgr may be nil; a default Manager will be created internally.
 func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Interface {
-	qm := quest.NewManager(nil, port, func(args ...any) { log.Info(fmt.Sprint(args...)) })
+	broker := NewBroker(256)
+	qm := quest.NewManager(broker, port, func(args ...any) { log.Info(fmt.Sprint(args...)) })
 	return &Interface{
 		id:       id,
 		port:     port,
 		vault:    vault,
 		ledger:   ledger,
-		broker:   NewBroker(256),
+		broker:   broker,
 		questMgr: qm,
 		log:      log,
 		sessions: make(map[string]session),
@@ -207,6 +208,7 @@ type questDispatchInput struct {
 	SessionID string               `json:"session_id" jsonschema:"session that owns these quests"`
 	Mode      string               `json:"mode" jsonschema:"dispatch mode: single, rally, or chain"`
 	Quests    []quest.QuestRequest `json:"quests" jsonschema:"quests to dispatch"`
+	FailFast  bool                 `json:"fail_fast,omitempty" jsonschema:"cancel remaining rally quests on first failure"`
 }
 
 type questDispatchOutput struct {
@@ -498,8 +500,9 @@ func (b *Interface) handleQuestDispatch(ctx context.Context, _ *gomcp.CallToolRe
 	}
 
 	req := quest.DispatchRequest{
-		Mode:   input.Mode,
-		Quests: input.Quests,
+		Mode:     input.Mode,
+		Quests:   input.Quests,
+		FailFast: input.FailFast,
 	}
 	infos, groupID, err := b.questMgr.Dispatch(ctx, input.SessionID, req)
 	if err != nil {
