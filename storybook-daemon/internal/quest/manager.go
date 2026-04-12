@@ -74,7 +74,10 @@ func (m *Manager) Dispatch(ctx context.Context, sessionID string, req DispatchRe
 		m.bySession[sessionID] = append(m.bySession[sessionID], q.ID)
 		m.mu.Unlock()
 
-		go m.runQuest(q, timeout)
+		go func() {
+			m.runQuest(q, timeout)
+			m.watchSingle(ctx, q, sessionID)
+		}()
 		return []QuestInfo{q.Info()}, "", nil
 
 	case "rally":
@@ -359,81 +362,6 @@ func (m *Manager) terminateQuest(q *Quest, status Status, errMsg string) {
 	}
 	m.mu.Unlock()
 	m.setStatus(q, status)
-}
-
-// watchRally waits for all rally quests to finish, handling FailFast cancellation.
-func (m *Manager) watchRally(ctx context.Context, group *Group, quests []*Quest, sessionID string) {
-	defer close(group.done)
-
-	for _, q := range quests {
-		select {
-		case <-ctx.Done():
-			// Parent context cancelled — cancel remaining quests.
-			for _, remaining := range quests {
-				m.mu.Lock()
-				cancel := remaining.cancel
-				m.mu.Unlock()
-				if cancel != nil {
-					cancel()
-				}
-			}
-			return
-		case <-q.done:
-			if group.FailFast {
-				m.mu.Lock()
-				status := q.Status
-				m.mu.Unlock()
-				if status == StatusFailed || status == StatusTimeout || status == StatusCancelled {
-					// Cancel all other quests in the group.
-					for _, other := range quests {
-						if other.ID == q.ID {
-							continue
-						}
-						m.mu.Lock()
-						cancel := other.cancel
-						m.mu.Unlock()
-						if cancel != nil {
-							cancel()
-						}
-					}
-					return
-				}
-			}
-		}
-	}
-}
-
-// runChain executes quests sequentially, stopping on failure.
-func (m *Manager) runChain(ctx context.Context, group *Group, quests []*Quest, requests []QuestRequest, sessionID string) {
-	defer close(group.done)
-
-	for i, q := range quests {
-		select {
-		case <-ctx.Done():
-			m.terminateQuest(q, StatusCancelled, "cancelled")
-			// Cancel all remaining quests.
-			for _, remaining := range quests[i+1:] {
-				m.terminateQuest(remaining, StatusCancelled, "chain cancelled")
-			}
-			return
-		default:
-		}
-
-		timeout := m.resolveTimeout(requests[i], q.Combo)
-		m.runQuest(q, timeout)
-
-		m.mu.Lock()
-		status := q.Status
-		m.mu.Unlock()
-
-		if status != StatusCompleted {
-			// Cancel remaining quests — chain stops on any non-completion.
-			for _, remaining := range quests[i+1:] {
-				m.terminateQuest(remaining, StatusCancelled, "chain aborted")
-			}
-			return
-		}
-	}
 }
 
 // Status returns snapshots for the given quest IDs, or all quests in the session.
