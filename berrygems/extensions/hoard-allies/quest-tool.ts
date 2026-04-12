@@ -36,7 +36,6 @@ import {
 } from "./ally-status-tool.ts";
 import type { AlliesState, AlliesAPI, QuestResult } from "./types.ts";
 import {
-  type AllyCombo,
   type Noun,
   CURATED_NAMES,
   parseComboName,
@@ -175,21 +174,6 @@ function makeId(defName: string): string {
 
 type ProgressFn = ((msg: string) => void) | undefined;
 
-// ── Estimation Helpers ──
-// Parse a defName like "silly-kobold-scout" into an AllyCombo (uses shared parseComboName for validation)
-function parseComboFromDefName(defName: string): AllyCombo | null {
-  return parseComboName(defName);
-}
-
-// Estimate total cost for a list of defNames
-function estimateCost(defNames: string[]): number {
-  const api = getAlliesAPI();
-  return defNames.reduce((sum, name) => {
-    const combo = parseComboFromDefName(name);
-    return combo ? sum + api.calcCost(combo) : sum;
-  }, 0);
-}
-
 // Return true if any of the defNames meets or exceeds the confirmAbove tier threshold
 function needsConfirm(defNames: string[], threshold: string): boolean {
   const tierOrder: Record<string, number> = {
@@ -248,29 +232,18 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 
   const api = getAlliesAPI();
   const state = getState();
-  const cost = api.calcCost(combo);
-  const remaining = api.budgetRemaining();
 
-  // Budget check
-  if (cost > remaining) {
-    throw new Error(
-      `Budget exceeded. ${ally} costs ${cost.toFixed(1)} pts but only ${remaining.toFixed(1)} pts remain. Choose a cheaper ally.`,
-    );
-  }
-
-  // Pop name and reserve budget
   const allyName = api.popName(combo.noun);
   const id = makeId(ally);
   api.recordSpawn(id, {
     name: allyName,
     defName: ally,
     combo,
-    cost,
     spawnedAt: Date.now(),
     status: "running",
   });
 
-  progress?.(`⚔️ ${allyName} the ${ally} dispatched (${cost.toFixed(1)} pts)`);
+  progress?.(`⚔️ ${allyName} the ${ally} dispatched`);
 
   // Build system prompt with name baked in
   const systemPrompt = api.buildAllyPrompt(combo, allyName);
@@ -342,14 +315,10 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 
     if (result.success) {
       api.recordComplete(id);
-      api.persistBudget?.();
-      progress?.(
-        `✅ ${allyName} returned (${cost.toFixed(1)} pts, ${usedModel})`,
-      );
+      progress?.(`✅ ${allyName} returned (${usedModel})`);
       return {
         allyName,
         defName: ally,
-        cost,
         model: usedModel,
         response: result.response,
         cascadeAttempts,
@@ -373,7 +342,6 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 
   // All models failed
   api.recordFailed(id);
-  api.persistBudget?.();
   throw new Error(
     `Quest failed for ${allyName} the ${ally}. Last error: ${lastError}`,
   );
@@ -391,21 +359,10 @@ async function dispatchRally(
   onFrozen?: (allyName: string, quietSecs: number, defName?: string) => void,
   signal?: AbortSignal,
 ): Promise<QuestResult[]> {
-  const api = getAlliesAPI();
-
-  // Pre-validate all combos and check total budget
-  let totalCost = 0;
+  // Pre-validate all combos
   for (const q of quests) {
     const combo = parseComboName(q.ally);
     if (!combo) throw new Error(`Unknown ally: "${q.ally}"`);
-    totalCost += api.calcCost(combo);
-  }
-
-  const remaining = api.budgetRemaining();
-  if (totalCost > remaining) {
-    throw new Error(
-      `Rally budget exceeded. Total cost: ${totalCost.toFixed(1)} pts but only ${remaining.toFixed(1)} pts remain. Reduce the rally or use cheaper allies.`,
-    );
   }
 
   // Dispatch all in parallel
@@ -441,7 +398,6 @@ async function dispatchRally(
         results.push({
           allyName: q.ally,
           defName: q.ally,
-          cost: 0,
           model: "none",
           response: `Quest failed: ${r.reason?.message ?? r.reason}`,
           cascadeAttempts: 0,
@@ -524,7 +480,6 @@ async function dispatchChain(
 interface QuestDetails {
   mode: string;
   allies: string[];
-  totalCost: number;
   error?: boolean;
   displayNames?: string[];
 }
@@ -534,7 +489,7 @@ function makeResult(text: string, details: QuestDetails) {
 }
 
 function formatSingleResult(result: QuestResult): string {
-  const header = `**${result.allyName}** the ${result.defName} (${result.cost.toFixed(1)} pts, ${result.model})`;
+  const header = `**${result.allyName}** the ${result.defName} (${result.model})`;
   const cascade =
     result.cascadeAttempts > 1
       ? ` [cascaded: ${result.cascadeAttempts} attempts]`
@@ -551,10 +506,6 @@ function formatResults(results: QuestResult[], mode: string): string {
     return formatSingleResult(results[0]!);
   }
 
-  const totalCost = results.reduce((sum, r) => sum + r.cost, 0);
-  const api = getAlliesAPI();
-  const remaining = api.budgetRemaining();
-
   const sections = results
     .map(
       (r, i) =>
@@ -562,7 +513,7 @@ function formatResults(results: QuestResult[], mode: string): string {
     )
     .join("\n\n---\n\n");
 
-  return `*${mode === "chain" ? "Chain" : "Rally"}: ${results.length} quests, ${totalCost.toFixed(1)} pts spent, ${remaining.toFixed(1)} pts remaining*\n\n${sections}`;
+  return `*${mode === "chain" ? "Chain" : "Rally"}: ${results.length} quests*\n\n${sections}`;
 }
 
 // ── Carbon Breath Reporting ──
@@ -594,7 +545,6 @@ function postResultToStone(result: QuestResult): void {
       metadata: {
         allyName: result.allyName,
         defName: result.defName,
-        cost: result.cost,
       },
     })
     .catch(() => undefined);
@@ -608,7 +558,7 @@ export function registerQuestTool(pi: ExtensionAPI): void {
     name: "quest",
     label: "Quest",
     description: `Send allies on quests. Taxonomy: <adjective>-<noun>-<job>.
-Adjective (thinking): silly (none) | clever (low) | wise (medium) | elder (high)
+Adjective (thinking): silly (off) | clever (low) | wise (medium) | elder (high)
 Noun (model): kobold ($) | griffin ($$$) | dragon ($$$$$)
 Job: scout | reviewer | coder | researcher | planner
 
@@ -635,9 +585,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 
       if (params.chain && params.chain.length > 0) {
         const allies = params.chain.map((s) => s.ally ?? "?").join(" → ");
-        const cost = estimateCost(params.chain.map((s) => s.ally ?? ""));
-        const costStr =
-          cost > 0 ? theme.fg("muted", ` · est. ${cost.toFixed(1)} pts`) : "";
         const taskPreview = params.task
           ? "\n   " + theme.fg("dim", `↳ "${truncateToWidth(params.task, 60)}"`)
           : "";
@@ -645,7 +592,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           title +
             theme.fg("muted", `[chain ${params.chain.length}] `) +
             theme.fg("dim", allies) +
-            costStr +
             taskPreview,
           0,
           0,
@@ -654,25 +600,16 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 
       if (params.rally && params.rally.length > 0) {
         const allies = params.rally.map((s) => s.ally).join(", ");
-        const cost = estimateCost(params.rally.map((s) => s.ally));
-        const costStr =
-          cost > 0 ? theme.fg("muted", ` · est. ${cost.toFixed(1)} pts`) : "";
         return new Text(
           title +
             theme.fg("muted", `[rally ${params.rally.length}] `) +
-            theme.fg("dim", truncateToWidth(allies, 80)) +
-            costStr,
+            theme.fg("dim", truncateToWidth(allies, 80)),
           0,
           0,
         );
       }
 
       if (params.ally) {
-        const combo = parseComboFromDefName(params.ally);
-        const api = getAlliesAPI();
-        const cost = combo ? api.calcCost(combo) : 0;
-        const costStr =
-          cost > 0 ? theme.fg("muted", ` · est. ${cost.toFixed(1)} pts`) : "";
         const taskPreview = params.task
           ? "\n   " + theme.fg("dim", `↳ "${truncateToWidth(params.task, 60)}"`)
           : "";
@@ -680,7 +617,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           title +
             theme.fg("muted", "[single] ") +
             theme.fg("accent", params.ally) +
-            costStr +
             taskPreview,
           0,
           0,
@@ -731,7 +667,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
       }
 
       // Final results
-      const costStr = theme.fg("muted", ` · ${d.totalCost.toFixed(1)} pts`);
       const complete = "\n   " + theme.fg("success", "✓ complete");
 
       if (d.mode === "single") {
@@ -741,7 +676,7 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           ? theme.fg("accent", displayName) +
             theme.fg("dim", ` the ${defFormatted}`)
           : theme.fg("accent", defFormatted);
-        return new Text("🗡️ " + label + costStr + complete, 0, 0);
+        return new Text("🗡️ " + label + complete, 0, 0);
       }
 
       if (d.mode === "rally") {
@@ -756,7 +691,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
         return new Text(
           "⚔️ " +
             theme.fg("accent", `rally ${d.allies.length}`) +
-            costStr +
             "\n   " +
             theme.fg("dim", names.join(", ") + overflow) +
             complete,
@@ -772,7 +706,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
         return new Text(
           "⛓️ " +
             theme.fg("accent", `chain ${d.allies.length}`) +
-            costStr +
             "\n   " +
             theme.fg("dim", truncateToWidth(names, 70)) +
             complete,
@@ -788,7 +721,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
         return new Text(
           "\u26A1 " +
             theme.fg("accent", "dispatched") +
-            theme.fg("muted", ` \u00b7 est. ${d.totalCost.toFixed(1)} pts`) +
             "\n   " +
             theme.fg("dim", truncateToWidth(names || d.allies.join(", "), 70)) +
             "\n   " +
@@ -829,21 +761,21 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
               '- Single: { ally: "silly-kobold-scout", task: "..." }\n' +
               '- Rally: { rally: [{ally: "...", task: "..."}, ...] }\n' +
               '- Chain: { chain: [{ally: "...", task: "..."}, ...] }',
-            { mode: "error", allies: [], totalCost: 0, error: true },
+            { mode: "error", allies: [], error: true },
           );
         }
 
         if (modeCount > 1) {
           return makeResult(
             `Multiple quest modes specified (${[hasChain && "chain", hasRally && "rally", hasSingle && "single"].filter(Boolean).join(", ")}). Use exactly one mode per call.`,
-            { mode: "error", allies: [], totalCost: 0, error: true },
+            { mode: "error", allies: [], error: true },
           );
         }
 
         if (hasSingle && !params.task) {
           return makeResult(
             "Single quest mode requires both 'ally' and 'task' parameters.",
-            { mode: "error", allies: [], totalCost: 0, error: true },
+            { mode: "error", allies: [], error: true },
           );
         }
 
@@ -854,7 +786,7 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
         ) {
           return makeResult(
             "Chain step uses {task} placeholder but no 'task' parameter was provided.",
-            { mode: "error", allies: [], totalCost: 0, error: true },
+            { mode: "error", allies: [], error: true },
           );
         }
 
@@ -869,7 +801,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
               : [];
         // Register ally defNames for stone message tracking (populated after map is created below)
 
-        const estCost = estimateCost(defNames);
         const allyList = params.chain
           ? defNames.join(" → ")
           : defNames.join(", ");
@@ -884,14 +815,13 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
               ? "rally"
               : "single";
           const choice = await ctx.ui.select(
-            `Dispatch ${modeLabel}?\n${allyList}\nest. ${estCost.toFixed(1)} pts`,
+            `Dispatch ${modeLabel}?\n${allyList}`,
             ["Yes, dispatch", "Cancel"],
           );
           if (choice === "Cancel") {
             return makeResult("Quest cancelled by user.", {
               mode: "single",
               allies: defNames,
-              totalCost: 0,
               error: true,
             });
           }
@@ -899,17 +829,12 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 
         if (alliesApi.getAnnounce() && defNames.length > 0) {
           const modeEmoji = params.chain ? "⛓️" : params.rally ? "⚔️" : "🗡️";
-          ctx.ui.notify(
-            `${modeEmoji} Dispatching ${allyList} · est. ${estCost.toFixed(1)} pts`,
-            "info",
-          );
+          ctx.ui.notify(`${modeEmoji} Dispatching ${allyList}`, "info");
         }
 
         const progress: ProgressFn = onUpdate
           ? (msg: string) =>
-              onUpdate(
-                makeResult(msg, { mode: "progress", allies: [], totalCost: 0 }),
-              )
+              onUpdate(makeResult(msg, { mode: "progress", allies: [] }))
           : undefined;
         const notify = (msg: string, _defName?: string) =>
           ctx.ui.notify(msg, "info");
@@ -1080,8 +1005,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
                 cleanupHeartbeat();
               });
             return makeResult(
-              `\u26D3\uFE0F Dispatched chain \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`,
-              { mode: "dispatched", allies: defNames, totalCost: estCost },
+              `\u26D3\uFE0F Dispatched chain \u2014 ${allyList}`,
+              { mode: "dispatched", allies: defNames },
             );
           }
           progress?.(`⛓️ Starting chain (${params.chain.length} steps)`);
@@ -1100,7 +1025,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           return makeResult(formatResults(results, "chain"), {
             mode: "chain",
             allies: results.map((r) => r.defName),
-            totalCost: results.reduce((s, r) => s + r.cost, 0),
             displayNames: results.map((r) => r.allyName),
           });
         }
@@ -1143,8 +1067,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
                 cleanupHeartbeat();
               });
             return makeResult(
-              `\u2694\uFE0F Dispatched rally \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`,
-              { mode: "dispatched", allies: defNames, totalCost: estCost },
+              `\u2694\uFE0F Dispatched rally \u2014 ${allyList}`,
+              { mode: "dispatched", allies: defNames },
             );
           }
           progress?.(`⚔️ Rally: dispatching ${params.rally.length} allies`);
@@ -1162,7 +1086,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           return makeResult(formatResults(results, "rally"), {
             mode: "rally",
             allies: results.map((r) => r.defName),
-            totalCost: results.reduce((s, r) => s + r.cost, 0),
             displayNames: results.map((r) => r.allyName),
           });
         }
@@ -1200,8 +1123,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
                 cleanupHeartbeat();
               });
             return makeResult(
-              `\u{1F5E1}\uFE0F Dispatched \u2014 ${params.ally} \u00b7 est. ${estCost.toFixed(1)} pts`,
-              { mode: "dispatched", allies: defNames, totalCost: estCost },
+              `\u{1F5E1}\uFE0F Dispatched \u2014 ${params.ally}`,
+              { mode: "dispatched", allies: defNames },
             );
           }
           const result = await dispatchSingle({
@@ -1219,14 +1142,13 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           return makeResult(formatSingleResult(result), {
             mode: "single",
             allies: [result.defName],
-            totalCost: result.cost,
             displayNames: [result.allyName],
           });
         }
 
         return makeResult(
           `Invalid quest parameters. Use one of:\n- Single: { ally: "silly-kobold-scout", task: "..." }\n- Rally: { rally: [{ally: "...", task: "..."}, ...] }\n- Chain: { chain: [{ally: "...", task: "..."}, ...] }`,
-          { mode: "error", allies: [], totalCost: 0, error: true },
+          { mode: "error", allies: [], error: true },
         );
       } catch (err) {
         if (err instanceof ChainStepError) {
@@ -1237,7 +1159,6 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
             return makeResult(msg, {
               mode: "chain",
               allies: err.partialResults.map((r) => r.defName),
-              totalCost: err.partialResults.reduce((s, r) => s + r.cost, 0),
               error: true,
               displayNames: err.partialResults.map((r) => r.allyName),
             });
@@ -1245,13 +1166,12 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
           return makeResult(`⛓️ Chain failed at ${stepLabel}: ${err.message}`, {
             mode: "error",
             allies: [],
-            totalCost: 0,
             error: true,
           });
         }
         return makeResult(
           `Quest failed: ${(err as Error).message ?? String(err)}`,
-          { mode: "error", allies: [], totalCost: 0, error: true },
+          { mode: "error", allies: [], error: true },
         );
       }
     },

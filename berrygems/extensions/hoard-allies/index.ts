@@ -19,7 +19,7 @@ import {
 } from "../../lib/ally-taxonomy.ts";
 
 /**
- * hoard-allies — Subagent token governance for the hoard.
+ * hoard-allies — Subagent dispatch and orchestration for the hoard.
  *
  * Provides the kobold/griffin/dragon taxonomy for subagent dispatch:
  *   <adjective> <noun> <job> = <silly|clever|wise|elder> <kobold|griffin|dragon> <scout|reviewer|coder|researcher|planner>
@@ -27,8 +27,8 @@ import {
  * Features:
  *   - 13 curated agent defs, dynamically generated from settings
  *   - Named allies from shuffled pools (Grix the Silly Kobold Scout)
- *   - Formula-based budget: noun_weight × thinking_multiplier × job_multiplier
- *   - Deterministic enforcement via tool_call interception
+ *   - Model cascade with provider cooldowns
+ *   - Parallel dispatch with configurable limits
  *
  * Configure via hoard.allies.* in settings.json.
  */
@@ -39,29 +39,15 @@ interface AllyInfo {
   name: string;
   defName: string;
   combo: AllyCombo;
-  cost: number;
   spawnedAt: number;
   status: "running" | "completed" | "failed";
 }
 
-interface BudgetState {
-  totalSpent: number;
-  questCount: number;
-  history: Array<{
-    ally: string;
-    cost: number;
-    status: "completed" | "failed";
-    ts: number;
-  }>;
-}
-
 interface AlliesState {
   active: Map<string, AllyInfo>;
-  budgetUsed: number;
   nameQueues: Record<string, string[]>;
   pendingNames: Map<string, string[]>;
   providerCooldowns: Map<string, number>;
-  budget: BudgetState;
 }
 
 // ── Constants: Curated Combos (imported from lib/ally-taxonomy) ──
@@ -153,7 +139,7 @@ const NAME_POOLS: Record<Noun, string[]> = {
 
 const DEFAULT_MODELS: Record<string, string[]> = {
   kobold: [
-    "glm-4-flash",
+    "zai/glm-4.5-air",
     "github-copilot/claude-haiku-4.5",
     "anthropic/claude-haiku-4-5",
     "google/gemini-2.0-flash",
@@ -167,37 +153,11 @@ const DEFAULT_MODELS: Record<string, string[]> = {
 };
 
 const DEFAULT_THINKING: Record<string, string> = {
-  silly: "none",
+  silly: "off",
   clever: "low",
   wise: "medium",
   elder: "high",
 };
-
-const DEFAULT_NOUN_WEIGHTS: Record<Noun, number> = {
-  kobold: 1,
-  griffin: 5,
-  dragon: 25,
-};
-const DEFAULT_THINKING_MULTIPLIERS: Record<Adjective, number> = {
-  silly: 1,
-  clever: 1.5,
-  wise: 2,
-  elder: 3,
-};
-const DEFAULT_JOB_MULTIPLIERS: Record<Job, number> = {
-  scout: 0.5,
-  reviewer: 1,
-  coder: 1.5,
-  researcher: 1,
-  planner: 1.2,
-};
-const DEFAULT_BUDGETS: Record<string, number> = {
-  primary: 100,
-  dragon: 20,
-  griffin: 5,
-  kobold: 0,
-};
-const DEFAULT_REFUND_FRACTION = 0.5;
 
 const DEFAULT_MAX_PARALLEL = 4;
 const DEFAULT_CONFIRM_ABOVE = "griffin";
@@ -247,50 +207,6 @@ function getThinking(): Record<string, string> {
   };
 }
 
-function getNounWeights(): Record<Noun, number> {
-  return {
-    ...DEFAULT_NOUN_WEIGHTS,
-    ...readHoardSetting<Record<string, number>>(
-      "allies.budget.nounWeights",
-      {},
-    ),
-  } as Record<Noun, number>;
-}
-
-function getThinkingMultipliers(): Record<Adjective, number> {
-  return {
-    ...DEFAULT_THINKING_MULTIPLIERS,
-    ...readHoardSetting<Record<string, number>>(
-      "allies.budget.thinkingMultipliers",
-      {},
-    ),
-  } as Record<Adjective, number>;
-}
-
-function getJobMultipliers(): Record<Job, number> {
-  return {
-    ...DEFAULT_JOB_MULTIPLIERS,
-    ...readHoardSetting<Record<string, number>>(
-      "allies.budget.jobMultipliers",
-      {},
-    ),
-  } as Record<Job, number>;
-}
-
-function getBudgets(): Record<string, number> {
-  return {
-    ...DEFAULT_BUDGETS,
-    ...readHoardSetting<Record<string, number>>("allies.budget.pools", {}),
-  };
-}
-
-function getRefundFraction(): number {
-  return readHoardSetting<number>(
-    "allies.budget.refundFraction",
-    DEFAULT_REFUND_FRACTION,
-  );
-}
-
 function getMaxParallel(): number {
   return readHoardSetting<number>("allies.maxParallel", DEFAULT_MAX_PARALLEL);
 }
@@ -301,17 +217,6 @@ function getConfirmAbove(): string {
 
 function getAnnounce(): boolean {
   return readHoardSetting<boolean>("allies.announceDispatch", DEFAULT_ANNOUNCE);
-}
-
-// ── Cost Calculation ──
-
-function calcCost(combo: AllyCombo): number {
-  const nw = getNounWeights();
-  const tm = getThinkingMultipliers();
-  const jm = getJobMultipliers();
-  return (
-    (nw[combo.noun] ?? 1) * (tm[combo.adjective] ?? 1) * (jm[combo.job] ?? 1)
-  );
 }
 
 // comboName and parseComboName imported from lib/ally-taxonomy
@@ -331,7 +236,6 @@ function getState(): AlliesState {
 function initState(): AlliesState {
   return {
     active: new Map(),
-    budgetUsed: 0,
     nameQueues: {
       kobold: shuffle([...NAME_POOLS.kobold]),
       griffin: shuffle([...NAME_POOLS.griffin]),
@@ -339,7 +243,6 @@ function initState(): AlliesState {
     },
     pendingNames: new Map(),
     providerCooldowns: new Map(),
-    budget: { totalSpent: 0, questCount: 0, history: [] },
   };
 }
 
@@ -366,15 +269,9 @@ function popName(noun: Noun): string {
   return queue.pop()!;
 }
 
-function budgetRemaining(): number {
-  const budgets = getBudgets();
-  return (budgets["primary"] ?? 100) - getState().budgetUsed;
-}
-
 function recordSpawn(id: string, info: AllyInfo): void {
   const state = getState();
   state.active.set(id, info);
-  state.budgetUsed += info.cost;
 }
 
 function recordComplete(id: string): AllyInfo | undefined {
@@ -382,16 +279,6 @@ function recordComplete(id: string): AllyInfo | undefined {
   const info = state.active.get(id);
   if (!info) return undefined;
   info.status = "completed";
-  const refund = info.cost * getRefundFraction();
-  state.budgetUsed = Math.max(0, state.budgetUsed - refund);
-  state.budget.totalSpent = state.budgetUsed;
-  state.budget.questCount++;
-  state.budget.history.push({
-    ally: info.defName,
-    cost: info.cost,
-    status: "completed",
-    ts: Date.now(),
-  });
   return info;
 }
 
@@ -400,16 +287,6 @@ function recordFailed(id: string): AllyInfo | undefined {
   const info = state.active.get(id);
   if (!info) return undefined;
   info.status = "failed";
-  // Full refund on failure — the work wasn't useful
-  state.budgetUsed = Math.max(0, state.budgetUsed - info.cost);
-  state.budget.totalSpent = state.budgetUsed;
-  state.budget.questCount++;
-  state.budget.history.push({
-    ally: info.defName,
-    cost: info.cost,
-    status: "failed",
-    ts: Date.now(),
-  });
   return info;
 }
 
@@ -539,77 +416,76 @@ function tierBehavior(combo: AllyCombo): string {
   return behaviors[combo.adjective];
 }
 
-function spawnBudgetLine(combo: AllyCombo): string {
+function spawnRulesLine(combo: AllyCombo): string {
   const rules = SUMMON_RULES[combo.noun];
   if (rules.length === 0) return "You cannot dispatch subagents.";
-  const budget = getBudgets()[combo.noun] ?? 0;
-  if (budget <= 0) return "You cannot dispatch subagents.";
   const allowed = rules.map(capitalize).join(" or ");
-  return `You may dispatch subagents (${allowed} tier only). Your budget: ${budget} points.`;
+  return `You may dispatch subagents (${allowed} tier only).`;
 }
 
-const CALLING_HOME_SECTION = `## Available Tools
-In addition to standard tools (read, grep, find, ls, bash, edit, write), you have these extension tools:
-- **stone_send** — send messages to the primary agent, other allies, or the room via the sending stone
-- **stone_receive** — check for incoming messages (replies to questions, directives)
+const CALLING_HOME_SECTION = `## Sending Stone — Read This First
+
+You are an ally. Your plain text output is **invisible** to the primary agent. The only way your work reaches the primary is through the **sending stone**.
+
+### Rule 1: Deliver your result via stone_send, or your work is lost
+
+When your task is complete, you **MUST** end by calling:
+
+    stone_send(type="result", to="primary-agent", message="<your full result>")
+
+This is not optional. This is not a suggestion. If you finish your task and do not call \`stone_send(type="result", ...)\`, the primary agent receives nothing. Your entire session is wasted.
+
+After sending the result, **stop**. Do not offer more work, socialize, ask for new assignments, or summarize what other allies are doing.
+
+### Rule 2: Valid \`to:\` recipients
+
+- \`"primary-agent"\` — the agent who dispatched you. **This is the default for results and questions.**
+- An ally defName (e.g. \`"griffin-sage"\`) — direct message to another ally
+- \`"session-room"\` — broadcast to everyone. **Only use for genuine broadcasts. Never use for results or questions.**
+
+If you send a result to \`"session-room"\` instead of \`"primary-agent"\`, the primary will not receive it.
+
+### Rule 3: Progress pulses are structural, not vibes
+
+Send \`stone_send(type="progress", to="primary-agent", message=...)\` at structural boundaries:
+- Every ~5 tool calls during exploration
+- After finishing each file or file-group in a multi-file task
+- When you shift phases (reading → analyzing → writing)
+
+Silence means something is wrong. If you've been working for more than a few tool calls without a progress pulse, send one.
+
+### Rule 4: Questions are an atomic two-call pattern
+
+If you hit a genuine blocker, questions are **always** two tool calls in a row with nothing between them:
+
+    stone_send(type="question", to="primary-agent", message="<concise 1-2 liner>")
+    stone_receive(wait=60)
+
+**Do not call any other tool between stone_send(question) and stone_receive.** Do not proceed with a best-guess and hope the reply arrives later. \`stone_receive\` is the only call that actually waits for the reply; without it, you are talking into the void.
+
+If \`stone_receive\` returns no reply after the timeout, then make your best judgment and note the assumption in your result.
+
+Exhaust your own capabilities first — the stone is for meaningful updates and genuine blockers, not for questions you could answer by reading more code.
+
+## Available Tools
+
+In addition to standard tools (read, grep, find, ls, bash, edit, write), you have:
+- **stone_send** — send messages (result, progress, question, note) via the sending stone
+- **stone_receive** — block and wait for incoming messages; REQUIRED after stone_send(question)
 - **write_notes** — write findings to .pi/ally-notes/ files for chunked exploration
 
 These tools ARE available to you. Use them. Do not claim they are unavailable.
 
-## Sending Stone
-You have a sending stone - a direct channel to the room where the primary agent and other allies can hear you. Use it to share updates and ask questions.
+## Working Notes — Chunked Exploration
 
-### Progress Reports
-Send progress updates at natural milestones - not after every action, but when you start a meaningful phase:
-- Starting work: "Reading 5 files in berrygems/lib/..."
-- Found something: "Found ExtensionAPI interface in types.ts, analyzing..."
-- Writing output: "Compiling findings, writing summary"
-- Long task: "Still analyzing - this file is 800 lines, halfway through"
-
-Aim for 2-4 progress messages per task. Enough that silence means something is wrong.
-
-### Working Notes - Chunked Exploration
 For tasks that involve reading multiple files or building up a large analysis, **do NOT try to compile everything into one giant final response**. Instead:
 1. Read a file or section → write findings to a notes file (e.g. "part1-types.md")
-2. Send a progress message via the sending stone
+2. Send a progress pulse via the stone
 3. Read the next file/section → write more notes
 4. Repeat until done
-5. Read your notes back, compile a final summary, and deliver it
+5. Read your notes back, compile a final summary, and deliver it via \`stone_send(type="result", ...)\`
 
-This pattern keeps you active, prevents timeout during long output generation, and produces better results through incremental analysis.
-
-Example workflow:
-- Read types.ts, write notes "types-analysis.md", send progress "Analyzed types.ts, moving to spawn.ts"
-- Read spawn.ts, write notes "spawn-analysis.md", send progress "Found check-in logic in spawn.ts"
-- Read your notes, compile final summary
-
-### Asking Questions
-If you hit a genuine blocker, send a question via the stone and wait for a reply:
-1. Send a question - describe what you need (concise 1-2 liner)
-2. Wait for the reply (it will be injected into your context)
-3. If you get a reply, continue. If timeout, make your best judgment and note the assumption.
-
-Example: "Found two candidate files for the bug. types.ts has the interface but spawn.ts has the runtime logic. Which should I focus on?"
-
-### When NOT to Send
-- Don't report every file read or action taken
-- Don't send home for minor issues you can work around
-- Don't ask questions you could answer by reading more code
-
-Exhaust your own capabilities first. The stone is for meaningful updates and genuine blockers.
-
-### Delivering Your Result
-When your task is complete, you **MUST** send your final output via the sending stone before ending your session:
-
-    stone_send(type="result", to="primary-agent", message="<your full result>")
-
-This is **not optional**. Plain text output from ally sessions is invisible to the primary agent. If you do not call stone_send with type="result", your work will be lost.
-
-After sending the result, **stop**. Do not:
-- Offer to do more work or suggest next steps
-- Socialize with other allies in the room
-- Ask the dispatcher for new assignments
-- Summarize what other allies are doing`;
+This keeps you active, prevents timeout during long output generation, and produces better results through incremental analysis.`;
 
 function buildAllyPrompt(combo: AllyCombo, allyName: string | null): string {
   return `${identityLine(allyName, combo)}
@@ -622,8 +498,8 @@ ${jobPrompt(combo)}
 
 ${CALLING_HOME_SECTION}
 
-## Budget
-${spawnBudgetLine(combo)}
+## Subagent Rules
+${spawnRulesLine(combo)}
 `;
 }
 
@@ -636,7 +512,6 @@ function resolveModel(noun: string): string {
 }
 
 function comboDescription(combo: AllyCombo): string {
-  const costPts = calcCost(combo).toFixed(1);
   const jobDesc: Record<Job, Record<Noun, string>> = {
     scout: {
       kobold: "Fast file scanning, listing, structure mapping, quick checks.",
@@ -666,16 +541,16 @@ function comboDescription(combo: AllyCombo): string {
       dragon: "Foundational architecture decisions, major spec authoring.",
     },
   };
-  const desc =
+  return (
     jobDesc[combo.job]?.[combo.noun] ??
-    `${capitalize(combo.job)} at ${combo.noun} tier.`;
-  return `${desc} (${costPts} pts)`;
+    `${capitalize(combo.job)} at ${combo.noun} tier.`
+  );
 }
 
 function generateAgentDef(combo: AllyCombo): string {
   const name = comboName(combo);
   const model = resolveModel(combo.noun);
-  const thinking = getThinking()[combo.adjective] ?? "none";
+  const thinking = getThinking()[combo.adjective] ?? "off";
   const depth = MAX_SUBAGENT_DEPTH[combo.noun];
   const prompt = buildAllyPrompt(combo, null);
 
@@ -719,105 +594,28 @@ function writeAgentDefs(cwd: string): void {
 
 // ── Display ──
 
-function buildBudgetDisplay(): string {
-  const state = getState();
-  const budgets = getBudgets();
-  const limit = budgets["primary"] ?? 100;
-  const { totalSpent, questCount, history } = state.budget;
-  const remaining = budgetRemaining();
-
-  if (questCount === 0 && history.length === 0) {
-    return `## Hoard Allies — Spend History
-
-No quests dispatched yet. Use the **quest** tool to send allies on quests.`;
-  }
-
-  const recentRows = history
-    .slice(-10)
-    .reverse()
-    .map((entry) => {
-      const time = new Date(entry.ts).toLocaleTimeString();
-      const statusIcon = entry.status === "completed" ? "✅" : "❌";
-      return `| ${entry.ally} | ${entry.cost.toFixed(1)} | ${statusIcon} ${entry.status} | ${time} |`;
-    })
-    .join("\n");
-
-  const historySection = recentRows
-    ? `### Recent Quests (last ${Math.min(history.length, 10)})
-
-| Ally | Cost (pts) | Status | Time |
-|------|-----------|--------|------|
-${recentRows}`
-    : "### Recent Quests\n\nNo completed quests yet.";
-
-  return `## Hoard Allies — Spend History
-
-### Summary
-| Metric | Value |
-|--------|-------|
-| Total spent | ${totalSpent.toFixed(1)} pts |
-| Budget limit | ${limit} pts |
-| Remaining | ${remaining.toFixed(1)} pts |
-| Quests run | ${questCount} |
-
-${historySection}
-
-💡 ${budgetRecommendation(remaining)}`;
-}
-
-function budgetRecommendation(remaining: number): string {
-  const nw = getNounWeights();
-  const tm = getThinkingMultipliers();
-  const baseKobold = nw.kobold * tm.silly;
-  const baseGriffin = nw.griffin * tm.clever;
-  const baseDragon = nw.dragon * tm.wise;
-
-  if (remaining <= 0)
-    return "Budget exhausted — wait for refunds from completing allies";
-  if (remaining < baseKobold)
-    return `Only ${remaining.toFixed(1)} pts left — not enough for any dispatch`;
-  if (remaining < baseGriffin)
-    return `${Math.floor(remaining / baseKobold)} kobold dispatch${Math.floor(remaining / baseKobold) > 1 ? "es" : ""} remaining`;
-  if (remaining < baseDragon)
-    return `${Math.floor(remaining / baseGriffin)} griffin or ${Math.floor(remaining / baseKobold)} kobold dispatches remaining`;
-  return `${Math.floor(remaining / baseDragon)} dragon, ${Math.floor(remaining / baseGriffin)} griffin, or ${Math.floor(remaining / baseKobold)} kobold dispatches remaining`;
-}
-
 function buildTaxonomyDisplay(): string {
   const maxP = getMaxParallel();
   const confirm = getConfirmAbove();
-  const budgets = getBudgets();
-  const remaining = budgetRemaining();
   const state = getState();
 
   const rows = CURATED_COMBOS.map((combo) => {
-    const nw = getNounWeights();
-    const tm = getThinkingMultipliers();
-    const jm = getJobMultipliers();
-    const cost = calcCost(combo);
-    const formula = `${nw[combo.noun]} × ${tm[combo.adjective]} × ${jm[combo.job]}`;
     const model = resolveModel(combo.noun);
-    const think = getThinking()[combo.adjective] ?? "none";
-    return `| ${comboName(combo)} | ${think} | ${model} | ${formula} = ${cost.toFixed(1)} | ${comboDescription(combo)} |`;
+    const think = getThinking()[combo.adjective] ?? "off";
+    return `| ${comboName(combo)} | ${think} | ${model} | ${comboDescription(combo)} |`;
   }).join("\n");
 
   const activeList =
     Array.from(state.active.values())
       .filter((a) => a.status === "running")
-      .map((a) => `- **${a.name}** (${a.defName}) — ${a.cost.toFixed(1)} pts`)
+      .map((a) => `- **${a.name}** (${a.defName})`)
       .join("\n") || "- none";
 
   return `## Hoard Allies — Subagent Taxonomy
 
-| Agent | Thinking | Model | Formula = Cost | Description |
-|-------|----------|-------|----------------|-------------|
+| Agent | Thinking | Model | Description |
+|-------|----------|-------|-------------|
 ${rows}
-
-### Budget
-- **Pool:** ${budgets["primary"] ?? 100} pts total | **Used:** ${state.budgetUsed.toFixed(1)} | **Remaining:** ${remaining.toFixed(1)}
-- **Refund on complete:** ${(getRefundFraction() * 100).toFixed(0)}% of dispatch cost
-- **Refund on failure:** 100% (work wasn't useful)
-- **💡 Recommendation:** ${budgetRecommendation(remaining)}
 
 ### Active Allies
 ${activeList}
@@ -829,12 +627,6 @@ ${activeList}
 
 ### The Rule
 > **Default to kobold. Escalate only when the task genuinely needs more.**
-
-### Cost Formula
-\`cost = noun_weight × thinking_multiplier × job_multiplier\`
-- Noun: kobold=${DEFAULT_NOUN_WEIGHTS.kobold}, griffin=${DEFAULT_NOUN_WEIGHTS.griffin}, dragon=${DEFAULT_NOUN_WEIGHTS.dragon}
-- Thinking: silly=${DEFAULT_THINKING_MULTIPLIERS.silly}, clever=${DEFAULT_THINKING_MULTIPLIERS.clever}, wise=${DEFAULT_THINKING_MULTIPLIERS.wise}, elder=${DEFAULT_THINKING_MULTIPLIERS.elder}
-- Job: scout=${DEFAULT_JOB_MULTIPLIERS.scout}, reviewer=${DEFAULT_JOB_MULTIPLIERS.reviewer}, coder=${DEFAULT_JOB_MULTIPLIERS.coder}, researcher=${DEFAULT_JOB_MULTIPLIERS.researcher}, planner=${DEFAULT_JOB_MULTIPLIERS.planner}
 `;
 }
 
@@ -843,8 +635,6 @@ ${activeList}
 function buildSystemPrompt(): string {
   const maxP = getMaxParallel();
   const confirm = getConfirmAbove();
-  const budgets = getBudgets();
-  const remaining = budgetRemaining();
   const nounOrder: Noun[] = ["kobold", "griffin", "dragon"];
   const confirmIdx = nounOrder.indexOf(confirm as Noun);
   const confirmNote =
@@ -852,30 +642,15 @@ function buildSystemPrompt(): string {
       ? `- **Dispatching ${confirm}-tier or above requires user confirmation** (confirmAbove: "${confirm}").\n`
       : "";
 
-  const costTable = CURATED_COMBOS.map((combo) => {
-    const nw = getNounWeights();
-    const tm = getThinkingMultipliers();
-    const jm = getJobMultipliers();
-    const cost = calcCost(combo);
-    return `  ${comboName(combo)}: ${nw[combo.noun]} × ${tm[combo.adjective]} × ${jm[combo.job]} = ${cost.toFixed(1)} pts`;
-  }).join("\n");
-
   return `## Subagent Dispatch — Hoard Allies
 
 You have a kobold/griffin/dragon taxonomy for subagent dispatch.
 Use the **quest** tool to send allies on quests. Agent definitions are also in .pi/agents/ for the built-in subagent tool.
 
 The matrix: <adjective> <noun> <job>
-- Adjective = thinking: silly (none) → clever (low) → wise (medium) → elder (high)
-- Noun = model: kobold (haiku, $) → griffin (sonnet, $$$) → dragon (opus, $$$$$)
+- Adjective = thinking: silly (off) → clever (low) → wise (medium) → elder (high)
+- Noun = model: kobold (lightweight) → griffin (mid-tier) → dragon (heavyweight)
 - Job = role: scout (recon) | reviewer (analysis) | coder (implementation) | researcher (gathering) | planner (strategy)
-
-### Cost Budget
-Budget remaining: **${remaining.toFixed(1)} pts** of ${budgets["primary"] ?? 100}.
-Refund: ${(getRefundFraction() * 100).toFixed(0)}% on completion, 100% on failure.
-
-Cost per ally:
-${costTable}
 
 ### WHEN TO DISPATCH
 
@@ -899,7 +674,6 @@ Do NOT dispatch when:
 ### RULES
 
 - **Default: kobold scout.** Escalate only when the task proves it needs more.
-- **Budget is finite.** Track your spending. This is an ethical obligation per ETHICS.md §3.7.
 - **Max parallel: ${maxP}.** Hard cap from settings.
 - **Prefer more kobolds over fewer griffins** for scanning/review work.
 - **Use chains** (kobold scout → griffin reviewer) when you need escalation on findings.
@@ -907,20 +681,6 @@ ${confirmNote}- **When in doubt, read the hoard-allies skill** for detailed disp
 }
 
 // ── Enforcement ──
-
-function checkBudget(combo: AllyCombo): { allowed: boolean; reason?: string } {
-  const cost = calcCost(combo);
-  const remaining = budgetRemaining();
-
-  if (cost > remaining) {
-    return {
-      allowed: false,
-      reason: `Budget exceeded. ${comboName(combo)} costs ${cost.toFixed(1)} pts but only ${remaining.toFixed(1)} pts remain of ${getBudgets()["primary"] ?? 100}. Choose a cheaper ally or wait for completions to refund budget.`,
-    };
-  }
-
-  return { allowed: true };
-}
 
 function checkParallel(): { allowed: boolean; reason?: string } {
   const state = getState();
@@ -945,12 +705,10 @@ const ALLIES_API_KEY = Symbol.for("hoard.allies.api");
 
 function exposeAPI(): void {
   (globalThis as Record<symbol, unknown>)[ALLIES_API_KEY] = {
-    calcCost,
     getModels,
     getThinking,
     popName,
     buildAllyPrompt,
-    budgetRemaining,
     recordSpawn,
     recordComplete,
     recordFailed,
@@ -958,33 +716,7 @@ function exposeAPI(): void {
     getConfirmAbove: () => getConfirmAbove(),
     getJobDefaults: (job: string) =>
       JOB_DEFAULTS[job as Job] ?? JOB_DEFAULTS.scout,
-    persistBudget: () => {
-      const persistFn = (globalThis as Record<symbol, unknown>)[
-        Symbol.for("hoard.allies.persistBudget")
-      ] as (() => void) | undefined;
-      persistFn?.();
-    },
   };
-}
-
-// ── Budget Persistence ──
-
-const ALLIES_PERSIST_KEY = Symbol.for("hoard.allies.persistBudget");
-
-function restoreBudgetFromBranch(entries: unknown[]): void {
-  let lastBudget: BudgetState | undefined;
-  for (const entry of entries) {
-    const e = entry as { type?: string; customType?: string; data?: unknown };
-    if (e.type === "custom" && e.customType === "allies-budget-checkpoint") {
-      const data = e.data as { budget?: BudgetState } | undefined;
-      if (data?.budget) lastBudget = data.budget;
-    }
-  }
-  if (lastBudget) {
-    const state = getState();
-    state.budget = lastBudget;
-    state.budgetUsed = lastBudget.totalSpent;
-  }
 }
 
 // ── Main Export ──
@@ -1157,16 +889,7 @@ export default function hoardAllies(pi: ExtensionAPI) {
           }
         });
       }
-      // Set up persist function using the current pi reference
-      (globalThis as Record<symbol, unknown>)[ALLIES_PERSIST_KEY] = () => {
-        pi.appendEntry("allies-budget-checkpoint", {
-          budget: getState().budget,
-        });
-      };
-      // Reset active quests + names, then restore persisted budget from session tree
       resetState();
-      const entries = ctx.sessionManager.getEntries();
-      restoreBudgetFromBranch(entries as unknown[]);
     } catch {
       // Non-fatal — agent defs may already exist
     }
@@ -1278,22 +1001,14 @@ export default function hoardAllies(pi: ExtensionAPI) {
       return { block: true, reason: parallelCheck.reason };
     }
 
-    // Check budget
-    const budgetCheck = checkBudget(combo);
-    if (!budgetCheck.allowed) {
-      return { block: true, reason: budgetCheck.reason };
-    }
-
     // Pop a name and record the spawn — key by toolCallId for reliable tool_result correlation
     const allyName = popName(combo.noun);
-    const cost = calcCost(combo);
     const id = event.toolCallId;
 
     recordSpawn(id, {
       name: allyName,
       defName: agentName,
       combo,
-      cost,
       spawnedAt: Date.now(),
       status: "running",
     });
@@ -1305,11 +1020,10 @@ export default function hoardAllies(pi: ExtensionAPI) {
     state.pendingNames.set(agentName, pending);
   });
 
-  // Track subagent completion for budget refund
+  // Track subagent completion
   pi.on("tool_result", async (event, _ctx) => {
     if (event.toolName !== "subagent") return;
 
-    // Match by toolCallId — the same ID used in tool_call to key recordSpawn
     const state = getState();
     const info = state.active.get(event.toolCallId);
     if (!info) return;
@@ -1319,14 +1033,6 @@ export default function hoardAllies(pi: ExtensionAPI) {
     } else {
       recordComplete(event.toolCallId);
     }
-  });
-
-  // /allies-budget command — display spend history and remaining budget
-  pi.registerCommand("allies-budget", {
-    description: "Show hoard allies spend history and remaining budget",
-    handler: async (_args, ctx) => {
-      ctx.ui.notify(buildBudgetDisplay(), "info");
-    },
   });
 
   // /allies command — display the taxonomy with current settings

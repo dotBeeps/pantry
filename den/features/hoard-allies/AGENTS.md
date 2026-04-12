@@ -25,29 +25,29 @@ Three dimensions that fully describe any ally:
 **Adjective** (thinking level):
 
 | Adjective | Thinking | Cost Multiplier |
-|-----------|----------|-----------------|
-| silly | none | 1× |
-| clever | low | 1.5× |
-| wise | medium | 2× |
-| elder | high | 3× |
+| --------- | -------- | --------------- |
+| silly     | off      | 1×              |
+| clever    | low      | 1.5×            |
+| wise      | medium   | 2×              |
+| elder     | high     | 3×              |
 
 **Noun** (model tier):
 
-| Noun | Default Models (fallback chain) | Cost Weight |
-|------|-------------------------------|-------------|
-| kobold | haiku → gemini-flash | 1 |
-| griffin | sonnet → gemini-pro | 5 |
-| dragon | opus | 25 |
+| Noun    | Default Models (fallback chain) | Cost Weight |
+| ------- | ------------------------------- | ----------- |
+| kobold  | haiku → gemini-flash            | 1           |
+| griffin | sonnet → gemini-pro             | 5           |
+| dragon  | opus                            | 25          |
 
 **Job** (role + tools + behavior):
 
-| Job | Tools | Behavior | Cost Multiplier |
-|-----|-------|----------|-----------------|
-| scout | read, grep, find, ls, bash | Read-only recon. Report findings. | 0.5× |
-| reviewer | read, grep, find, ls, bash | Analyze, cite file:line, severity rank. Don't fix. | 1× |
-| coder | read, grep, find, ls, bash, write, edit | Implement, verify, follow conventions. | 1.5× |
-| researcher | read, grep, find, ls, bash | Search, read, summarize. Cite sources. | 1× |
-| planner | read, grep, find, ls | Strategic thinking. Break down, identify risks. Don't execute. | 1.2× |
+| Job        | Tools                                   | Behavior                                                       | Cost Multiplier |
+| ---------- | --------------------------------------- | -------------------------------------------------------------- | --------------- |
+| scout      | read, grep, find, ls, bash              | Read-only recon. Report findings.                              | 0.5×            |
+| reviewer   | read, grep, find, ls, bash              | Analyze, cite file:line, severity rank. Don't fix.             | 1×              |
+| coder      | read, grep, find, ls, bash, write, edit | Implement, verify, follow conventions.                         | 1.5×            |
+| researcher | read, grep, find, ls, bash              | Search, read, summarize. Cite sources.                         | 1×              |
+| planner    | read, grep, find, ls                    | Strategic thinking. Break down, identify risks. Don't execute. | 1.2×            |
 
 ---
 
@@ -63,30 +63,30 @@ cost = noun_weight × thinking_multiplier × job_multiplier
 
 ### Cost Table (13 curated combos)
 
-| Agent | Formula | Cost | Use Case |
-|-------|---------|------|----------|
-| silly-kobold-scout | 1 × 1 × 0.5 | 0.5 | File scanning, listing, structure mapping |
-| clever-kobold-scout | 1 × 1.5 × 0.5 | 0.75 | Scanning with light reasoning |
-| clever-kobold-reviewer | 1 × 1.5 × 1 | 1.5 | Simple validation, frontmatter checks |
-| wise-kobold-reviewer | 1 × 2 × 1 | 2.0 | Pattern matching, moderate code review |
-| silly-griffin-coder | 5 × 1 × 1.5 | 7.5 | Straightforward code generation |
-| clever-griffin-coder | 5 × 1.5 × 1.5 | 11.25 | Feature implementation, refactoring |
-| clever-griffin-reviewer | 5 × 1.5 × 1 | 7.5 | Thorough code review, architecture analysis |
-| wise-griffin-reviewer | 5 × 2 × 1 | 10.0 | Deep review, spec alignment |
-| wise-griffin-researcher | 5 × 2 × 1 | 10.0 | Research, synthesis, multi-source comparison |
-| elder-griffin-coder | 5 × 3 × 1.5 | 22.5 | Complex refactoring, multi-file changes |
-| elder-griffin-reviewer | 5 × 3 × 1 | 15.0 | Security review, ethics compliance |
-| wise-dragon-planner | 25 × 2 × 1.2 | 60.0 | Major spec authoring, architecture decisions |
-| elder-dragon-planner | 25 × 3 × 1.2 | 90.0 | Foundational decisions — justify this! |
+| Agent                   | Formula       | Cost  | Use Case                                     |
+| ----------------------- | ------------- | ----- | -------------------------------------------- |
+| silly-kobold-scout      | 1 × 1 × 0.5   | 0.5   | File scanning, listing, structure mapping    |
+| clever-kobold-scout     | 1 × 1.5 × 0.5 | 0.75  | Scanning with light reasoning                |
+| clever-kobold-reviewer  | 1 × 1.5 × 1   | 1.5   | Simple validation, frontmatter checks        |
+| wise-kobold-reviewer    | 1 × 2 × 1     | 2.0   | Pattern matching, moderate code review       |
+| silly-griffin-coder     | 5 × 1 × 1.5   | 7.5   | Straightforward code generation              |
+| clever-griffin-coder    | 5 × 1.5 × 1.5 | 11.25 | Feature implementation, refactoring          |
+| clever-griffin-reviewer | 5 × 1.5 × 1   | 7.5   | Thorough code review, architecture analysis  |
+| wise-griffin-reviewer   | 5 × 2 × 1     | 10.0  | Deep review, spec alignment                  |
+| wise-griffin-researcher | 5 × 2 × 1     | 10.0  | Research, synthesis, multi-source comparison |
+| elder-griffin-coder     | 5 × 3 × 1.5   | 22.5  | Complex refactoring, multi-file changes      |
+| elder-griffin-reviewer  | 5 × 3 × 1     | 15.0  | Security review, ethics compliance           |
+| wise-dragon-planner     | 25 × 2 × 1.2  | 60.0  | Major spec authoring, architecture decisions |
+| elder-dragon-planner    | 25 × 3 × 1.2  | 90.0  | Foundational decisions — justify this!       |
 
 ### Budget Pools
 
-| Requester | Budget | Can Summon | Refund |
-|-----------|--------|------------|--------|
-| Primary (Ember) | 100 pts | kobold, griffin, dragon | 50% on completion, 100% on failure |
-| dragon subagent | 20 pts | kobold, griffin | 50% on completion, 100% on failure |
-| griffin subagent | 5 pts | kobold only | 50% on completion, 100% on failure |
-| kobold subagent | 0 pts | nobody | — |
+| Requester        | Budget  | Can Summon              | Refund                             |
+| ---------------- | ------- | ----------------------- | ---------------------------------- |
+| Primary (Ember)  | 100 pts | kobold, griffin, dragon | 50% on completion, 100% on failure |
+| dragon subagent  | 20 pts  | kobold, griffin         | 50% on completion, 100% on failure |
+| griffin subagent | 5 pts   | kobold only             | 50% on completion, 100% on failure |
+| kobold subagent  | 0 pts   | nobody                  | —                                  |
 
 **Refund on completion** returns budget when allies finish, enabling more dispatches over time. Failure refunds 100% because the work wasn't useful. All tunable via `hoard.allies.budget.*` settings.
 
@@ -158,20 +158,42 @@ The primary session (Ember) gets:
   "hoard": {
     "allies": {
       "models": {
-        "kobold": ["anthropic/claude-haiku-4-5", "github-copilot/claude-haiku-4-5", "google/gemini-2.0-flash"],
-        "griffin": ["anthropic/claude-sonnet-4-6", "github-copilot/claude-sonnet-4-6", "google/gemini-2.5-pro"],
-        "dragon": ["anthropic/claude-opus-4-6", "github-copilot/claude-opus-4-6"]
+        "kobold": [
+          "anthropic/claude-haiku-4-5",
+          "github-copilot/claude-haiku-4-5",
+          "google/gemini-2.0-flash"
+        ],
+        "griffin": [
+          "anthropic/claude-sonnet-4-6",
+          "github-copilot/claude-sonnet-4-6",
+          "google/gemini-2.5-pro"
+        ],
+        "dragon": [
+          "anthropic/claude-opus-4-6",
+          "github-copilot/claude-opus-4-6"
+        ]
       },
       "thinking": {
-        "silly": "none",
+        "silly": "off",
         "clever": "low",
         "wise": "medium",
         "elder": "high"
       },
       "budget": {
         "nounWeights": { "kobold": 1, "griffin": 5, "dragon": 25 },
-        "thinkingMultipliers": { "silly": 1, "clever": 1.5, "wise": 2, "elder": 3 },
-        "jobMultipliers": { "scout": 0.5, "reviewer": 1, "coder": 1.5, "researcher": 1, "planner": 1.2 },
+        "thinkingMultipliers": {
+          "silly": 1,
+          "clever": 1.5,
+          "wise": 2,
+          "elder": 3
+        },
+        "jobMultipliers": {
+          "scout": 0.5,
+          "reviewer": 1,
+          "coder": 1.5,
+          "researcher": 1,
+          "planner": 1.2
+        },
         "pools": { "primary": 100, "dragon": 20, "griffin": 5, "kobold": 0 },
         "refundFraction": 0.5
       },
@@ -190,11 +212,11 @@ The primary session (Ember) gets:
 
 ### Pi Integration Points
 
-| Hook | When | What |
-|------|------|------|
-| `session_start` | Session begins | Generate 13 agent defs, clean old 2D defs, reset state |
-| `before_agent_start` | Agent starting | Primary: inject dispatch rules. Subagent: strip persona |
-| `quest` tool | Dispatch requested | Budget check, name pop, model cascade, pi process spawn, cost report |
+| Hook                 | When               | What                                                                 |
+| -------------------- | ------------------ | -------------------------------------------------------------------- |
+| `session_start`      | Session begins     | Generate 13 agent defs, clean old 2D defs, reset state               |
+| `before_agent_start` | Agent starting     | Primary: inject dispatch rules. Subagent: strip persona              |
+| `quest` tool         | Dispatch requested | Budget check, name pop, model cascade, pi process spawn, cost report |
 
 ### Directory Structure
 
@@ -213,18 +235,18 @@ State on `globalThis[Symbol.for("hoard.allies.state")]`:
 
 ```typescript
 interface AlliesState {
-  active: Map<string, AllyInfo>;    // id → ally tracking
-  budgetUsed: number;               // running total of budget consumed
-  nameQueues: Record<string, string[]>;  // noun → shuffled name queue
-  pendingNames: Map<string, string[]>;   // agentDefName → [name queue for injection]
+  active: Map<string, AllyInfo>; // id → ally tracking
+  budgetUsed: number; // running total of budget consumed
+  nameQueues: Record<string, string[]>; // noun → shuffled name queue
+  pendingNames: Map<string, string[]>; // agentDefName → [name queue for injection]
 }
 
 interface AllyInfo {
-  name: string;       // "Grix"
-  defName: string;    // "silly-kobold-scout"
-  combo: AllyCombo;   // { adjective, noun, job }
-  cost: number;       // computed dispatch cost
-  spawnedAt: number;  // timestamp
+  name: string; // "Grix"
+  defName: string; // "silly-kobold-scout"
+  combo: AllyCombo; // { adjective, noun, job }
+  cost: number; // computed dispatch cost
+  spawnedAt: number; // timestamp
   status: "running" | "completed" | "failed";
 }
 ```
@@ -258,9 +280,11 @@ You are a Wise Griffin Reviewer.
 Reason carefully. Be thorough but efficient. Cite your sources.
 
 ## Your Job
+
 [job-specific prompt with rules, output format]
 
 ## Budget
+
 You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 ```
 
@@ -269,12 +293,14 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 ## Implementation Phases
 
 ### Phase 1 — Taxonomy + Agent Defs ✅
+
 - [x] Extension with system prompt injection
 - [x] Settings-driven agent def generation (2D: adj × noun)
 - [x] `/kobolds` command and skill
 - [x] Subagent APPEND_SYSTEM stripping
 
 ### Phase 2 — Jobs + Budget + Names ✅
+
 - [x] Rename hoard-kobolds → hoard-allies (extension, skill, settings, commands)
 - [x] Add job dimension → 13 curated `<adj>-<noun>-<job>` agent defs
 - [x] Per-job system prompts (identity, instructions, tools, output format)
@@ -289,6 +315,7 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] ETHICS.md now unconditionally required reading
 
 ### Phase 3 — Quest Tool (Dispatch Absorption) ✅
+
 - [x] Graduate to directory extension (index.ts + modules)
 - [x] `quest` tool registration (single, rally, chain modes)
 - [x] Process spawning via `pi --mode json` child processes
@@ -303,6 +330,7 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [ ] Integration with dragon-breath for carbon tracking
 
 ### Phase 4 — Polish + Async Dispatch + Bidirectional Dialog 🔥
+
 - [x] Quest tool TUI rendering (renderCall/renderResult) — two-line layout, display names, cost estimates
 - [x] Dispatch announcements in primary session
 - [x] Rally/chain cost estimation in renderCall
@@ -350,23 +378,23 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 
 **Thinking levels** (replaces adjective; thematic names kept):
 
-| Level | Thinking | Multiplier | Notes |
-|-------|----------|-----------|-------|
-| `silly` | none | 1.0× | No reasoning overhead |
-| `clever` | low | 1.5× | Light reasoning |
-| `wise` | medium | 2.0× | Solid reasoning |
-| `elder` | high | 2.5× | Deep reasoning |
-| `extended` | max | 4.0× | Anthropic extended thinking (dragon only, via dragon-lab) |
+| Level      | Thinking | Multiplier | Notes                                                     |
+| ---------- | -------- | ---------- | --------------------------------------------------------- |
+| `silly`    | off      | 1.0×       | No reasoning overhead                                     |
+| `clever`   | low      | 1.5×       | Light reasoning                                           |
+| `wise`     | medium   | 2.0×       | Solid reasoning                                           |
+| `elder`    | high     | 2.5×       | Deep reasoning                                            |
+| `extended` | max      | 4.0×       | Anthropic extended thinking (dragon only, via dragon-lab) |
 
 Not all thinking levels available for all nouns: kobold supports silly/clever, griffin supports silly–elder, dragon supports all.
 
 **Noun** (model tier — unchanged concept, new provider priorities):
 
-| Noun | Intent | Priority cascade |
-|------|--------|-----------------|
-| `kobold` | lightweight, fast, free if possible | github-copilot/haiku → glm-* → anthropic/haiku (last resort) |
-| `griffin` | balanced performance + cost | github-copilot/sonnet-4.6 → gpt-4.1/glm-* → anthropic/sonnet (last resort) |
-| `dragon` | high base performance | github-copilot/opus-4.6 → anthropic/opus (last resort) |
+| Noun      | Intent                              | Priority cascade                                                            |
+| --------- | ----------------------------------- | --------------------------------------------------------------------------- |
+| `kobold`  | lightweight, fast, free if possible | github-copilot/haiku → glm-\* → anthropic/haiku (last resort)               |
+| `griffin` | balanced performance + cost         | github-copilot/sonnet-4.6 → gpt-4.1/glm-\* → anthropic/sonnet (last resort) |
+| `dragon`  | high base performance               | github-copilot/opus-4.6 → anthropic/opus (last resort)                      |
 
 Provider priority: **github-copilot first** (subscription = free), **zai GLM models second** (subscription = free), **anthropic direct last** (real token cost).
 
@@ -381,21 +409,22 @@ scout, reviewer, coder, researcher, planner — same tool whitelists and prompts
 cost = noun_base × thinking_multiplier × job_multiplier
 ```
 
-| Dimension | Old | New |
-|-----------|-----|-----|
-| kobold base | 1 | 1 |
-| griffin base | 5 | 4 |
-| dragon base | 25 | 12 |
-| silly mult | 1.0 | 1.0 |
-| clever mult | 1.5 | 1.5 |
-| wise mult | 2.0 | 2.0 |
-| elder mult | 3.0 | **2.5** |
-| extended mult | — | 4.0 |
+| Dimension       | Old       | New       |
+| --------------- | --------- | --------- |
+| kobold base     | 1         | 1         |
+| griffin base    | 5         | 4         |
+| dragon base     | 25        | 12        |
+| silly mult      | 1.0       | 1.0       |
+| clever mult     | 1.5       | 1.5       |
+| wise mult       | 2.0       | 2.0       |
+| elder mult      | 3.0       | **2.5**   |
+| extended mult   | —         | 4.0       |
 | job multipliers | unchanged | unchanged |
 
-**Why pts aren't dollars:** With github-copilot as the priority provider, pts measure *quality/capability expense*, not real token cost. The formula rate-limits thoughtful choices and forces intentional trade-offs.
+**Why pts aren't dollars:** With github-copilot as the priority provider, pts measure _quality/capability expense_, not real token cost. The formula rate-limits thoughtful choices and forces intentional trade-offs.
 
 **Reference costs under new formula:**
+
 ```
 silly-kobold-scout:     1 × 1.0 × 0.5 =  0.5 pts   ← swarm tier
 wise-kobold-reviewer:   1 × 2.0 × 1.0 =  2.0 pts   ← NEW valid combo
@@ -421,16 +450,19 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 5. Root `AGENTS.md` — update taxonomy table and ally list
 
 ### Phase 5 — Inter-Agent Communication (future 💭)
+
 - [x] ~~Chatroom message passing between active agents~~ ✅ Implemented via stone SSE + tool_result injection
 - [x] ~~Dispatcher visibility into all messages~~ ✅ Primary subscribes to stone, tracks per-ally
 - [ ] Agent tagging / direct requests (partially working — addressing by defName)
 
 ### Phase 5 — Dispatcher Session Architecture (future 💭)
+
 - [ ] Long-running Anthropic sonnet session as primary dispatcher (prompt caching)
 - [ ] Short-lived github-copilot allies for actual work (quota absorption)
 - [ ] Provider-aware dispatch matching ally to optimal provider
 
 ### Known Issues / Papercuts
+
 - Quest tool `renderCall` flashes "invalid params" briefly before params resolve — race condition in render path, params not available when initial render fires
 - ~~`tool_result` completion tracking matches "most recent running" — brittle for parallel rally dispatch~~ ✅ Fixed: `event.toolCallId` correlation
 - Budget state resets on `session_start` — ~~no persistence across sessions~~ ✅ Fixed: `allies-budget-checkpoint` entries in session tree
@@ -449,6 +481,7 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 - ~~`stone_receive` and `write_notes` appear as "Unknown tool" warnings in pi CLI args validation (cosmetic — tools still work via extension registration)~~ ✅ Fixed: added `promptSnippet` + `promptGuidelines` to all three extension tools (stone_send, stone_receive, write_notes). Tools now first-class in system prompt.
 
 ### Phase 4.5 — Social Stone ✅
+
 - [x] **Ally name display fix** — names show as "Wort (silly-kobold-scout)" in stone messages, not just "Silly Kobold Scout"
 - [x] **`HOARD_ALLY_NAME` env var** — personal name passed through spawn → sending-stone → `senderDisplayName`
 - [x] **Social personality system** — `personalities.ts` with 30 dialectical profiles (12 kobold, 10 griffin, 8 dragon)

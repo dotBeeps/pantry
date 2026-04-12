@@ -235,10 +235,10 @@ export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
       promptSnippet:
         "Check for incoming stone messages from the primary agent or other allies",
       promptGuidelines: [
-        "ALWAYS call stone_receive after stone_send(type='question') — do not continue work until you have a reply or timeout.",
+        "ALWAYS call stone_receive IMMEDIATELY after stone_send(type='question'). No other tool call may come between them. Without stone_receive, the reply is lost.",
         "Call stone_receive at task start to drain any pending directives before beginning.",
-        "Messages are also injected passively into tool_result responses - you don't always need to explicitly poll for progress updates.",
-        "Keep wait times short (5-10s) to avoid blocking your work - check back if needed",
+        "Default wait=60 when waiting for a question reply. Use shorter waits (5-10s) only when draining at task start.",
+        "If stone_receive times out with no reply, proceed with best judgment and note the assumption in your result.",
       ],
       parameters: Type.Object({
         wait: Type.Optional(
