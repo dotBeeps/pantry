@@ -52,7 +52,7 @@ type Interface struct {
 // New creates an MCP Interface that serves on the given port.
 // questMgr may be nil; a default Manager will be created internally.
 func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Interface {
-	qm := quest.NewManager(nil, func(args ...any) { log.Info(fmt.Sprint(args...)) })
+	qm := quest.NewManager(nil, port, func(args ...any) { log.Info(fmt.Sprint(args...)) })
 	return &Interface{
 		id:       id,
 		port:     port,
@@ -501,13 +501,12 @@ func (b *Interface) handleQuestDispatch(ctx context.Context, _ *gomcp.CallToolRe
 		Mode:   input.Mode,
 		Quests: input.Quests,
 	}
-	infos, err := b.questMgr.Dispatch(ctx, input.SessionID, req)
+	infos, groupID, err := b.questMgr.Dispatch(ctx, input.SessionID, req)
 	if err != nil {
 		return nil, questDispatchOutput{}, err
 	}
 
-	groupID := "group-" + input.SessionID[:8]
-	if len(infos) > 0 {
+	if groupID == "" && len(infos) > 0 {
 		groupID = infos[0].QuestID
 	}
 
