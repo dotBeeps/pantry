@@ -80,3 +80,43 @@ func TestIntegrationTimeoutKillsProcess(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+func TestIntegrationTestHarness_FullPipeline(t *testing.T) {
+	// Exercises BuildCommand (prompt file, env filtering, temp cleanup) without API keys.
+	m := NewManager(nil, 0, t.Log)
+
+	req := DispatchRequest{
+		Mode: "single",
+		Quests: []QuestRequest{{
+			Ally:    "silly-kobold-scout",
+			Task:    "describe the codebase",
+			Harness: "test", // echo harness: full BuildCommand pipeline, no real subprocess
+		}},
+	}
+
+	infos, _, err := m.Dispatch(context.Background(), "int-test-session", req)
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("got %d quests", len(infos))
+	}
+
+	questID := infos[0].QuestID
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("test harness quest did not complete within 5s")
+		default:
+		}
+		statuses := m.Status("int-test-session", []string{questID})
+		if len(statuses) == 1 && statuses[0].Status == StatusCompleted {
+			if statuses[0].Summary == "" {
+				t.Error("expected non-empty response from test harness (echo)")
+			}
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
