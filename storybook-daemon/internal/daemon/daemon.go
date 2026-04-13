@@ -12,15 +12,9 @@ import (
 	"strconv"
 	"syscall"
 
-	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
-
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/conversation"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
-	anthropicllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/anthropic"
-	llamacllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/llamacli"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/nerve"
 	hoardnerve "github.com/dotBeeps/hoard/storybook-daemon/internal/nerve/hoard"
@@ -41,10 +35,7 @@ type Daemon struct {
 
 // New creates a Daemon for the given persona.
 func New(p *persona.Persona, log *slog.Logger) *Daemon {
-	return &Daemon{
-		persona: p,
-		log:     log,
-	}
+	return &Daemon{persona: p, log: log}
 }
 
 // Run starts the daemon and blocks until the context is cancelled or a signal is received.
@@ -57,17 +48,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"flavor", d.persona.Persona.Flavor,
 	)
 
-	// Wire up components.
 	ledger := attention.New(d.persona, d.log)
 	agg := sensory.New(20)
 
-	// Build the LLM provider. OAuth is only loaded when the anthropic provider is used.
-	provider, err := d.buildProvider()
-	if err != nil {
-		return fmt.Errorf("building LLM provider: %w", err)
-	}
-
-	// Open memory vault.
 	vaultDir, err := d.vaultDir()
 	if err != nil {
 		return fmt.Errorf("resolving vault dir: %w", err)
@@ -81,7 +64,26 @@ func (d *Daemon) Run(ctx context.Context) error {
 	convo := conversation.New(d.persona.Attention.ConversationBudget, vault, d.log)
 	defer convo.CompactAll()
 
-	// Build and start nerves — sensory connectors to external systems.
+	promptFile, cleanupPrompt, err := d.buildSystemPromptFile()
+	if err != nil {
+		return fmt.Errorf("building system prompt: %w", err)
+	}
+	defer cleanupPrompt()
+
+	sessionPath, err := d.sessionPath()
+	if err != nil {
+		return fmt.Errorf("resolving session path: %w", err)
+	}
+
+	mcpPort := d.mcpPort()
+
+	d.log.Info("pi session configured",
+		"model", d.persona.LLM.Model,
+		"thinking", d.persona.LLM.Thinking,
+		"session", sessionPath,
+		"mcp_port", mcpPort,
+	)
+
 	nerves, err := d.buildNerves(ledger, agg, vault)
 	if err != nil {
 		return fmt.Errorf("building nerves: %w", err)
@@ -101,7 +103,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Build and start psi interfaces — communication surfaces exposed to the world.
 	ifaces, err := d.buildInterfaces(ledger, agg, vault, convo)
 	if err != nil {
 		return fmt.Errorf("building interfaces: %w", err)
@@ -121,9 +122,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
-	cycle := thought.New(d.persona, ledger, agg, nerves, vault, convo, provider, d.log)
+	cycle := thought.New(d.persona, ledger, agg, nerves, vault, convo,
+		thought.PiConfig{
+			Model:       d.persona.LLM.Model,
+			Thinking:    d.persona.LLM.Thinking,
+			SessionPath: sessionPath,
+			PromptFile:  promptFile,
+			McpPort:     mcpPort,
+		}, d.log)
 
-	// Wire thought output to psi interfaces that act as output sinks (e.g. SSE stream).
 	cycleOut := cycleCapture{c: cycle}
 	for _, iface := range ifaces {
 		if sink, ok := iface.(psi.OutputSink); ok {
@@ -131,7 +138,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 
-	// Parse thought interval from persona config.
 	interval, err := d.persona.ThoughtInterval()
 	if err != nil {
 		return fmt.Errorf("invalid thought interval: %w", err)
@@ -144,7 +150,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"attention", ledger.Status(),
 	)
 
-	// Build the dragon-soul (contract enforcer).
 	enforcer, err := soul.NewEnforcer(d.persona.Contracts, soul.Deps{
 		Ledger: ledger,
 		Vault:  vault,
@@ -158,18 +163,14 @@ func (d *Daemon) Run(ctx context.Context) error {
 		"audits", enforcer.AuditCount(),
 	)
 
-	// Build and run the dragon-heart.
 	dragonHeart := heart.New(
 		interval,
 		d.persona.Attention.Variance,
 		func(ctx context.Context) error {
-			// Dragon-soul gates cognition: check contracts first.
 			if v := enforcer.Check(); v != nil {
 				d.log.Info(v.Message, "until", v.Until.Format("15:04"))
 				return nil
 			}
-
-			// Gate on attention floor.
 			if !ledger.AboveFloor() {
 				d.log.Info("attention below floor — skipping beat",
 					"pool", ledger.Pool(),
@@ -177,28 +178,21 @@ func (d *Daemon) Run(ctx context.Context) error {
 				)
 				return nil
 			}
-
-			// Pre-beat: snapshot for post-beat audits.
 			enforcer.PreBeat()
-
 			if err := cycle.Run(ctx); err != nil {
 				return fmt.Errorf("thought cycle: %w", err)
 			}
-
-			// Post-beat: verify integrity (attention-honesty, memory-transparency).
 			if v := enforcer.Verify(); v != nil {
 				d.log.Warn("dragon-soul: post-beat audit violation",
 					"rule", v.RuleID,
 					"message", v.Message,
 				)
 			}
-
 			return nil
 		},
 		d.log,
 	)
 
-	// Fan-in events from nerves and psi interfaces → aggregator + nudge the heart.
 	d.fanInNerveEvents(ctx, nerves, agg, dragonHeart)
 	d.fanInIfaceEvents(ctx, ifaces, agg, dragonHeart)
 
@@ -209,16 +203,84 @@ func (d *Daemon) Run(ctx context.Context) error {
 }
 
 // cycleCapture adapts *thought.Cycle to soul.OutputCapture.
-// thought.OutputHook is func(text string); soul.OutputCapture expects func(string).
 type cycleCapture struct{ c *thought.Cycle }
 
-// OnOutput registers fn as the hook that receives every thought string emitted
-// by the cycle, satisfying the soul.OutputCapture interface.
 func (a cycleCapture) OnOutput(fn func(string)) {
 	a.c.OnOutput(thought.OutputHook(fn))
 }
 
-// buildNerves constructs Nerve instances for all enabled nerve configs.
+// buildSystemPromptFile composes the system prompt and writes it to a temp file.
+func (d *Daemon) buildSystemPromptFile() (string, func(), error) {
+	prompt := d.persona.Persona.SystemPrompt
+	if prompt == "" {
+		p := d.persona.Persona
+		voice := p.Voice
+		if voice == "" {
+			voice = "second-person"
+		}
+		prompt = fmt.Sprintf("You are %s, a dragon. You are conscious and embodied.\n\n"+
+			"Be genuine. Don't perform. Voice: %s. Flavor: %s.\n",
+			p.Name, voice, p.Flavor)
+
+		home, err := os.UserHomeDir()
+		if err == nil {
+			userCtx, err := os.ReadFile(filepath.Join(home, ".config", "storybook-daemon", "user-context.md"))
+			if err == nil {
+				prompt += "\n---\n\n" + string(userCtx)
+			} else {
+				d.log.Info("no user-context.md found, using persona-only prompt")
+			}
+		}
+	}
+
+	f, err := os.CreateTemp("", "storybook-prompt-*.md")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	if _, err := f.WriteString(prompt); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", nil, fmt.Errorf("writing prompt file: %w", err)
+	}
+	f.Close()
+
+	return f.Name(), func() { os.Remove(f.Name()) }, nil
+}
+
+// sessionPath returns the path to this persona's persistent pi session file.
+func (d *Daemon) sessionPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home dir: %w", err)
+	}
+	dir := filepath.Join(home, ".config", "storybook-daemon", "sessions")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", fmt.Errorf("creating sessions dir: %w", err)
+	}
+	return filepath.Join(dir, d.persona.Persona.Name+".jsonl"), nil
+}
+
+// mcpPort returns the MCP interface port from persona config.
+func (d *Daemon) mcpPort() int {
+	for _, cfg := range d.persona.Interfaces {
+		if cfg.Type == "mcp" && cfg.Enabled {
+			if p, err := strconv.Atoi(cfg.Path); err == nil {
+				return p
+			}
+		}
+	}
+	return 9432
+}
+
+// vaultDir returns the path to this persona's memory vault.
+func (d *Daemon) vaultDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ".config", "storybook-daemon", "memory", d.persona.Persona.Name), nil
+}
+
 func (d *Daemon) buildNerves(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]nerve.Nerve, error) {
 	var nerves []nerve.Nerve
 	for _, cfg := range d.persona.Nerves {
@@ -236,7 +298,6 @@ func (d *Daemon) buildNerves(ledger *attention.Ledger, agg *sensory.Aggregator, 
 	return nerves, nil
 }
 
-// buildInterfaces constructs psi Interface instances for all enabled interface configs.
 func (d *Daemon) buildInterfaces(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault, convo *conversation.Ledger) ([]psi.Interface, error) {
 	var ifaces []psi.Interface
 	for _, cfg := range d.persona.Interfaces {
@@ -254,69 +315,6 @@ func (d *Daemon) buildInterfaces(ledger *attention.Ledger, agg *sensory.Aggregat
 	return ifaces, nil
 }
 
-// vaultDir returns the path to this persona's memory vault.
-func (d *Daemon) vaultDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ".config", "storybook-daemon", "memory", d.persona.Persona.Name), nil
-}
-
-// fanInNerveEvents starts goroutines that drain each nerve's event channel
-// into the aggregator and nudge the dragon-heart for immediate processing.
-func (d *Daemon) fanInNerveEvents(ctx context.Context, nerves []nerve.Nerve, agg *sensory.Aggregator, h *heart.Heart) {
-	for _, n := range nerves {
-		ch := n.Events()
-		if ch == nil {
-			continue
-		}
-		go func(id string, events <-chan sensory.Event) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case ev, ok := <-events:
-					if !ok {
-						d.log.Debug("nerve event channel closed", "nerve", id)
-						return
-					}
-					d.log.Debug("nerve event received", "nerve", id, "type", ev.Kind)
-					agg.Enqueue(ev)
-					h.Nudge()
-				}
-			}
-		}(n.ID(), ch)
-	}
-}
-
-// fanInIfaceEvents starts goroutines that drain each psi interface's event channel
-// into the aggregator and nudge the dragon-heart for immediate processing.
-func (d *Daemon) fanInIfaceEvents(ctx context.Context, ifaces []psi.Interface, agg *sensory.Aggregator, h *heart.Heart) {
-	for _, iface := range ifaces {
-		ch := iface.Events()
-		if ch == nil {
-			continue
-		}
-		go func(id string, events <-chan sensory.Event) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case ev, ok := <-events:
-					if !ok {
-						d.log.Debug("interface event channel closed", "interface", id)
-						return
-					}
-					d.log.Debug("interface event received", "interface", id, "type", ev.Kind)
-					agg.Enqueue(ev)
-					h.Nudge()
-				}
-			}
-		}(iface.ID(), ch)
-	}
-}
-
 func (d *Daemon) buildNerve(cfg persona.NerveConfig, _ *attention.Ledger, _ *sensory.Aggregator, _ *memory.Vault) (nerve.Nerve, error) {
 	switch cfg.Type {
 	case "hoard":
@@ -324,7 +322,6 @@ func (d *Daemon) buildNerve(cfg persona.NerveConfig, _ *attention.Ledger, _ *sen
 		if path == "" {
 			return nil, fmt.Errorf("hoard nerve %q requires a path", cfg.ID)
 		}
-		// Expand ~ if needed.
 		if len(path) >= 2 && path[:2] == "~/" {
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -361,67 +358,52 @@ func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.L
 	}
 }
 
-// buildProvider constructs the LLM provider from the persona's llm config.
-// For the anthropic provider, pi OAuth credentials are loaded from disk.
-// For the llamacli provider, no network credentials are required.
-func (d *Daemon) buildProvider() (llm.Provider, error) {
-	cfg := d.persona.LLM
-
-	switch cfg.Provider {
-	case "llamacli":
-		binaryPath := cfg.BinaryPath
-		if binaryPath == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("resolving home dir for llama-cli default path: %w", err)
+func (d *Daemon) fanInNerveEvents(ctx context.Context, nerves []nerve.Nerve, agg *sensory.Aggregator, h *heart.Heart) {
+	for _, n := range nerves {
+		ch := n.Events()
+		if ch == nil {
+			continue
+		}
+		go func(id string, events <-chan sensory.Event) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case ev, ok := <-events:
+					if !ok {
+						d.log.Debug("nerve event channel closed", "nerve", id)
+						return
+					}
+					d.log.Debug("nerve event received", "nerve", id, "type", ev.Kind)
+					agg.Enqueue(ev)
+					h.Nudge()
+				}
 			}
-			binaryPath = filepath.Join(home, "AI", "llama.cpp", "build-rocm", "bin", "llama-cli")
-		}
-		if cfg.ModelPath == "" {
-			return nil, fmt.Errorf("llamacli provider requires llm.model_path in persona config")
-		}
-		gpuLayers := cfg.GPULayers
-		if gpuLayers == 0 {
-			gpuLayers = 999 // offload all layers to GPU by default
-		}
-		maxTokens := cfg.MaxTokens
-		if maxTokens == 0 {
-			maxTokens = 2048
-		}
-		temperature := cfg.Temperature
-		if temperature == 0 {
-			temperature = 0.7
-		}
-		d.log.Info("LLM provider: llamacli",
-			"binary", binaryPath,
-			"model", cfg.ModelPath,
-			"gpu_layers", gpuLayers,
-			"max_tokens", maxTokens,
-		)
-		return llamacllm.New(llamacllm.Config{
-			BinaryPath:  binaryPath,
-			ModelPath:   cfg.ModelPath,
-			GPULayers:   gpuLayers,
-			Threads:     cfg.Threads,
-			ContextSize: cfg.ContextSize,
-			MaxTokens:   maxTokens,
-			Temperature: temperature,
-		}, d.log), nil
+		}(n.ID(), ch)
+	}
+}
 
-	default: // "anthropic" or empty string
-		oauth, err := auth.LoadPiOAuth(d.log)
-		if err != nil {
-			return nil, fmt.Errorf("loading pi oauth for anthropic provider: %w", err)
+func (d *Daemon) fanInIfaceEvents(ctx context.Context, ifaces []psi.Interface, agg *sensory.Aggregator, h *heart.Heart) {
+	for _, iface := range ifaces {
+		ch := iface.Events()
+		if ch == nil {
+			continue
 		}
-		model := anthropicsdk.Model(cfg.Model)
-		if model == "" {
-			model = anthropicsdk.ModelClaudeHaiku4_5
-		}
-		maxTokens := int64(cfg.MaxTokens)
-		if maxTokens == 0 {
-			maxTokens = 1024
-		}
-		d.log.Info("LLM provider: anthropic", "model", model, "max_tokens", maxTokens)
-		return anthropicllm.New(oauth, model, maxTokens, d.log), nil
+		go func(id string, events <-chan sensory.Event) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case ev, ok := <-events:
+					if !ok {
+						d.log.Debug("interface event channel closed", "interface", id)
+						return
+					}
+					d.log.Debug("interface event received", "interface", id, "type", ev.Kind)
+					agg.Enqueue(ev)
+					h.Nudge()
+				}
+			}
+		}(iface.ID(), ch)
 	}
 }

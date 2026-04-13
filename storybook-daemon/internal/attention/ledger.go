@@ -26,7 +26,6 @@ type Ledger struct {
 	max       int     // maximum pool size (starting pool)
 	floor     int     // minimum before ticker pauses
 	rate      float64 // units per hour regeneration
-	costs     persona.CostConfig
 	lastRegen time.Time
 	audit     []AuditEntry // dragon-soul: attention honesty trail
 	log       *slog.Logger
@@ -39,7 +38,6 @@ func New(cfg *persona.Persona, log *slog.Logger) *Ledger {
 		max:       cfg.Attention.Pool,
 		floor:     cfg.Attention.Floor,
 		rate:      float64(cfg.Attention.Rate),
-		costs:     cfg.Costs,
 		lastRegen: time.Now(),
 		log:       log,
 	}
@@ -93,21 +91,6 @@ func (l *Ledger) DrainAudit() []AuditEntry {
 	l.audit = nil
 	return entries
 }
-
-// SpendThink deducts the configured think cost.
-func (l *Ledger) SpendThink() error { return l.Spend("think", l.costs.Think) }
-
-// SpendSpeak deducts the configured speak cost.
-func (l *Ledger) SpendSpeak() error { return l.Spend("speak", l.costs.Speak) }
-
-// SpendRemember deducts the configured remember cost.
-func (l *Ledger) SpendRemember() error { return l.Spend("remember", l.costs.Remember) }
-
-// SpendSearch deducts the configured search cost.
-func (l *Ledger) SpendSearch() error { return l.Spend("search", l.costs.Search) }
-
-// SpendPerceive deducts the configured perceive cost.
-func (l *Ledger) SpendPerceive() error { return l.Spend("perceive", l.costs.Perceive) }
 
 // regen adds regenerated attention based on elapsed time.
 // Must be called with l.mu held.
