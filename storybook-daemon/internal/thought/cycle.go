@@ -99,6 +99,11 @@ func (c *Cycle) Run(ctx context.Context) error {
 			if strings.TrimSpace(text) != "" {
 				_, _ = fmt.Fprintf(os.Stdout, "\n[%s thought] %s\n", c.persona.Persona.Name, text)
 				c.fireOutput(text)
+				if c.convo != nil {
+					c.convo.Append(conversation.Entry{
+						Role: c.persona.Persona.Name, Content: text, Source: "thought",
+					})
+				}
 			}
 		},
 		func(call llm.ToolCall) (string, bool) {
