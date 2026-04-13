@@ -16,6 +16,7 @@ import (
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/conversation"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
 	anthropicllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/anthropic"
@@ -77,6 +78,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	d.log.Info("memory vault open", "dir", vault.VaultDir())
 
+	convo := conversation.New(d.persona.Attention.ConversationBudget, vault, d.log)
+	defer convo.CompactAll()
+
 	// Build and start nerves — sensory connectors to external systems.
 	nerves, err := d.buildNerves(ledger, agg, vault)
 	if err != nil {
@@ -98,7 +102,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}()
 
 	// Build and start psi interfaces — communication surfaces exposed to the world.
-	ifaces, err := d.buildInterfaces(ledger, agg, vault)
+	ifaces, err := d.buildInterfaces(ledger, agg, vault, convo)
 	if err != nil {
 		return fmt.Errorf("building interfaces: %w", err)
 	}
@@ -117,7 +121,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
-	cycle := thought.New(d.persona, ledger, agg, nerves, vault, provider, d.log)
+	cycle := thought.New(d.persona, ledger, agg, nerves, vault, convo, provider, d.log)
 
 	// Wire thought output to psi interfaces that act as output sinks (e.g. SSE stream).
 	cycleOut := cycleCapture{c: cycle}
@@ -233,14 +237,14 @@ func (d *Daemon) buildNerves(ledger *attention.Ledger, agg *sensory.Aggregator, 
 }
 
 // buildInterfaces constructs psi Interface instances for all enabled interface configs.
-func (d *Daemon) buildInterfaces(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]psi.Interface, error) {
+func (d *Daemon) buildInterfaces(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault, convo *conversation.Ledger) ([]psi.Interface, error) {
 	var ifaces []psi.Interface
 	for _, cfg := range d.persona.Interfaces {
 		if !cfg.Enabled {
 			d.log.Info("interface disabled", "id", cfg.ID)
 			continue
 		}
-		iface, err := d.buildInterface(cfg, ledger, agg, vault)
+		iface, err := d.buildInterface(cfg, ledger, agg, vault, convo)
 		if err != nil {
 			return nil, fmt.Errorf("building interface %s: %w", cfg.ID, err)
 		}
@@ -334,7 +338,7 @@ func (d *Daemon) buildNerve(cfg persona.NerveConfig, _ *attention.Ledger, _ *sen
 	}
 }
 
-func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) (psi.Interface, error) {
+func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault, convo *conversation.Ledger) (psi.Interface, error) {
 	switch cfg.Type {
 	case "sse":
 		port := 7432
@@ -343,7 +347,7 @@ func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.L
 				port = p
 			}
 		}
-		return psisse.New(cfg.ID, port, ledger, agg, d.log), nil
+		return psisse.New(cfg.ID, port, ledger, agg, convo, d.log), nil
 	case "mcp":
 		port := 9000
 		if cfg.Path != "" {
@@ -351,7 +355,7 @@ func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.L
 				port = p
 			}
 		}
-		return psimcp.New(cfg.ID, port, vault, ledger, d.log), nil
+		return psimcp.New(cfg.ID, port, vault, ledger, convo, d.log), nil
 	default:
 		return nil, fmt.Errorf("unsupported interface type %q (supported: sse, mcp)", cfg.Type)
 	}

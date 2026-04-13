@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/conversation"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 )
@@ -25,6 +26,7 @@ type Interface struct {
 	port   int
 	ledger *attention.Ledger
 	agg    *sensory.Aggregator
+	convo  *conversation.Ledger
 	log    *slog.Logger
 
 	mu      sync.Mutex
@@ -37,12 +39,13 @@ type Interface struct {
 
 // New creates an SSE Interface. Wire must be called before Start to connect
 // the thought stream.
-func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, log *slog.Logger) *Interface {
+func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, convo *conversation.Ledger, log *slog.Logger) *Interface {
 	return &Interface{
 		id:      id,
 		port:    port,
 		ledger:  ledger,
 		agg:     agg,
+		convo:   convo,
 		log:     log,
 		clients: make(map[chan string]struct{}),
 		events:  make(chan sensory.Event, 16),
@@ -242,6 +245,11 @@ func (b *Interface) handleMessage(w http.ResponseWriter, r *http.Request) {
 		// Channel full — enqueue directly so the message isn't lost.
 		b.agg.Enqueue(ev)
 		b.log.Warn("sse: event channel full, message enqueued without nudge")
+	}
+	if b.convo != nil {
+		b.convo.Append(conversation.Entry{
+			Role: "dot", Content: req.Text, Source: "sse",
+		})
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

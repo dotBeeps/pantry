@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/conversation"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/nerve"
@@ -29,6 +30,7 @@ type Cycle struct {
 	sensory     *sensory.Aggregator
 	nerves      map[string]nerve.Nerve
 	vault       *memory.Vault
+	convo       *conversation.Ledger
 	provider    llm.Provider
 	log         *slog.Logger
 	outputHooks []OutputHook
@@ -41,6 +43,7 @@ func New(
 	agg *sensory.Aggregator,
 	nerves []nerve.Nerve,
 	vault *memory.Vault,
+	convo *conversation.Ledger,
 	provider llm.Provider,
 	log *slog.Logger,
 ) *Cycle {
@@ -54,6 +57,7 @@ func New(
 		sensory:  agg,
 		nerves:   nerveMap,
 		vault:    vault,
+		convo:    convo,
 		provider: provider,
 		log:      log,
 	}
@@ -187,6 +191,13 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 		}
 	}
 
+	// Conversation context.
+	if c.convo != nil {
+		if convoBlock := c.convo.Render(); convoBlock != "" {
+			sb.WriteString(convoBlock)
+		}
+	}
+
 	if len(snap.NerveStates) > 0 {
 		sb.WriteString("### Nerve States\n\n")
 		for _, ns := range snap.NerveStates {
@@ -288,6 +299,11 @@ func (c *Cycle) dispatchTool(ctx context.Context, call llm.ToolCall) (string, in
 		content, _ := args["content"].(string)
 		_, _ = fmt.Fprintf(os.Stdout, "\n🔥 [%s speaks] %s\n", c.persona.Persona.Name, content)
 		c.fireOutput(content)
+		if c.convo != nil {
+			c.convo.Append(conversation.Entry{
+				Role: c.persona.Persona.Name, Content: content, Source: "thought",
+			})
+		}
 		return "spoken", costs.Speak, nil
 
 	case "remember":

@@ -50,11 +50,12 @@ type Config struct {
 
 // AttentionConfig holds attention economy parameters.
 type AttentionConfig struct {
-	Pool            int     `yaml:"pool"`             // starting attention units
-	Rate            int     `yaml:"rate"`             // regeneration per hour
-	Floor           int     `yaml:"floor"`            // never dispatch below this
-	ThoughtInterval string  `yaml:"thought_interval"` // duration string e.g. "15m"
-	Variance        float64 `yaml:"variance"`         // jitter factor e.g. 0.2 = ±20%
+	Pool               int     `yaml:"pool"`                // starting attention units
+	Rate               int     `yaml:"rate"`                // regeneration per hour
+	Floor              int     `yaml:"floor"`               // never dispatch below this
+	ThoughtInterval    string  `yaml:"thought_interval"`    // duration string e.g. "15m"
+	Variance           float64 `yaml:"variance"`            // jitter factor e.g. 0.2 = ±20%
+	ConversationBudget int     `yaml:"conversation_budget"` // token budget for conversation ledger (default 2000)
 }
 
 // CostConfig maps action names to their attention costs.

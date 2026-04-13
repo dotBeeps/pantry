@@ -53,7 +53,7 @@ func setupIface(t *testing.T) (*mcpiface.Interface, int) {
 	// Use port 0 to let OS pick a free port — but the Interface uses a fixed addr
 	// string, so we pick a high ephemeral port to reduce collision risk.
 	port := 19384
-	b := mcpiface.New("test-mcp", port, vault, ledger, log)
+	b := mcpiface.New("test-mcp", port, vault, ledger, nil, log)
 
 	return b, port
 }
