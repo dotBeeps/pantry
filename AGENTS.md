@@ -24,7 +24,7 @@ ETHICS.md has been co-signed by both parties and is not advisory — it is bindi
 - **sse** — HTTP+SSE interface exposing the thought stream, attention state, and direct-message channel. Psi (the Qt desktop app) connects here.
 - **mcp** — Model Context Protocol server exposing memory vault, attention state, quest dispatch, and stone brokering to external AI coding tools (Claude Code, pi).
 
-**psi/** is the Qt 6/QML desktop application — the primary visual interface for the hoard. Connects to the daemon via SSE for the thought stream and state polling. Sub-project 1 (core shell + Ember chat) is complete.
+**psi/** is the Qt 6/QML desktop application — the primary visual interface for the hoard. Connects to each persona via both SSE (thought stream, state, message ingestion) and MCP (memory, stone, quest participation, session registration). Sub-project 1 ✅ (core shell), sub-project 2 ✅ (dual SSE+MCP connection, conversation ledger, unified ConversationStream, typed delegates for dot/ally/quest/summary entries).
 
 **berrygems/** — delicious bite-sized knowledge, hardened into programmatic tools for the agent to use through her pi body. Pi extensions (TypeScript) providing carbon tracking, custom digestion, permission guards, panel systems, and more. We own, maintain, and forge these — when we hit technical roadblocks, this is often the go-to area to level up in.
 
@@ -151,15 +151,15 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 ### storybook-daemon
 
-|     | component        | description                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🐣  | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), hoard nerve (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, llamacli + anthropic LLM providers. Pluggable personas (YAML; Ember + Maren). Phases 1-2 ✅, soul shore-up ✅, multi-persona ✅, MCP psi ✅, SSE psi ✅ (thought stream + message nudge), local LLM ✅ (llamacli provider). Phase 3: pi session + shell nerves 🐣 |
+|     | component        | description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔥  | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), hoard nerve (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, conversation ledger (vault-compacting output capture). **Pi IS the persona** — each beat spawns `pi --mode text` with a persistent session file; pi owns inference, tools, multi-turn context, and auth. Pluggable personas (YAML; Ember + Maren). Phases 1-4 ✅, pi-as-persona ✅. Phase 6: shell nerves 🐣 |
 
 ### psi
 
-|     | component | description                                                                                                                                                                                                                                                                      |
-| --- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🐣  | psi       | Qt 6/QML desktop app — Ember's visual interface. Sub-project 1 ✅ (core shell, SSE connection, thought stream, input bar, state panel, Ember theme). Next: interactive chat sessions (keep context across beats), show user messages in stream, session management, panel system |
+|     | component | description                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔥  | psi       | Qt 6/QML desktop app — Ember's visual interface. Sub-project 1 ✅ (core shell), sub-project 2 ✅ (dual SSE+MCP, McpClient JSON-RPC, StonePoller long-poll thread, ConversationModel with typed delegates for thought/dot/ally/quest/summary, unified ConversationStream, dual connection status, optimistic dot-message display). Next: SessionRail multi-persona tabs, Active Quests panel, quest dispatch from UI |
 
 ### dragon-cubed
 
@@ -169,9 +169,9 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 ### dragon-forge
 
-|     | component    | description                                                                                                                                                                                                                                                                                                                                           |
-| --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🐣  | dragon-forge | Fine-tuning pipeline for Ember's voice — Python/uv, Unsloth LoRA on Qwen 2.5 7B Instruct, ROCm. Extracts dragon-register pairs from Claude Code sessions (1.5k+), seeds containment register (22 role-coded exchanges), two-layer persona + user-context spec. Phases 1–3 ✅, Phase 4 (train.py) 🥚. Target: `llamacli` provider in storybook-daemon. |
+|     | component    | description                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | dragon-forge | Fine-tuning pipeline for Ember's voice — Python/uv, Unsloth LoRA on Qwen 2.5 7B Instruct, ROCm. Extracts dragon-register pairs from Claude Code sessions (1.5k+), seeds containment register (22 role-coded exchanges), two-layer persona + user-context spec. Phases 1–3 ✅, Phase 4 (train.py) 🥚. Target: a local-model pi backend for the storybook-daemon persona (pi handles inference — see pi-as-persona design). |
 
 ### Hoard Infrastructure
 
@@ -205,13 +205,12 @@ hoard/
 │   ├── rumble/       Baritone extension (Kotlin, Gradle)
 │   └── AGENTS.md     Body-specific agent instructions
 ├── psi/              Qt 6/QML desktop app (Ember's visual interface)
-│   ├── src/          C++ backend (SseConnection, ThoughtModel, DaemonState, ThemeEngine)
-│   ├── qml/          QML components (Main, ThoughtStream, InputBar, StatePanel, etc.)
+│   ├── src/          C++ backend (SseConnection, McpClient, StonePoller, ConversationModel, DaemonState, ThemeEngine)
+│   ├── qml/          QML components (Main, ConversationStream, delegates for thought/dot/ally/quest/summary, InputBar, StatePanel, SessionRail)
 │   └── CMakeLists.txt
 ├── storybook-daemon/    Go persona daemon (the formless core)
 │   ├── cmd/          Cobra CLI (run / run-all --all / run-all --personas a,b)
-│   ├── internal/     Core packages (auth, persona, attention, sensory, nerve, psi, memory, thought, heart, soul, daemon)
-│   ├── personas/     YAML persona configs (ember.yaml, maren.yaml)
+│   ├── internal/     Core packages (persona, attention, sensory, nerve, psi, memory, thought, heart, soul, daemon, conversation, stone, quest, storybook, consent)
 │   ├── AGENTS.md     Daemon-specific agent instructions
 │   ├── main.go
 │   └── go.mod
