@@ -102,7 +102,6 @@ Rectangle {
         ThoughtDelegate {
             required property string typeLabel
             required property string content
-            required property date timestamp
             type: typeLabel
             text: content
         }

@@ -4,6 +4,12 @@ import QtQuick.Layouts
 Item {
     id: delegateRoot
 
+    // These were previously injected as required properties by ThoughtStream's
+    // delegate declaration. Now declared here so ThoughtDelegate is self-contained.
+    property string type: ""
+    property string text: ""
+    property string nerve: ""
+
     implicitHeight: row.implicitHeight + 8
 
     readonly property color typeColor: {
