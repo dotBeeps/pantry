@@ -12,12 +12,19 @@ ETHICS.md has been co-signed by both parties and is not advisory — it is bindi
 
 ### The Dragon — Architecture
 
-**storybook-daemon/** is the formless core — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, attention economy, and deterministic ethical contract enforcement. It connects to **bodies** that give it form in different environments.
+**storybook-daemon/** is the formless core — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, attention economy, and deterministic ethical contract enforcement. It connects to **nerves** (sensory connectors to external systems) and exposes **psi interfaces** (communication surfaces to the outside world).
 
-**Bodies** are how the daemon interacts with the world. The daemon can either **inhabit** a body (active — the daemon IS the session) or **direct** it (passive — the daemon sends instructions, spawns subagents). This keeps core context clean of working noise.
+**Nerves** carry perception inward and action outward. They bridge the daemon to tools, repositories, and environments — sensing state and executing actions.
 
-- **dragon** (pi body) — gives the daemon control of pi instances. Used for research, coding with dot, or anytime she needs access to a berrygem. Can be passive or active depending on what makes sense for core context.
-- **dragon-cubed** (Minecraft body) — LLM-controlled Minecraft agent. SoulGem (Go orchestrator) connects to Leylines (NeoForge mod) over WebSocket, with Rumble (Baritone extension) for pathfinding. See `dragon-cubed/AGENTS.md`.
+- **hoard** nerve — git repository sensing (fsnotify watcher, commit history, daily log)
+- **dragon-cubed** (planned) — Minecraft agent. SoulGem (Go orchestrator) connects to Leylines (NeoForge mod) over WebSocket, with Rumble (Baritone extension) for pathfinding. See `dragon-cubed/AGENTS.md`.
+
+**Psi interfaces** are named after psionics — the channel through which the daemon reaches outward and the world reaches in. Unlike nerves, psi interfaces are communication surfaces, not sensory connectors.
+
+- **sse** — HTTP+SSE interface exposing the thought stream, attention state, and direct-message channel. Psi (the Qt desktop app) connects here.
+- **mcp** — Model Context Protocol server exposing memory vault, attention state, quest dispatch, and stone brokering to external AI coding tools (Claude Code, pi).
+
+**psi/** is the Qt 6/QML desktop application — the primary visual interface for the hoard. Connects to the daemon via SSE for the thought stream and state polling. Sub-project 1 (core shell + Ember chat) is complete.
 
 **berrygems/** — delicious bite-sized knowledge, hardened into programmatic tools for the agent to use through her pi body. Pi extensions (TypeScript) providing carbon tracking, custom digestion, permission guards, panel systems, and more. We own, maintain, and forge these — when we hit technical roadblocks, this is often the go-to area to level up in.
 
@@ -144,15 +151,21 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 ### storybook-daemon
 
-|     | component        | description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| --- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🐣  | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Pluggable personas (YAML configs; Ember + Maren ship as defaults). Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, multi-persona orchestration ✅ (storybook.go + run-all CLI), MCP body ✅ (register*session, memory*\*, attention_state, stone stubs), Phase 3: pi session + shell bodies 🐣, Phase 4: Qt/QML desktop window 🥚 |
+|     | component        | description                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), hoard nerve (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, llamacli + anthropic LLM providers. Pluggable personas (YAML; Ember + Maren). Phases 1-2 ✅, soul shore-up ✅, multi-persona ✅, MCP psi ✅, SSE psi ✅ (thought stream + message nudge), local LLM ✅ (llamacli provider). Phase 3: pi session + shell nerves 🐣 |
+
+### psi
+
+|     | component | description                                                                                                                                                                                                                                                                      |
+| --- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | psi       | Qt 6/QML desktop app — Ember's visual interface. Sub-project 1 ✅ (core shell, SSE connection, thought stream, input bar, state panel, Ember theme). Next: interactive chat sessions (keep context across beats), show user messages in stream, session management, panel system |
 
 ### dragon-cubed
 
-|     | component    | description                                                                                                                                                                                                            |
-| --- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🐣  | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `body.Body` interface. |
+|     | component    | description                                                                                                                                                                                                              |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🐣  | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `nerve.Nerve` interface. |
 
 ### dragon-forge
 
@@ -191,9 +204,13 @@ hoard/
 │   ├── leylines/     NeoForge mod (Kotlin, Gradle)
 │   ├── rumble/       Baritone extension (Kotlin, Gradle)
 │   └── AGENTS.md     Body-specific agent instructions
+├── psi/              Qt 6/QML desktop app (Ember's visual interface)
+│   ├── src/          C++ backend (SseConnection, ThoughtModel, DaemonState, ThemeEngine)
+│   ├── qml/          QML components (Main, ThoughtStream, InputBar, StatePanel, etc.)
+│   └── CMakeLists.txt
 ├── storybook-daemon/    Go persona daemon (the formless core)
 │   ├── cmd/          Cobra CLI (run / run-all --all / run-all --personas a,b)
-│   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, heart, soul, daemon)
+│   ├── internal/     Core packages (auth, persona, attention, sensory, nerve, psi, memory, thought, heart, soul, daemon)
 │   ├── personas/     YAML persona configs (ember.yaml, maren.yaml)
 │   ├── AGENTS.md     Daemon-specific agent instructions
 │   ├── main.go
@@ -281,6 +298,22 @@ cd storybook-daemon && go build -o storybook-daemon .
 - Skills with specific env requirements include a `compatibility` note (see `defuddle`, `git-auth`)
 - Keep SKILL.md under 500 lines; move reference material to `references/`
 
+### psi (Qt 6/QML)
+
+```bash
+# Configure + build — requires Qt 6.5+
+cd psi && cmake -B build && cmake --build build
+
+# Run (daemon must be running on :7432)
+./psi/build/psi
+```
+
+- Qt 6.5+ with Quick, Network, QuickControls2
+- C++ backend objects exposed to QML via context properties + `engine.load()`
+- Do NOT use `loadFromModule()` — context properties don't propagate in Qt 6.11 (see dead_ends.md)
+- Do NOT name context properties `State` — collides with `QtQuick.State`
+- Use `QVariantMap`/`QVariantList` at signal/property boundaries, not `QJsonObject`/`QJsonArray` (Qt 6.11)
+
 ### dragon-cubed
 
 ```bash
@@ -301,10 +334,11 @@ cd dragon-cubed && ./gradlew build
 1. `tsc --project berrygems/tsconfig.json` — zero errors
 2. `cd storybook-daemon && golangci-lint run ./...` — zero issues
 3. `cd storybook-daemon && go build ./...` — compiles clean
-4. `cd dragon-cubed/soulgem && go build ./...` — compiles clean
-5. `cd dragon-cubed && ./gradlew build` — Leylines + Rumble compile (requires JDK 21)
-6. Test extension changes with `/reload` in pi
-7. Skill frontmatter valid (`name` matches directory, `description` + `license: MIT` present; Pi-specific skills have `compatibility` set)
+4. `cd psi && cmake --build build` — compiles clean (if Qt changes)
+5. `cd dragon-cubed/soulgem && go build ./...` — compiles clean
+6. `cd dragon-cubed && ./gradlew build` — Leylines + Rumble compile (requires JDK 21)
+7. Test extension changes with `/reload` in pi
+8. Skill frontmatter valid (`name` matches directory, `description` + `license: MIT` present; Pi-specific skills have `compatibility` set)
 
 ## Pi Platform
 
