@@ -71,8 +71,18 @@ func (p *Provider) Run(
 
 	cmd := exec.CommandContext(ctx, p.cfg.BinaryPath, args...)
 
-	// Pin to the discrete GPU — without this, ROCm may try the iGPU and segfault.
-	cmd.Env = append(os.Environ(), "HIP_VISIBLE_DEVICES=0")
+	// Pin to the discrete GPU (device 0 = 7900 XTX). Without this, ROCm detects
+	// the iGPU (gfx1036 APU) alongside the dGPU and llama-cli segfaults.
+	// Filter existing vars to avoid duplicates, then set at both HIP and ROCr layers.
+	env := make([]string, 0, len(os.Environ())+2)
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "HIP_VISIBLE_DEVICES=") &&
+			!strings.HasPrefix(e, "ROCR_VISIBLE_DEVICES=") {
+			env = append(env, e)
+		}
+	}
+	env = append(env, "HIP_VISIBLE_DEVICES=0", "ROCR_VISIBLE_DEVICES=0")
+	cmd.Env = env
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
