@@ -25,8 +25,8 @@ import (
 	hoardnerve "github.com/dotBeeps/hoard/storybook-daemon/internal/nerve/hoard"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi"
-	psidoggy "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/doggy"
 	psimcp "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/mcp"
+	psisse "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/sse"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/thought"
@@ -119,7 +119,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	cycle := thought.New(d.persona, ledger, agg, nerves, vault, provider, d.log)
 
-	// Wire thought output to psi interfaces that act as output sinks (e.g. doggy SSE stream).
+	// Wire thought output to psi interfaces that act as output sinks (e.g. SSE stream).
 	cycleOut := cycleCapture{c: cycle}
 	for _, iface := range ifaces {
 		if sink, ok := iface.(psi.OutputSink); ok {
@@ -336,14 +336,14 @@ func (d *Daemon) buildNerve(cfg persona.NerveConfig, _ *attention.Ledger, _ *sen
 
 func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) (psi.Interface, error) {
 	switch cfg.Type {
-	case "doggy":
+	case "sse":
 		port := 7432
 		if cfg.Path != "" {
 			if p, convErr := strconv.Atoi(cfg.Path); convErr == nil {
 				port = p
 			}
 		}
-		return psidoggy.New(cfg.ID, port, ledger, agg, d.log), nil
+		return psisse.New(cfg.ID, port, ledger, agg, d.log), nil
 	case "mcp":
 		port := 9000
 		if cfg.Path != "" {
@@ -353,7 +353,7 @@ func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.L
 		}
 		return psimcp.New(cfg.ID, port, vault, ledger, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported interface type %q (supported: doggy, mcp)", cfg.Type)
+		return nil, fmt.Errorf("unsupported interface type %q (supported: sse, mcp)", cfg.Type)
 	}
 }
 

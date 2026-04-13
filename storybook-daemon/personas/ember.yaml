@@ -48,8 +48,8 @@ nerves:
     enabled: true
 
 interfaces:
-  - id: doggy
-    type: doggy
+  - id: sse
+    type: sse
     # port number as string
     path: "7432"
     enabled: true

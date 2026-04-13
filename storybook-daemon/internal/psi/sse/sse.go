@@ -1,7 +1,7 @@
-// Package doggy implements the HTTP+SSE psi interface that exposes the daemon's
+// Package sse implements the HTTP+SSE psi interface that exposes the daemon's
 // thought stream, attention state, and direct-message ingestion over a local
 // HTTP server. This is dot's control surface — her window into the daemon.
-package doggy
+package sse
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/soul"
 )
 
-// Interface is the doggy HTTP+SSE psi interface. It exposes the daemon's thought
+// Interface is the SSE HTTP+SSE psi interface. It exposes the daemon's thought
 // stream, attention state, and a direct-message channel to dot.
 type Interface struct {
 	id     string
@@ -34,7 +34,7 @@ type Interface struct {
 	cancel context.CancelFunc
 }
 
-// New creates a doggy Interface. Wire must be called before Start to connect
+// New creates an SSE Interface. Wire must be called before Start to connect
 // the thought stream.
 func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator, log *slog.Logger) *Interface {
 	return &Interface{
@@ -47,7 +47,7 @@ func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator,
 	}
 }
 
-// Wire connects the doggy interface to the thought cycle output stream.
+// Wire connects the SSE interface to the thought cycle output stream.
 // Call this after the thought cycle is created, before the heart starts.
 func (b *Interface) Wire(capture soul.OutputCapture) {
 	capture.OnOutput(func(text string) {
@@ -59,7 +59,7 @@ func (b *Interface) Wire(capture soul.OutputCapture) {
 func (b *Interface) ID() string { return b.id }
 
 // Type returns the static discriminator string for this interface kind.
-func (b *Interface) Type() string { return "doggy" }
+func (b *Interface) Type() string { return "sse" }
 
 // Events returns nil — inbound messages are pushed directly to the aggregator
 // via POST /message rather than via an events channel.
@@ -83,9 +83,9 @@ func (b *Interface) Start(ctx context.Context) error {
 	b.cancel = cancel
 
 	go func() {
-		b.log.Info("doggy: listening", "port", b.port)
+		b.log.Info("sse: listening", "port", b.port)
 		if err := b.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			b.log.Error("doggy: server error", "err", err)
+			b.log.Error("sse: server error", "err", err)
 		}
 	}()
 
@@ -94,7 +94,7 @@ func (b *Interface) Start(ctx context.Context) error {
 		shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutCancel()
 		if err := b.server.Shutdown(shutCtx); err != nil { //nolint:contextcheck // Stop() has no ctx param; shutdown needs its own budget
-			b.log.Error("doggy: shutdown error", "err", err)
+			b.log.Error("sse: shutdown error", "err", err)
 		}
 	}()
 
@@ -129,7 +129,7 @@ func (b *Interface) removeClient(ch chan string) {
 func (b *Interface) broadcastJSON(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
-		b.log.Error("doggy: broadcast marshal", "err", err)
+		b.log.Error("sse: broadcast marshal", "err", err)
 		return
 	}
 	msg := "data: " + string(data)
@@ -202,7 +202,7 @@ func (b *Interface) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(snap); err != nil {
-		b.log.Error("doggy: state encode", "err", err)
+		b.log.Error("sse: state encode", "err", err)
 	}
 }
 
@@ -227,7 +227,7 @@ func (b *Interface) handleMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.agg.Enqueue(sensory.Event{
-		Source:  "doggy",
+		Source:  "sse",
 		Kind:    "message",
 		Content: req.Text,
 		At:      time.Now(),

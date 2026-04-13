@@ -22,7 +22,7 @@ type Interface interface {
 	// ID returns the interface's configured identifier (matches persona YAML).
 	ID() string
 
-	// Type returns the interface type string (e.g. "doggy", "mcp").
+	// Type returns the interface type string (e.g. "sse", "mcp").
 	Type() string
 
 	// Start initialises the interface's runtime resources (HTTP servers, etc.).

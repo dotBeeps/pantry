@@ -1,4 +1,4 @@
-package doggy_test
+package sse_test
 
 import (
 	"bufio"
@@ -19,7 +19,7 @@ import (
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi/doggy"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi/sse"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 )
 
@@ -39,7 +39,7 @@ func (s *stubCapture) fire(text string) {
 	}
 }
 
-// freePort grabs an ephemeral port and immediately releases it so the doggy
+// freePort grabs an ephemeral port and immediately releases it so the SSE
 // server can bind to it. The kernel may reassign the port between Close and
 // Listen; this is acceptable for tests.
 func freePort(t *testing.T) int {
@@ -69,7 +69,7 @@ func minimalLedger() *attention.Ledger {
 	return attention.New(p, slog.Default())
 }
 
-// startTestIface starts a real doggy server on a free port and returns its base URL.
+// startTestIface starts a real SSE server on a free port and returns its base URL.
 // The server is stopped via t.Cleanup.
 func startTestIface(t *testing.T) string {
 	t.Helper()
@@ -79,15 +79,15 @@ func startTestIface(t *testing.T) string {
 	return base
 }
 
-// startTestIfaceFull is like startTestIface but also returns the *doggy.Interface so
+// startTestIfaceFull is like startTestIface but also returns the *sse.Interface so
 // callers can call Wire or inspect it directly.
-func startTestIfaceFull(t *testing.T) (*doggy.Interface, string) {
+func startTestIfaceFull(t *testing.T) (*sse.Interface, string) {
 	t.Helper()
 
 	port := freePort(t)
 	ledger := minimalLedger()
 	agg := sensory.New(20)
-	b := doggy.New("test", port, ledger, agg, slog.Default())
+	b := sse.New("test", port, ledger, agg, slog.Default())
 
 	require.NoError(t, b.Start(context.Background()))
 
@@ -109,14 +109,14 @@ func startTestIfaceFull(t *testing.T) (*doggy.Interface, string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	t.Fatal("doggy server did not start in time")
+	t.Fatal("sse server did not start in time")
 
 	return nil, ""
 }
 
-// TestDoggy_GetState verifies that GET /state returns 200 with JSON containing
+// TestSSE_GetState verifies that GET /state returns 200 with JSON containing
 // an "attention" field.
-func TestDoggy_GetState(t *testing.T) {
+func TestSSE_GetState(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -134,8 +134,8 @@ func TestDoggy_GetState(t *testing.T) {
 	assert.Contains(t, payload, "attention", "response body must have 'attention' field")
 }
 
-// TestDoggy_GetState_MethodNotAllowed verifies that POST /state is rejected.
-func TestDoggy_GetState_MethodNotAllowed(t *testing.T) {
+// TestSSE_GetState_MethodNotAllowed verifies that POST /state is rejected.
+func TestSSE_GetState_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -148,8 +148,8 @@ func TestDoggy_GetState_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
-// TestDoggy_PostMessage_OK verifies that a well-formed POST /message gets 204.
-func TestDoggy_PostMessage_OK(t *testing.T) {
+// TestSSE_PostMessage_OK verifies that a well-formed POST /message gets 204.
+func TestSSE_PostMessage_OK(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -164,8 +164,8 @@ func TestDoggy_PostMessage_OK(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 }
 
-// TestDoggy_PostMessage_EmptyText verifies that an empty text field yields 400.
-func TestDoggy_PostMessage_EmptyText(t *testing.T) {
+// TestSSE_PostMessage_EmptyText verifies that an empty text field yields 400.
+func TestSSE_PostMessage_EmptyText(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -180,8 +180,8 @@ func TestDoggy_PostMessage_EmptyText(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// TestDoggy_PostMessage_InvalidJSON verifies that malformed JSON yields 400.
-func TestDoggy_PostMessage_InvalidJSON(t *testing.T) {
+// TestSSE_PostMessage_InvalidJSON verifies that malformed JSON yields 400.
+func TestSSE_PostMessage_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -196,8 +196,8 @@ func TestDoggy_PostMessage_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// TestDoggy_PostMessage_MethodNotAllowed verifies that GET /message is rejected.
-func TestDoggy_PostMessage_MethodNotAllowed(t *testing.T) {
+// TestSSE_PostMessage_MethodNotAllowed verifies that GET /message is rejected.
+func TestSSE_PostMessage_MethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)
@@ -210,9 +210,9 @@ func TestDoggy_PostMessage_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
-// TestDoggy_Stream_ReceivesThought connects to GET /stream, fires a thought via
+// TestSSE_Stream_ReceivesThought connects to GET /stream, fires a thought via
 // an OutputCapture hook, and asserts the SSE event carries it.
-func TestDoggy_Stream_ReceivesThought(t *testing.T) {
+func TestSSE_Stream_ReceivesThought(t *testing.T) {
 	t.Parallel()
 
 	b, base := startTestIfaceFull(t)
@@ -267,9 +267,9 @@ func TestDoggy_Stream_ReceivesThought(t *testing.T) {
 	assert.Equal(t, wantText, text)
 }
 
-// TestDoggy_Stream_Headers checks that GET /stream sets the correct SSE headers
+// TestSSE_Stream_Headers checks that GET /stream sets the correct SSE headers
 // and responds with 200.
-func TestDoggy_Stream_Headers(t *testing.T) {
+func TestSSE_Stream_Headers(t *testing.T) {
 	t.Parallel()
 
 	base := startTestIface(t)

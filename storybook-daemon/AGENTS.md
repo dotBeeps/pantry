@@ -9,7 +9,7 @@
 
 The daemon runs independently of any single pi session. It persists, it remembers (Obsidian-compatible vault), it thinks (attention-gated thought cycles), and it enforces ethics (soul package — deterministic, not advisory).
 
-**Doggy** is the primary interface: a Qt/QML chat client connecting to one or more persona doggy psi interfaces via HTTP+SSE. Each agent gets a chat thread; tool invocations render in dedicated Qt windows. Agents can be proactive (heartbeat-driven) or reactive (message-triggered only).
+**Doggy** is the primary interface: a Qt/QML chat client connecting to one or more persona SSE psi interfaces via HTTP+SSE. Each agent gets a chat thread; tool invocations render in dedicated Qt windows. Agents can be proactive (heartbeat-driven) or reactive (message-triggered only).
 
 > **✅ Auth blocker resolved** — the `llm.Provider` abstraction decouples inference from Pi OAuth. Personas backed by `llamacli` (local llama-cli subprocess) require no network credentials and can run proactive heartbeat-driven thought cycles today. Anthropic-backed personas still require Pi OAuth (reactive path). See the `llm:` section of persona YAML.
 
@@ -17,8 +17,8 @@ The daemon runs independently of any single pi session. It persists, it remember
 
 - **The daemon IS the dragon** without a body. Everything else orbits it.
 - **Nerves** (`hoard`, others planned) are sensory connectors to external systems — git repos, GitHub, shell. They carry perception inward and action outward.
-- **Psi interfaces** (`doggy`, `mcp`) are communication surfaces the daemon exposes to the world — dot's chat window, MCP tool connections. Named after psionics: the channel through which the daemon reaches outward and the world reaches in.
-- **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded. Berrygems that currently render Pi-specific panels will have native Qt window equivalents in doggy.
+- **Psi interfaces** (`sse`, `mcp`) are communication surfaces the daemon exposes to the world — dot's chat window, MCP tool connections. Named after psionics: the channel through which the daemon reaches outward and the world reaches in.
+- **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded. Berrygems that currently render Pi-specific panels will have native Qt window equivalents in the Doggy Qt client.
 - **morsels** are portable knowledge. The daemon's thought cycles may reference morsel-level knowledge, but skills are consumed by the pi body, not the daemon directly.
 - **ETHICS.md** is the binding ethical contract. The `soul/` package enforces it deterministically. The `consent/` package manages risk-informed consent tiers. The `memory/` package respects private shelves. **These are not optional.**
 
@@ -38,7 +38,7 @@ storybook-daemon/
 │   │   ├── anthropic/     Anthropic SDK wrapper — multi-turn tool loop, Pi OAuth
 │   │   └── llamacli/      llama-cli subprocess — single-turn, DeepSeek R1 <think> parsing
 │   ├── psi/          Psi interfaces — communication surfaces exposed to the world
-│   │   ├── doggy/    HTTP+SSE dot interface (chat stream, state, message ingestion)
+│   │   ├── sse/      HTTP+SSE dot interface (chat stream, state, message ingestion)
 │   │   └── mcp/      MCP tool server (vault, attention, stone for CC/VSCode/etc.)
 │   ├── consent/      Consent state machine — risk tiers (low/med/high), dual-key
 │   ├── daemon/       Top-level orchestration, lifecycle, provider construction
@@ -88,7 +88,7 @@ The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics
 | 1 — Foundation       | ✅     | Persona loading, fsnotify nerve, vault memory, basic heart loop                                                                                                                                                                                                    |
 | 2 — Soul             | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                                                                                 |
 | 2.5 — Soul Shore-up  | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                                                                                 |
-| 3 — New Nerves + Psi | 🐣     | GitHub nerve ✅, doggy psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell nerves planned                                                       |
+| 3 — New Nerves + Psi | 🐣     | GitHub nerve ✅, SSE psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell nerves planned                                                         |
 | 3.5 — Local LLM      | ✅     | `internal/llm/` provider abstraction; `llamacli` backend (llama-cli subprocess, DeepSeek R1 `<think>` parsing, single-turn, GPU offload); `anthropic` backend extracted from cycle; `LLMConfig` in persona YAML; proactive ticking unblocked for llamacli personas |
 | 4 — Doggy Qt client  | 🥚     | Qt/QML chat client — multi-agent threads, tool windows, attention panel, input bar; berrygem panel tools migrated to native Qt windows                                                                                                                             |
 

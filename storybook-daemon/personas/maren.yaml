@@ -44,9 +44,9 @@ costs:
 nerves: []
 
 interfaces:
-  - id: doggy
-    type: doggy
-    # Different port from Ember's doggy — each persona gets its own endpoint
+  - id: sse
+    type: sse
+    # Different port from Ember's SSE — each persona gets its own endpoint
     path: "7433"
     enabled: true
 

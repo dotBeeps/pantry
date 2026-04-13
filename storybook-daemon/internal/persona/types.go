@@ -81,7 +81,7 @@ type NerveConfig struct {
 type InterfaceConfig struct {
 	ID      string `yaml:"id"`
 	Path    string `yaml:"path"`
-	Type    string `yaml:"type"` // doggy | mcp
+	Type    string `yaml:"type"` // sse | mcp
 	Enabled bool   `yaml:"enabled"`
 }
 
