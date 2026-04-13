@@ -50,7 +50,7 @@ func (sb *Storybook) Run(ctx context.Context) error {
 		pLog.Info("persona loaded",
 			"flavor", p.Persona.Flavor,
 			"interval", p.Attention.ThoughtInterval,
-			"bodies", len(p.Bodies),
+			"nerves", len(p.Nerves),
 		)
 
 		d := daemon.New(p, pLog)

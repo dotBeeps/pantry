@@ -1,0 +1,149 @@
+<h2>Memory Vault Panel — v2</h2>
+<p class="subtitle">New shelf button in sidebar, floating new entry button in content area</p>
+
+<div class="mockup">
+  <div class="mockup-header">Memory Vault — ember</div>
+  <div class="mockup-body" style="background:#1a1a2e; padding:0; font-family:monospace; font-size:12px; color:#ccc; min-height:560px; display:flex; position:relative;">
+
+    <!-- Left: shelf list + search -->
+    <div style="width:180px; background:#12121f; border-right:1px solid #2a2a3e; display:flex; flex-direction:column;">
+
+      <!-- Search -->
+      <div style="padding:10px; border-bottom:1px solid #2a2a3e;">
+        <div style="background:#1a1a2e; border:1px solid #2a2a3e; border-radius:4px; padding:6px 8px; color:#888; font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span style="color:#555;">⌕</span> search vault...
+        </div>
+      </div>
+
+      <!-- Shelf list -->
+      <div style="flex:1; overflow-y:auto; padding:6px;">
+
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:4px 8px; margin-bottom:2px;">Shelves</div>
+
+        <!-- Active shelf -->
+        <div style="background:#2a2410; border-radius:4px; padding:6px 8px; margin-bottom:2px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#e8a849;">observations</span>
+          <span style="color:#666; font-size:10px;">23</span>
+        </div>
+
+        <div style="padding:6px 8px; margin-bottom:2px; cursor:pointer; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#999;">decisions</span>
+          <span style="color:#555; font-size:10px;">8</span>
+        </div>
+
+        <div style="padding:6px 8px; margin-bottom:2px; cursor:pointer; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#999;">dot-context</span>
+          <span style="color:#555; font-size:10px;">12</span>
+        </div>
+
+        <div style="padding:6px 8px; margin-bottom:2px; cursor:pointer; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span style="color:#999;">private</span>
+            <span style="font-size:10px; color:#555;">🔒</span>
+          </div>
+          <span style="color:#555; font-size:10px;">3</span>
+        </div>
+
+        <div style="padding:6px 8px; margin-bottom:2px; cursor:pointer; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#999;">hoard-state</span>
+          <span style="color:#555; font-size:10px;">6</span>
+        </div>
+
+      </div>
+
+      <!-- Bottom: new shelf button -->
+      <div style="padding:8px; border-top:1px solid #2a2a3e;">
+        <div style="background:#1a1a2e; border:1px dashed #2a2a3e; border-radius:4px; padding:6px; text-align:center; color:#555; font-size:11px; cursor:pointer;">+ new shelf</div>
+      </div>
+    </div>
+
+    <!-- Right: entry list + detail -->
+    <div style="flex:1; display:flex; flex-direction:column; position:relative;">
+
+      <!-- Shelf header -->
+      <div style="padding:10px 14px; border-bottom:1px solid #2a2a3e; display:flex; justify-content:space-between; align-items:center;">
+        <div style="color:#e8a849; font-weight:600;">observations</div>
+        <div style="display:flex; gap:4px;">
+          <span style="background:#222; color:#888; font-size:10px; padding:2px 8px; border-radius:4px; cursor:pointer;">newest</span>
+          <span style="background:#12121f; color:#555; font-size:10px; padding:2px 8px; border-radius:4px; cursor:pointer;">oldest</span>
+        </div>
+      </div>
+
+      <!-- Entry list -->
+      <div style="flex:1; overflow-y:auto;">
+
+        <!-- Selected entry -->
+        <div style="background:#1a1a2e; border-left:3px solid #e8a849;">
+          <div style="padding:10px 14px; border-bottom:1px solid #2a2a3e; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="color:#fff; font-weight:500; font-size:12px;">dragon-forge export pipeline complete</span>
+              <span style="color:#555; font-size:10px;">2m ago</span>
+            </div>
+            <div style="color:#666; font-size:11px;">source: thought-cycle-1428 · cost: 25 attention</div>
+          </div>
+          <div style="padding:12px 14px; border-bottom:1px solid #2a2a3e;">
+            <div style="background:#12121f; border-radius:6px; padding:10px; color:#bbb; font-size:11px; line-height:1.6; margin-bottom:10px;">
+              Phase 6 export pipeline is operational. LoRA adapter merged into Hermes 3 8B base, converted to GGUF, quantized to Q6_K (6.6 GB). First inference on XTX hit 65.7 t/s generation. HIP_VISIBLE_DEVICES=0 is required — discovered segfault when ROCm tries the iGPU. ember-local.yaml persona created, daemon starts and completes thought cycles.
+            </div>
+            <div style="display:flex; gap:6px;">
+              <span style="background:#222; color:#888; font-size:10px; padding:4px 10px; border-radius:4px; cursor:pointer;">edit</span>
+              <span style="background:#222; color:#888; font-size:10px; padding:4px 10px; border-radius:4px; cursor:pointer;">move shelf</span>
+              <span style="background:#2a1212; color:#ef4444; font-size:10px; padding:4px 10px; border-radius:4px; cursor:pointer;">delete</span>
+              <div style="flex:1;"></div>
+              <span style="background:#222; color:#555; font-size:10px; padding:4px 10px; border-radius:4px;">id: obs-1428-03</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other entries (collapsed) -->
+        <div style="padding:10px 14px; border-bottom:1px solid #1a1a2e; cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="color:#ccc; font-size:12px;">psi brainstorm — panels selected</span>
+            <span style="color:#555; font-size:10px;">8m ago</span>
+          </div>
+          <div style="color:#666; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">dot selected all 7 panel concepts for psi. Decomposed into 4 sub-projects...</div>
+        </div>
+
+        <div style="padding:10px 14px; border-bottom:1px solid #1a1a2e; cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="color:#ccc; font-size:12px;">ally dispatch pattern effective</span>
+            <span style="color:#555; font-size:10px;">24m ago</span>
+          </div>
+          <div style="color:#666; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Subagent-driven development with sonnet coders and haiku reviewers...</div>
+        </div>
+
+        <div style="padding:10px 14px; border-bottom:1px solid #1a1a2e; cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="color:#ccc; font-size:12px;">HIP_VISIBLE_DEVICES required for llamacli</span>
+            <span style="color:#555; font-size:10px;">30m ago</span>
+          </div>
+          <div style="color:#666; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Without HIP_VISIBLE_DEVICES=0, ROCm detects the iGPU and segfaults...</div>
+        </div>
+
+        <div style="padding:10px 14px; cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="color:#ccc; font-size:12px;">maintenance block priorities</span>
+            <span style="color:#555; font-size:10px;">2d ago</span>
+          </div>
+          <div style="color:#666; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">6-item maintenance block then cross-model allies, local LLM, Qt...</div>
+        </div>
+
+      </div>
+
+      <!-- Floating new entry button -->
+      <div style="position:absolute; bottom:16px; right:16px; width:44px; height:44px; border-radius:12px; background:#e85d26; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 12px rgba(232,93,38,0.3); font-size:22px; color:white; font-weight:300;">+</div>
+
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <h3>Changes from v1</h3>
+  <ul style="color:#aaa; line-height:1.8;">
+    <li><strong>+ new shelf</strong> moved to bottom of sidebar — creates a shelf, not an entry</li>
+    <li><strong>Floating + button</strong> (bottom-right, ember orange) — creates a new entry on the current shelf</li>
+    <li><strong>FAB follows the active shelf</strong> — always adds to whatever shelf you're viewing</li>
+    <li><strong>Click FAB</strong> → inline editor appears at top of entry list with shelf pre-selected</li>
+  </ul>
+</div>

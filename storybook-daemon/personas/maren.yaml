@@ -41,7 +41,7 @@ costs:
   search: 10
   perceive: 5
 
-bodies: []
+nerves: []
 
 interfaces:
   - id: doggy

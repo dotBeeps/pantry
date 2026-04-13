@@ -50,7 +50,7 @@ Run 'pi login' first if you haven't already.`,
 			"name", p.Persona.Name,
 			"flavor", p.Persona.Flavor,
 			"interval", p.Attention.ThoughtInterval,
-			"bodies", len(p.Bodies),
+			"nerves", len(p.Nerves),
 		)
 
 		// Run daemon.

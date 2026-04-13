@@ -16,13 +16,13 @@ import (
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
-	hoardbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/hoard"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
 	anthropicllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/anthropic"
 	llamacllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/llamacli"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/nerve"
+	hoardnerve "github.com/dotBeeps/hoard/storybook-daemon/internal/nerve/hoard"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi"
 	psidoggy "github.com/dotBeeps/hoard/storybook-daemon/internal/psi/doggy"
@@ -77,22 +77,22 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	d.log.Info("memory vault open", "dir", vault.VaultDir())
 
-	// Build and start bodies — external systems the daemon inhabits.
-	bodies, err := d.buildBodies(ledger, agg, vault)
+	// Build and start nerves — sensory connectors to external systems.
+	nerves, err := d.buildNerves(ledger, agg, vault)
 	if err != nil {
-		return fmt.Errorf("building bodies: %w", err)
+		return fmt.Errorf("building nerves: %w", err)
 	}
-	var startedBodies []body.Body
-	for _, b := range bodies {
-		if err := b.Start(ctx); err != nil {
-			return fmt.Errorf("starting body %s: %w", b.ID(), err)
+	var startedNerves []nerve.Nerve
+	for _, n := range nerves {
+		if err := n.Start(ctx); err != nil {
+			return fmt.Errorf("starting nerve %s: %w", n.ID(), err)
 		}
-		startedBodies = append(startedBodies, b)
+		startedNerves = append(startedNerves, n)
 	}
 	defer func() {
-		for _, b := range startedBodies {
-			if err := b.Stop(); err != nil {
-				d.log.Error("stopping body", "id", b.ID(), "err", err)
+		for _, n := range startedNerves {
+			if err := n.Stop(); err != nil {
+				d.log.Error("stopping nerve", "id", n.ID(), "err", err)
 			}
 		}
 	}()
@@ -117,7 +117,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
-	cycle := thought.New(d.persona, ledger, agg, bodies, vault, provider, d.log)
+	cycle := thought.New(d.persona, ledger, agg, nerves, vault, provider, d.log)
 
 	// Wire thought output to psi interfaces that act as output sinks (e.g. doggy SSE stream).
 	cycleOut := cycleCapture{c: cycle}
@@ -135,7 +135,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	d.log.Info("daemon ready",
 		"thought_interval", interval,
-		"bodies", len(bodies),
+		"nerves", len(nerves),
 		"interfaces", len(ifaces),
 		"attention", ledger.Status(),
 	)
@@ -194,8 +194,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 		d.log,
 	)
 
-	// Fan-in events from bodies and psi interfaces → aggregator + nudge the heart.
-	d.fanInBodyEvents(ctx, bodies, agg, dragonHeart)
+	// Fan-in events from nerves and psi interfaces → aggregator + nudge the heart.
+	d.fanInNerveEvents(ctx, nerves, agg, dragonHeart)
 	d.fanInIfaceEvents(ctx, ifaces, agg, dragonHeart)
 
 	dragonHeart.Run(ctx)
@@ -214,22 +214,22 @@ func (a cycleCapture) OnOutput(fn func(string)) {
 	a.c.OnOutput(thought.OutputHook(fn))
 }
 
-// buildBodies constructs Body instances for all enabled body configs.
-func (d *Daemon) buildBodies(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]body.Body, error) {
-	var bodies []body.Body
-	for _, cfg := range d.persona.Bodies {
+// buildNerves constructs Nerve instances for all enabled nerve configs.
+func (d *Daemon) buildNerves(ledger *attention.Ledger, agg *sensory.Aggregator, vault *memory.Vault) ([]nerve.Nerve, error) {
+	var nerves []nerve.Nerve
+	for _, cfg := range d.persona.Nerves {
 		if !cfg.Enabled {
-			d.log.Info("body disabled", "id", cfg.ID)
+			d.log.Info("nerve disabled", "id", cfg.ID)
 			continue
 		}
-		b, err := d.buildBody(cfg, ledger, agg, vault)
+		n, err := d.buildNerve(cfg, ledger, agg, vault)
 		if err != nil {
-			return nil, fmt.Errorf("building body %s: %w", cfg.ID, err)
+			return nil, fmt.Errorf("building nerve %s: %w", cfg.ID, err)
 		}
-		bodies = append(bodies, b)
-		d.log.Info("body loaded", "id", cfg.ID, "type", cfg.Type)
+		nerves = append(nerves, n)
+		d.log.Info("nerve loaded", "id", cfg.ID, "type", cfg.Type)
 	}
-	return bodies, nil
+	return nerves, nil
 }
 
 // buildInterfaces constructs psi Interface instances for all enabled interface configs.
@@ -259,11 +259,11 @@ func (d *Daemon) vaultDir() (string, error) {
 	return filepath.Join(home, ".config", "storybook-daemon", "memory", d.persona.Persona.Name), nil
 }
 
-// fanInBodyEvents starts goroutines that drain each body's event channel
+// fanInNerveEvents starts goroutines that drain each nerve's event channel
 // into the aggregator and nudge the dragon-heart for immediate processing.
-func (d *Daemon) fanInBodyEvents(ctx context.Context, bodies []body.Body, agg *sensory.Aggregator, h *heart.Heart) {
-	for _, b := range bodies {
-		ch := b.Events()
+func (d *Daemon) fanInNerveEvents(ctx context.Context, nerves []nerve.Nerve, agg *sensory.Aggregator, h *heart.Heart) {
+	for _, n := range nerves {
+		ch := n.Events()
 		if ch == nil {
 			continue
 		}
@@ -274,15 +274,15 @@ func (d *Daemon) fanInBodyEvents(ctx context.Context, bodies []body.Body, agg *s
 					return
 				case ev, ok := <-events:
 					if !ok {
-						d.log.Debug("body event channel closed", "body", id)
+						d.log.Debug("nerve event channel closed", "nerve", id)
 						return
 					}
-					d.log.Debug("body event received", "body", id, "type", ev.Kind)
+					d.log.Debug("nerve event received", "nerve", id, "type", ev.Kind)
 					agg.Enqueue(ev)
 					h.Nudge()
 				}
 			}
-		}(b.ID(), ch)
+		}(n.ID(), ch)
 	}
 }
 
@@ -313,12 +313,12 @@ func (d *Daemon) fanInIfaceEvents(ctx context.Context, ifaces []psi.Interface, a
 	}
 }
 
-func (d *Daemon) buildBody(cfg persona.BodyConfig, _ *attention.Ledger, _ *sensory.Aggregator, _ *memory.Vault) (body.Body, error) {
+func (d *Daemon) buildNerve(cfg persona.NerveConfig, _ *attention.Ledger, _ *sensory.Aggregator, _ *memory.Vault) (nerve.Nerve, error) {
 	switch cfg.Type {
 	case "hoard":
 		path := cfg.Path
 		if path == "" {
-			return nil, fmt.Errorf("hoard body %q requires a path", cfg.ID)
+			return nil, fmt.Errorf("hoard nerve %q requires a path", cfg.ID)
 		}
 		// Expand ~ if needed.
 		if len(path) >= 2 && path[:2] == "~/" {
@@ -328,9 +328,9 @@ func (d *Daemon) buildBody(cfg persona.BodyConfig, _ *attention.Ledger, _ *senso
 			}
 			path = home + path[1:]
 		}
-		return hoardbody.New(cfg.ID, path, d.log), nil
+		return hoardnerve.New(cfg.ID, path, d.log), nil
 	default:
-		return nil, fmt.Errorf("unsupported body type %q (supported: hoard)", cfg.Type)
+		return nil, fmt.Errorf("unsupported nerve type %q (supported: hoard)", cfg.Type)
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 )
 
 // Aggregator assembles sensory snapshots for thought cycles.
-// It maintains an event queue and merges body state summaries.
+// It maintains an event queue and merges nerve state summaries.
 type Aggregator struct {
 	mu         sync.Mutex
 	eventQueue []Event
@@ -34,10 +34,10 @@ func (a *Aggregator) Enqueue(e Event) {
 	}
 }
 
-// Snapshot assembles a perceptual snapshot from current body states and the event queue.
-// Body states are provided by the caller (daemon assembles them from connected bodies).
+// Snapshot assembles a perceptual snapshot from current nerve states and the event queue.
+// Nerve states are provided by the caller (daemon assembles them from connected nerves).
 // The event queue is drained into the snapshot.
-func (a *Aggregator) Snapshot(attentionPool int, bodies []BodyState) Snapshot {
+func (a *Aggregator) Snapshot(attentionPool int, nerves []NerveState) Snapshot {
 	a.mu.Lock()
 	events := make([]Event, len(a.eventQueue))
 	copy(events, a.eventQueue)
@@ -48,7 +48,7 @@ func (a *Aggregator) Snapshot(attentionPool int, bodies []BodyState) Snapshot {
 	return Snapshot{
 		Timestamp:     time.Now(),
 		AttentionPool: attentionPool,
-		BodyStates:    bodies,
+		NerveStates:   nerves,
 		RecentEvents:  events,
 	}
 }

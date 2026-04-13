@@ -1,0 +1,177 @@
+<h2>Psi Architecture — How Everything Connects</h2>
+<p class="subtitle">Data flow between psi, doggy, storybook-daemon, and harnesses</p>
+
+<div class="mockup">
+  <div class="mockup-header">System Architecture</div>
+  <div class="mockup-body" style="background:#1a1a1a; padding:30px; font-family:sans-serif; font-size:12px; color:#ccc; min-height:700px; position:relative;">
+
+    <!-- PSI (top center) -->
+    <div style="position:absolute; top:20px; left:50%; transform:translateX(-50%); width:280px;">
+      <div style="background:#2a2410; border:2px solid #e85d26; border-radius:12px; padding:16px; text-align:center;">
+        <div style="color:#e85d26; font-weight:700; font-size:16px; margin-bottom:4px;">psi</div>
+        <div style="color:#888; font-size:11px;">Qt 6 / QML desktop app</div>
+        <div style="display:flex; gap:6px; justify-content:center; margin-top:10px; flex-wrap:wrap;">
+          <span style="background:#1a1a1a; color:#888; font-size:9px; padding:2px 6px; border-radius:3px;">ThoughtStream</span>
+          <span style="background:#1a1a1a; color:#888; font-size:9px; padding:2px 6px; border-radius:3px;">Panels</span>
+          <span style="background:#1a1a1a; color:#888; font-size:9px; padding:2px 6px; border-radius:3px;">InputBar</span>
+          <span style="background:#1a1a1a; color:#888; font-size:9px; padding:2px 6px; border-radius:3px;">StatePanel</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connection lines from psi down to doggy and MCP -->
+    <!-- SSE arrow (left) -->
+    <div style="position:absolute; top:118px; left:calc(50% - 60px); display:flex; flex-direction:column; align-items:center;">
+      <div style="width:2px; height:40px; background:linear-gradient(#4ade80, #4ade8066);"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #4ade80;"></div>
+      <div style="color:#4ade80; font-size:9px; margin-top:2px; white-space:nowrap;">SSE stream</div>
+      <div style="color:#555; font-size:8px;">thoughts, state, beats</div>
+    </div>
+    <!-- POST arrow (left-center) -->
+    <div style="position:absolute; top:118px; left:calc(50% - 16px); display:flex; flex-direction:column; align-items:center;">
+      <div style="width:2px; height:40px; background:linear-gradient(#f59e0b, #f59e0b66);"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #f59e0b;"></div>
+      <div style="color:#f59e0b; font-size:9px; margin-top:2px; white-space:nowrap;">POST /message</div>
+      <div style="color:#555; font-size:8px;">dot → daemon</div>
+    </div>
+    <!-- MCP arrow (right) -->
+    <div style="position:absolute; top:118px; left:calc(50% + 40px); display:flex; flex-direction:column; align-items:center;">
+      <div style="width:2px; height:40px; background:linear-gradient(#3b82f6, #3b82f666);"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #3b82f6;"></div>
+      <div style="color:#3b82f6; font-size:9px; margin-top:2px; white-space:nowrap;">MCP JSON-RPC</div>
+      <div style="color:#555; font-size:8px;">tools, memory, quests</div>
+    </div>
+
+    <!-- STORYBOOK-DAEMON (middle) -->
+    <div style="position:absolute; top:220px; left:50%; transform:translateX(-50%); width:440px;">
+      <div style="background:#141414; border:2px solid #555; border-radius:12px; padding:16px; overflow:hidden;">
+        <div style="color:#ccc; font-weight:700; font-size:14px; margin-bottom:4px; text-align:center;">storybook-daemon</div>
+        <div style="color:#666; font-size:10px; text-align:center; margin-bottom:14px;">Go · persona lifecycle · thought cycles</div>
+
+        <!-- Internal components as a row -->
+        <div style="display:flex; gap:6px;">
+
+          <!-- Psi interfaces -->
+          <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; border:1px solid #2a2a2a;">
+            <div style="color:#777; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">psi interfaces</div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="background:#141414; border-radius:4px; padding:4px 8px; display:flex; justify-content:space-between;">
+                <span style="color:#4ade80; font-size:10px;">doggy</span>
+                <span style="color:#555; font-size:10px;">:7432</span>
+              </div>
+              <div style="background:#141414; border-radius:4px; padding:4px 8px; display:flex; justify-content:space-between;">
+                <span style="color:#3b82f6; font-size:10px;">mcp</span>
+                <span style="color:#555; font-size:10px;">:9432</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Soul -->
+          <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; border:1px solid #2a2a2a;">
+            <div style="color:#777; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">soul</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:10px;">
+              <span style="color:#999;">thought cycle</span>
+              <span style="color:#999;">attention ledger</span>
+              <span style="color:#999;">contracts / gates</span>
+              <span style="color:#999;">output capture</span>
+            </div>
+          </div>
+
+          <!-- Internals -->
+          <div style="flex:1; background:#1a1a1a; border-radius:8px; padding:10px; border:1px solid #2a2a2a;">
+            <div style="color:#777; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">services</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:10px;">
+              <span style="color:#999;">memory vault</span>
+              <span style="color:#999;">quest manager</span>
+              <span style="color:#999;">stone broker</span>
+              <span style="color:#999;">config store</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow from daemon down to LLM provider -->
+    <div style="position:absolute; top:408px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center;">
+      <div style="width:2px; height:30px; background:linear-gradient(#888, #88888866);"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #888;"></div>
+      <div style="color:#888; font-size:9px; margin-top:2px;">llm.Provider</div>
+    </div>
+
+    <!-- LLM Provider box -->
+    <div style="position:absolute; top:455px; left:50%; transform:translateX(-50%); display:flex; gap:12px;">
+      <div style="background:#2a2410; border:1px solid #e85d26; border-radius:8px; padding:10px 16px; text-align:center;">
+        <div style="color:#e85d26; font-size:11px; font-weight:600;">llamacli</div>
+        <div style="color:#555; font-size:9px;">local GGUF</div>
+      </div>
+      <div style="background:#141414; border:1px solid #333; border-radius:8px; padding:10px 16px; text-align:center;">
+        <div style="color:#888; font-size:11px; font-weight:600;">anthropic</div>
+        <div style="color:#555; font-size:9px;">Claude API</div>
+      </div>
+    </div>
+
+    <!-- Bodies arrow (left side of daemon) -->
+    <div style="position:absolute; top:290px; left:calc(50% - 248px); display:flex; align-items:center;">
+      <div style="color:#5bc4bf; font-size:9px; margin-right:4px; text-align:right; white-space:nowrap;">sensory<br>events</div>
+      <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:6px solid #5bc4bf;"></div>
+      <div style="width:20px; height:2px; background:#5bc4bf;"></div>
+    </div>
+
+    <!-- Body box (left) -->
+    <div style="position:absolute; top:260px; left:30px; width:120px;">
+      <div style="background:#1a1a1a; border:1px solid #3ea8a3; border-radius:8px; padding:10px; text-align:center;">
+        <div style="color:#5bc4bf; font-size:11px; font-weight:600;">bodies</div>
+        <div style="color:#555; font-size:9px; margin-top:4px;">hoard-git</div>
+        <div style="color:#444; font-size:9px;">(future: github, shell)</div>
+      </div>
+    </div>
+
+    <!-- Harnesses (right side) — connected via stone broker -->
+    <div style="position:absolute; top:242px; right:30px; width:140px;">
+      <div style="background:#1a1a1a; border:1px solid #8b5cf6; border-radius:8px; padding:10px;">
+        <div style="color:#8b5cf6; font-size:11px; font-weight:600; margin-bottom:6px; text-align:center;">harnesses</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="background:#141414; border-radius:4px; padding:4px 8px; display:flex; align-items:center; gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></div>
+            <span style="color:#999; font-size:10px;">Claude Code</span>
+          </div>
+          <div style="background:#141414; border-radius:4px; padding:4px 8px; display:flex; align-items:center; gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></div>
+            <span style="color:#999; font-size:10px;">pi</span>
+          </div>
+          <div style="background:#141414; border-radius:4px; padding:4px 8px; display:flex; align-items:center; gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#666;"></div>
+            <span style="color:#555; font-size:10px;">future harnesses</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow from harnesses to daemon (stone broker / MCP) -->
+    <div style="position:absolute; top:290px; right:172px; display:flex; align-items:center;">
+      <div style="width:26px; height:2px; background:#8b5cf6;"></div>
+      <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:6px solid #8b5cf6;"></div>
+      <div style="color:#8b5cf6; font-size:9px; margin-left:4px; white-space:nowrap;">MCP tools<br>stone msgs<br>session reg</div>
+    </div>
+
+    <!-- Key at bottom -->
+    <div style="position:absolute; bottom:20px; left:30px; right:30px; background:#141414; border-radius:8px; padding:14px; border:1px solid #2a2a2a;">
+      <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">How psi gets its data</div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:11px; line-height:1.6;">
+        <div style="flex:1; min-width:200px;">
+          <span style="color:#4ade80;">■</span> <span style="color:#999;"><strong>Thought stream</strong> — doggy SSE. Real-time thoughts, speak events, observations, beat markers. Psi just renders what arrives.</span>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <span style="color:#f59e0b;">■</span> <span style="color:#999;"><strong>User input</strong> — POST /message to doggy. Psi sends text, daemon enqueues as sensory event for next thought cycle.</span>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <span style="color:#3b82f6;">■</span> <span style="color:#999;"><strong>Everything else</strong> — MCP JSON-RPC. Memory vault, quest status, attention, stone messages, config, guard state. Psi calls MCP tools and renders responses.</span>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <span style="color:#8b5cf6;">■</span> <span style="color:#999;"><strong>Harness data</strong> — CC/pi sessions connect to daemon MCP, register themselves, report via stone messages. Psi sees them through the daemon, never directly.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

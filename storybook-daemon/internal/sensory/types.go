@@ -12,22 +12,22 @@ type Snapshot struct {
 	// AttentionPool is the current attention level at snapshot time.
 	AttentionPool int
 
-	// BodyStates holds a summary of each connected body's current state.
-	BodyStates []BodyState
+	// NerveStates holds a summary of each connected nerve's current state.
+	NerveStates []NerveState
 
 	// RecentEvents holds the last N perceptual events from the event queue.
 	RecentEvents []Event
 }
 
-// BodyState is a summary of one connected body at snapshot time.
-type BodyState struct {
-	// ID matches the body's configured ID.
+// NerveState is a summary of one connected nerve at snapshot time.
+type NerveState struct {
+	// ID matches the nerve's configured ID.
 	ID string
 
-	// Type is the body type (hoard, minecraft, etc.)
+	// Type is the nerve type (hoard, minecraft, etc.)
 	Type string
 
-	// Summary is a short human-readable description of the body's current state.
+	// Summary is a short human-readable description of the nerve's current state.
 	// This is what gets injected into the LLM context.
 	Summary string
 
@@ -37,7 +37,7 @@ type BodyState struct {
 
 // Event is a single perceptual input that arrived since the last thought cycle.
 type Event struct {
-	// Source identifies where the event came from (body ID, system, etc.)
+	// Source identifies where the event came from (nerve ID, system, etc.)
 	Source string
 
 	// Kind classifies the event (e.g. "file_changed", "message", "observation").

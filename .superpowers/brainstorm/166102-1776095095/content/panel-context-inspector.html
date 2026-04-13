@@ -1,0 +1,139 @@
+<h2>Context Inspector Panel</h2>
+<p class="subtitle">View and edit context files across the hoard — CLAUDE.md, AGENTS.md, rules, persona YAML</p>
+
+<div class="mockup">
+  <div class="mockup-header">Context Inspector</div>
+  <div class="mockup-body" style="background:#1a1a1a; padding:0; font-family:monospace; font-size:12px; color:#ccc; min-height:560px; display:flex; position:relative;">
+
+    <!-- Left: file tree -->
+    <div style="width:220px; background:#141414; border-right:1px solid #2a2a2a; display:flex; flex-direction:column;">
+
+      <!-- Search -->
+      <div style="padding:10px; border-bottom:1px solid #2a2a2a;">
+        <div style="background:#1a1a1a; border:1px solid #2a2a2a; border-radius:4px; padding:6px 8px; color:#888; font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span style="color:#555;">⌕</span> filter files...
+        </div>
+      </div>
+
+      <!-- Tree -->
+      <div style="flex:1; overflow-y:auto; padding:8px 6px; font-size:11px; line-height:1.9;">
+
+        <!-- Hoard root -->
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; margin-bottom:2px;">hoard</div>
+
+        <div style="padding:1px 8px; color:#e8a849; cursor:pointer;">▼ CLAUDE.md</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ .claude/rules/</div>
+        <div style="padding:1px 8px 1px 24px; color:#666; display:none;">typescript.md</div>
+
+        <!-- Storybook daemon -->
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; margin-top:8px; margin-bottom:2px;">storybook-daemon</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ personas/</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ AGENTS.md</div>
+
+        <!-- Dragon forge -->
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; margin-top:8px; margin-bottom:2px;">dragon-forge</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ AGENTS.md</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ config/</div>
+
+        <!-- Den features -->
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; margin-top:8px; margin-bottom:2px;">den/features</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ dragon-daemon/</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ dragon-forge/</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ hoard-allies/</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ hoard-sending-stone/</div>
+
+        <!-- Global -->
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:2px 8px; margin-top:8px; margin-bottom:2px;">global (~/.claude)</div>
+
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ CLAUDE.md</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ rules/</div>
+        <div style="padding:1px 8px; color:#999; cursor:pointer;">▶ projects/</div>
+
+      </div>
+    </div>
+
+    <!-- Right: file viewer/editor -->
+    <div style="flex:1; display:flex; flex-direction:column;">
+
+      <!-- File header with breadcrumb -->
+      <div style="padding:8px 14px; border-bottom:1px solid #2a2a2a; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:4px; font-size:11px;">
+          <span style="color:#555;">hoard</span>
+          <span style="color:#333;">/</span>
+          <span style="color:#e8a849;">CLAUDE.md</span>
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <!-- Modified indicator -->
+          <div style="width:6px;height:6px;border-radius:50%;background:#e85d26;" title="Modified"></div>
+          <span style="background:#222; color:#888; font-size:10px; padding:3px 8px; border-radius:4px; cursor:pointer;">raw</span>
+          <span style="background:#2a2410; color:#e8a849; font-size:10px; padding:3px 8px; border-radius:4px; cursor:pointer; border:1px solid #3a3420;">preview</span>
+          <span style="background:#e85d26; color:white; font-size:10px; padding:3px 8px; border-radius:4px; cursor:pointer;">save</span>
+        </div>
+      </div>
+
+      <!-- File content (rendered markdown preview mode) -->
+      <div style="flex:1; overflow-y:auto; padding:16px; line-height:1.7;">
+
+        <div style="color:#e8a849; font-size:14px; font-weight:600; margin-bottom:12px; font-family:sans-serif;">graphify</div>
+        <div style="color:#999; font-size:12px; margin-bottom:16px; font-family:sans-serif; line-height:1.6;">
+          This project has a graphify knowledge graph at graphify-out/.
+        </div>
+
+        <div style="color:#888; font-size:12px; font-family:sans-serif; margin-bottom:8px;">Rules:</div>
+        <div style="padding-left:16px; margin-bottom:16px;">
+          <div style="color:#999; font-size:12px; font-family:sans-serif; line-height:1.6; margin-bottom:4px;">
+            <span style="color:#555; margin-right:6px;">•</span>Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md
+          </div>
+          <div style="color:#999; font-size:12px; font-family:sans-serif; line-height:1.6; margin-bottom:4px;">
+            <span style="color:#555; margin-right:6px;">•</span>If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+          </div>
+          <div style="color:#999; font-size:12px; font-family:sans-serif; line-height:1.6;">
+            <span style="color:#555; margin-right:6px;">•</span>After modifying code files, run rebuild command to keep graph current
+          </div>
+        </div>
+
+        <!-- Divider showing this is a combined view -->
+        <div style="border-top:1px dashed #2a2a2a; margin:16px 0; padding-top:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Active Rules</span>
+            <span style="background:#222; color:#666; font-size:10px; padding:1px 6px; border-radius:8px;">12 files</span>
+          </div>
+
+          <!-- Rule file chips -->
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">typescript.md</span>
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">python.md</span>
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">go.md</span>
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">testing.md</span>
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">context7.md</span>
+            <span style="background:#1e1e1e; color:#888; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #2a2a2a;">github.md</span>
+            <span style="background:#1e1e1e; color:#666; font-size:10px; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #222;">+6 more</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <h3>Key Interactions</h3>
+  <ul style="color:#aaa; line-height:1.8;">
+    <li><strong>File tree</strong> — collapsible directories, click file to open in viewer</li>
+    <li><strong>Raw / Preview toggle</strong> — raw shows editable markdown, preview renders it</li>
+    <li><strong>Save button</strong> — writes file to disk, appears only when modified (orange dot indicator)</li>
+    <li><strong>Active Rules section</strong> — shows all .claude/rules/ files that apply to the current context. Click a chip to open that rule file.</li>
+    <li><strong>Breadcrumb path</strong> — clickable segments to navigate up the tree</li>
+    <li><strong>Filter input</strong> — fuzzy filter the file tree (not full-text search, just filenames)</li>
+    <li><strong>Scope groups</strong> — tree organized by component (hoard root, daemon, dragon-forge, global) not raw filesystem</li>
+  </ul>
+  <h3>Theme Note</h3>
+  <p style="color:#aaa;">Using the neutral stone palette — persona accent (#e8a849 ember amber) only on active/highlighted elements. Background is warm grey stone, not purple.</p>
+</div>

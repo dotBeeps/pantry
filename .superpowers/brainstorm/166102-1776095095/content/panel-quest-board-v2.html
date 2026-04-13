@@ -1,0 +1,169 @@
+<h2>Quest Board Panel — v2</h2>
+<p class="subtitle">Dependency chains shown with indentation + connector lines</p>
+
+<div class="mockup">
+  <div class="mockup-header">Quest Board</div>
+  <div class="mockup-body" style="background:#1a1a2e; padding:16px; font-family:monospace; font-size:12px; color:#ccc; min-height:580px;">
+
+    <!-- Active quests section -->
+    <div style="margin-bottom:20px;">
+      <div style="color:#e85d26; font-weight:600; font-size:13px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+        Active Quests
+        <span style="background:#e85d26; color:white; font-size:10px; padding:1px 6px; border-radius:8px;">5</span>
+      </div>
+
+      <!-- Quest chain 1: implement → spec review → code review -->
+      <div style="position:relative; padding-left:0;">
+
+        <!-- Root: Implementation quest -->
+        <div style="display:flex; align-items:stretch; margin-bottom:0;">
+          <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+            <div style="width:10px;height:10px;border-radius:50%;background:#4ade80;margin-top:14px;flex-shrink:0;box-shadow:0 0 6px #4ade8066;"></div>
+            <div style="width:1px;flex:1;background:#2a2a3e;"></div>
+          </div>
+          <div style="flex:1; background:#12121f; border:1px solid #2a2a3e; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="background:#3b82f6; color:white; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600;">CODER</span>
+                <span style="color:#fff; font-weight:500;">Implement export.py merge step</span>
+              </div>
+              <span style="color:#4ade80; font-size:11px;">running · 2m 14s</span>
+            </div>
+            <div style="color:#888; font-size:11px; margin-bottom:4px;">ally-coder-a840 · sonnet</div>
+            <div style="background:#1a1a2e; border-radius:4px; padding:6px 8px; color:#9b7dd4; font-size:11px; border-left:2px solid #7c5cbf;">
+              "Writing merge_lora() function, adapter loaded successfully"
+            </div>
+          </div>
+        </div>
+
+        <!-- Child: Spec review (blocked) -->
+        <div style="display:flex; align-items:stretch; margin-bottom:0;">
+          <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+            <div style="width:1px;height:8px;background:#2a2a3e;"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;margin:0;flex-shrink:0;"></div>
+            <div style="width:1px;flex:1;background:#2a2a3e;"></div>
+          </div>
+          <div style="flex:1; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; margin-bottom:2px;">
+              <div style="width:16px; border-bottom:1px dashed #2a2a3e; margin-right:4px;"></div>
+              <div style="flex:1; background:#12121f; border:1px solid #2a2a3e; border-radius:8px; padding:8px 12px; opacity:0.7;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="background:#f59e0b; color:black; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600;">REVIEWER</span>
+                    <span style="color:#ccc; font-weight:500;">Spec compliance review</span>
+                  </div>
+                  <span style="color:#f59e0b; font-size:11px;">blocked</span>
+                </div>
+                <div style="color:#666; font-size:11px; margin-top:2px;">ally-reviewer · haiku · awaiting coder-a840</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grandchild: Code quality review (blocked by spec review) -->
+        <div style="display:flex; align-items:stretch; margin-bottom:0;">
+          <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+            <div style="width:1px;height:8px;background:#2a2a3e;"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#555;margin:0;flex-shrink:0;"></div>
+            <div style="width:1px;height:8px;background:transparent;"></div>
+          </div>
+          <div style="flex:1; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; margin-bottom:2px;">
+              <div style="width:32px; border-bottom:1px dashed #2a2a3e; margin-right:4px;"></div>
+              <div style="flex:1; background:#12121f; border:1px solid #2a2a3e; border-radius:8px; padding:8px 12px; opacity:0.5;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="background:#555; color:#aaa; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600;">REVIEWER</span>
+                    <span style="color:#999; font-weight:500;">Code quality review</span>
+                  </div>
+                  <span style="color:#555; font-size:11px;">queued</span>
+                </div>
+                <div style="color:#555; font-size:11px; margin-top:2px;">awaiting spec review</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Independent quest chain 2 -->
+      <div style="position:relative; padding-left:0;">
+
+        <!-- Root: Scout quest -->
+        <div style="display:flex; align-items:stretch; margin-bottom:0;">
+          <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+            <div style="width:10px;height:10px;border-radius:50%;background:#4ade80;margin-top:14px;flex-shrink:0;box-shadow:0 0 6px #4ade8066;"></div>
+            <div style="width:1px;flex:1;background:transparent;"></div>
+          </div>
+          <div style="flex:1; background:#12121f; border:1px solid #2a2a3e; border-radius:8px; padding:10px 12px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="background:#8b5cf6; color:white; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:600;">SCOUT</span>
+                <span style="color:#fff; font-weight:500;">Explore psi doggy SSE protocol</span>
+              </div>
+              <span style="color:#4ade80; font-size:11px;">running · 45s</span>
+            </div>
+            <div style="color:#888; font-size:11px; margin-bottom:4px;">ally-scout-a162 · haiku</div>
+            <div style="background:#1a1a2e; border-radius:4px; padding:6px 8px; color:#5bc4bf; font-size:11px; border-left:2px solid #3ea8a3;">
+              "Reading doggy.go — found 3 endpoints, documenting SSE format"
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Completed section -->
+    <div>
+      <div style="color:#666; font-weight:600; font-size:13px; margin-bottom:10px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <span style="font-size:10px;">▼</span> Completed Today
+        <span style="background:#333; color:#888; font-size:10px; padding:1px 6px; border-radius:8px;">2</span>
+      </div>
+
+      <!-- Completed quest -->
+      <div style="display:flex; align-items:stretch;">
+        <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#333;margin-top:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#666;">✓</div>
+        </div>
+        <div style="flex:1; background:#12121f; border:1px solid #1a1a2e; border-radius:8px; padding:8px 12px; margin-bottom:6px; opacity:0.5;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="background:#333; color:#666; font-size:10px; padding:2px 8px; border-radius:4px;">SCOUT</span>
+              <span style="color:#888;">Explore dragon-forge Phase 6 state</span>
+            </div>
+            <span style="color:#555; font-size:11px;">done · 12s</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:stretch;">
+        <div style="width:24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#333;margin-top:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#666;">✓</div>
+        </div>
+        <div style="flex:1; background:#12121f; border:1px solid #1a1a2e; border-radius:8px; padding:8px 12px; opacity:0.5;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="background:#333; color:#666; font-size:10px; padding:2px 8px; border-radius:4px;">SCOUT</span>
+              <span style="color:#888;">Explore storybook-daemon llamacli</span>
+            </div>
+            <span style="color:#555; font-size:11px;">done · 18s</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <h3>Dependency Chain Design</h3>
+  <ul style="color:#aaa; line-height:1.8;">
+    <li><strong>Vertical line</strong> connects parent → child quests in a chain</li>
+    <li><strong>Dashed horizontal arm</strong> extends further right per nesting depth</li>
+    <li><strong>Opacity decreases</strong> with distance from the running quest — blocked/queued items fade</li>
+    <li><strong>Dot color</strong> matches status: green (running), amber (blocked), grey (queued), checkmark (done)</li>
+    <li><strong>Independent chains</strong> have no connecting line between them</li>
+    <li><strong>Running quests glow</strong> subtly to draw the eye</li>
+  </ul>
+</div>

@@ -1,11 +1,11 @@
 # storybook-daemon — AGENTS.md
 
 > **Part of [Hoard](../AGENTS.md)** — read the root AGENTS.md first for project-wide context.
-> **Governed by [ETHICS.md](../ETHICS.md)** — **READ THIS FIRST** before modifying soul, consent, memory, or body code.
+> **Governed by [ETHICS.md](../ETHICS.md)** — **READ THIS FIRST** before modifying soul, consent, memory, or nerve code.
 
 ## What This Is
 
-**storybook-daemon** is the formless core of the dragon — mind, soul, and connectors. A Go system daemon with an attention-gated thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies that give it form in the world.
+**storybook-daemon** is the formless core of the dragon — mind, soul, and connectors. A Go system daemon with an attention-gated thought loop, deterministic ethical contract enforcement, attention economy, and connections to nerves that bridge perception and action.
 
 The daemon runs independently of any single pi session. It persists, it remembers (Obsidian-compatible vault), it thinks (attention-gated thought cycles), and it enforces ethics (soul package — deterministic, not advisory).
 
@@ -16,7 +16,7 @@ The daemon runs independently of any single pi session. It persists, it remember
 ## Relationship to the Hoard
 
 - **The daemon IS the dragon** without a body. Everything else orbits it.
-- **Bodies** (`hoard`, others planned) are external systems the daemon inhabits and senses from — git repos, GitHub, shell.
+- **Nerves** (`hoard`, others planned) are sensory connectors to external systems — git repos, GitHub, shell. They carry perception inward and action outward.
 - **Psi interfaces** (`doggy`, `mcp`) are communication surfaces the daemon exposes to the world — dot's chat window, MCP tool connections. Named after psionics: the channel through which the daemon reaches outward and the world reaches in.
 - **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded. Berrygems that currently render Pi-specific panels will have native Qt window equivalents in doggy.
 - **morsels** are portable knowledge. The daemon's thought cycles may reference morsel-level knowledge, but skills are consumed by the pi body, not the daemon directly.
@@ -30,9 +30,9 @@ storybook-daemon/
 ├── internal/
 │   ├── attention/    Budget/economy — collaborative, gamified
 │   ├── auth/         OAuth token management (pi integration, anthropic provider only)
-│   ├── body/         Sensory bodies — external systems the daemon inhabits
-│   │   ├── hoard/    Hoard-aware body (watches this repo)
-│   │   └── github/   GitHub event body (planned)
+│   ├── nerve/        Sensory nerves — connectors to external systems
+│   │   ├── hoard/    Hoard-aware nerve (watches this repo)
+│   │   └── github/   GitHub event nerve (planned)
 │   ├── llm/          LLM provider abstraction
 │   │   ├── provider.go    Provider interface + Tool/ToolCall types
 │   │   ├── anthropic/     Anthropic SDK wrapper — multi-turn tool loop, Pi OAuth
@@ -62,8 +62,8 @@ Clean layered architecture — no circular dependencies:
 daemon → heart → thought → llm/provider (interface)
                          → soul → consent
                          ↘ memory
-              → body/* → sensory
-              → psi/*  → sensory
+              → nerve/* → sensory
+              → psi/*   → sensory
               → attention
 llm/anthropic → auth (Pi OAuth)
 llm/llamacli  → (no external deps — spawns llama-cli subprocess)
@@ -85,16 +85,16 @@ The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics
 
 | Phase                | Status | Description                                                                                                                                                                                                                                                        |
 | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 — Foundation       | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                                                                                     |
+| 1 — Foundation       | ✅     | Persona loading, fsnotify nerve, vault memory, basic heart loop                                                                                                                                                                                                    |
 | 2 — Soul             | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                                                                                 |
 | 2.5 — Soul Shore-up  | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                                                                                 |
-| 3 — New Bodies + Psi | 🐣     | GitHub body ✅, doggy psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned                                                        |
+| 3 — New Nerves + Psi | 🐣     | GitHub nerve ✅, doggy psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell nerves planned                                                       |
 | 3.5 — Local LLM      | ✅     | `internal/llm/` provider abstraction; `llamacli` backend (llama-cli subprocess, DeepSeek R1 `<think>` parsing, single-turn, GPU offload); `anthropic` backend extracted from cycle; `LLMConfig` in persona YAML; proactive ticking unblocked for llamacli personas |
 | 4 — Doggy Qt client  | 🥚     | Qt/QML chat client — multi-agent threads, tool windows, attention panel, input bar; berrygem panel tools migrated to native Qt windows                                                                                                                             |
 
 ## Attention Economy
 
-The attention system is **collaborative and gamified**. Either party (dot or the agent) can propose raising or lowering attention on bodies, topics, or tasks. Asking is always okay and welcomed.
+The attention system is **collaborative and gamified**. Either party (dot or the agent) can propose raising or lowering attention on nerves, topics, or tasks. Asking is always okay and welcomed.
 
 ## Development
 

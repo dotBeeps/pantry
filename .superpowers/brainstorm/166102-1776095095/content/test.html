@@ -1,0 +1,82 @@
+<h2>Psi — Core Shell Layout</h2>
+<p class="subtitle">Chat-first design: thought stream dominates, panels tuck into sidebars</p>
+
+<div class="mockup">
+  <div class="mockup-header">Psi — Ember (local)</div>
+  <div class="mockup-body" style="display:flex; height:400px; gap:0; background:#1a1a2e;">
+
+    <!-- Left: Session sidebar -->
+    <div style="width:48px; background:#12121f; display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:12px; border-right:1px solid #2a2a3e;">
+      <div style="width:32px;height:32px;border-radius:8px;background:#e85d26;display:flex;align-items:center;justify-content:center;font-size:14px;color:white;font-weight:bold;">E</div>
+      <div style="width:32px;height:32px;border-radius:8px;background:#333;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888;">M</div>
+      <div style="width:32px;height:32px;border-radius:8px;background:#333;display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;">cc</div>
+      <div style="flex:1;"></div>
+      <div style="width:32px;height:32px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;font-size:16px;color:#666;">+</div>
+    </div>
+
+    <!-- Center: Thought stream -->
+    <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+      <div style="padding:8px 16px; border-bottom:1px solid #2a2a3e; color:#ccc; font-size:12px; display:flex; justify-content:space-between;">
+        <span style="color:#e85d26; font-weight:600;">Ember (local)</span>
+        <span style="color:#666;">attention: 847/1000</span>
+      </div>
+      <div style="flex:1; padding:16px; overflow-y:auto; font-family:monospace; font-size:13px; line-height:1.6;">
+        <div style="color:#9b7dd4; margin-bottom:8px;">
+          <span style="opacity:0.5;">10:56</span> <span style="color:#7c5cbf;">think</span> The hoard is humming along nicely...
+        </div>
+        <div style="color:#e8a849; margin-bottom:8px;">
+          <span style="opacity:0.5;">10:56</span> <span style="color:#d4922a;">speak</span> Good morning pup. Recent commits look clean.
+        </div>
+        <div style="color:#5bc4bf; margin-bottom:8px;">
+          <span style="opacity:0.5;">10:56</span> <span style="color:#3ea8a3;">observe</span> <span style="background:#2a3a3a;padding:1px 6px;border-radius:3px;font-size:11px;">hoard</span> 4 new commits on feat/quest-planning-tracking
+        </div>
+        <div style="color:#666; margin-bottom:8px;">
+          <span style="opacity:0.5;">10:56</span> <span style="color:#555;">beat</span> cycle complete
+        </div>
+      </div>
+      <!-- Input bar -->
+      <div style="padding:8px 16px; border-top:1px solid #2a2a3e; display:flex; gap:8px;">
+        <div style="flex:1; background:#222; border:1px solid #333; border-radius:6px; padding:8px 12px; color:#888; font-size:13px;">Send a message to Ember...</div>
+        <div style="background:#e85d26; color:white; border-radius:6px; padding:8px 12px; font-size:13px; display:flex; align-items:center;">Send</div>
+      </div>
+    </div>
+
+    <!-- Right: State panel -->
+    <div style="width:200px; background:#12121f; border-left:1px solid #2a2a3e; padding:12px; font-size:12px; color:#999;">
+      <div style="color:#ccc; font-weight:600; margin-bottom:8px;">State</div>
+
+      <div style="margin-bottom:12px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:4px;">Attention</div>
+        <div style="background:#222; border-radius:4px; height:8px; overflow:hidden;">
+          <div style="background:#e85d26; height:100%; width:85%; border-radius:4px;"></div>
+        </div>
+        <div style="color:#e85d26; font-size:11px; margin-top:2px;">847 / 1000</div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:4px;">Bodies</div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></div>
+          <span>hoard-git</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:4px;">Contracts</div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></div>
+          <span>minimum-rest</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;"></div>
+          <span>attention-honesty</span>
+        </div>
+      </div>
+
+      <div>
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:4px;">Last beat</div>
+        <div>3s ago</div>
+      </div>
+    </div>
+  </div>
+</div>

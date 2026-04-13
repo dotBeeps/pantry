@@ -1,4 +1,4 @@
-// Package thought implements the core thought cycle: sensory context → LLM → tool calls → body actions.
+// Package thought implements the core thought cycle: sensory context → LLM → tool calls → nerve actions.
 package thought
 
 import (
@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/nerve"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
 )
@@ -27,7 +27,7 @@ type Cycle struct {
 	persona     *persona.Persona
 	ledger      *attention.Ledger
 	sensory     *sensory.Aggregator
-	bodies      map[string]body.Body
+	nerves      map[string]nerve.Nerve
 	vault       *memory.Vault
 	provider    llm.Provider
 	log         *slog.Logger
@@ -39,20 +39,20 @@ func New(
 	p *persona.Persona,
 	ledger *attention.Ledger,
 	agg *sensory.Aggregator,
-	bodies []body.Body,
+	nerves []nerve.Nerve,
 	vault *memory.Vault,
 	provider llm.Provider,
 	log *slog.Logger,
 ) *Cycle {
-	bodyMap := make(map[string]body.Body, len(bodies))
-	for _, b := range bodies {
-		bodyMap[b.ID()] = b
+	nerveMap := make(map[string]nerve.Nerve, len(nerves))
+	for _, n := range nerves {
+		nerveMap[n.ID()] = n
 	}
 	return &Cycle{
 		persona:  p,
 		ledger:   ledger,
 		sensory:  agg,
-		bodies:   bodyMap,
+		nerves:   nerveMap,
 		vault:    vault,
 		provider: provider,
 		log:      log,
@@ -76,12 +76,12 @@ func (c *Cycle) Run(ctx context.Context) error {
 	start := time.Now()
 	c.log.Info("thought cycle starting", "persona", c.persona.Persona.Name)
 
-	// 1. Assemble sensory snapshot (body states + events + pinned memories).
-	bodyStates, err := c.gatherBodyStates(ctx)
+	// 1. Assemble sensory snapshot (nerve states + events + pinned memories).
+	nerveStates, err := c.gatherNerveStates(ctx)
 	if err != nil {
-		c.log.Warn("partial body state failure", "err", err)
+		c.log.Warn("partial nerve state failure", "err", err)
 	}
-	snap := c.sensory.Snapshot(c.ledger.Pool(), bodyStates)
+	snap := c.sensory.Snapshot(c.ledger.Pool(), nerveStates)
 
 	// 2. Build system prompt, tools, and context message.
 	systemPrompt := c.buildSystemPrompt()
@@ -126,20 +126,20 @@ func (c *Cycle) Run(ctx context.Context) error {
 	return nil
 }
 
-// gatherBodyStates collects state summaries from all enabled bodies.
-func (c *Cycle) gatherBodyStates(ctx context.Context) ([]sensory.BodyState, error) {
-	var states []sensory.BodyState
+// gatherNerveStates collects state summaries from all connected nerves.
+func (c *Cycle) gatherNerveStates(ctx context.Context) ([]sensory.NerveState, error) {
+	var states []sensory.NerveState
 	var errs []string
-	for _, b := range c.bodies {
-		state, err := b.State(ctx)
+	for _, n := range c.nerves {
+		state, err := n.State(ctx)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %s", b.ID(), err))
+			errs = append(errs, fmt.Sprintf("%s: %s", n.ID(), err))
 			continue
 		}
 		states = append(states, state)
 	}
 	if len(errs) > 0 {
-		return states, fmt.Errorf("body state errors: %s", strings.Join(errs, "; "))
+		return states, fmt.Errorf("nerve state errors: %s", strings.Join(errs, "; "))
 	}
 	return states, nil
 }
@@ -187,10 +187,10 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 		}
 	}
 
-	if len(snap.BodyStates) > 0 {
-		sb.WriteString("### Body States\n\n")
-		for _, bs := range snap.BodyStates {
-			fmt.Fprintf(&sb, "**%s** (%s):\n%s\n\n", bs.ID, bs.Type, bs.Summary)
+	if len(snap.NerveStates) > 0 {
+		sb.WriteString("### Nerve States\n\n")
+		for _, ns := range snap.NerveStates {
+			fmt.Fprintf(&sb, "**%s** (%s):\n%s\n\n", ns.ID, ns.Type, ns.Summary)
 		}
 	}
 
@@ -206,7 +206,7 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 	return sb.String()
 }
 
-// buildTools assembles the tool definitions from builtins and connected bodies.
+// buildTools assembles the tool definitions from builtins and connected nerves.
 func (c *Cycle) buildTools() []llm.Tool {
 	builtins := []llm.Tool{
 		{
@@ -254,8 +254,8 @@ func (c *Cycle) buildTools() []llm.Tool {
 	tools := make([]llm.Tool, 0, len(builtins))
 	tools = append(tools, builtins...)
 
-	for _, b := range c.bodies {
-		for _, td := range b.Tools() {
+	for _, n := range c.nerves {
+		for _, td := range n.Tools() {
 			props, _ := td.Parameters["properties"].(map[string]any)
 			tools = append(tools, llm.Tool{
 				Name:        td.Name,
@@ -331,12 +331,12 @@ func (c *Cycle) dispatchTool(ctx context.Context, call llm.ToolCall) (string, in
 		return sb.String(), costs.Search, nil
 
 	default:
-		for _, b := range c.bodies {
-			for _, td := range b.Tools() {
+		for _, n := range c.nerves {
+			for _, td := range n.Tools() {
 				if td.Name == call.Name {
-					result, err := b.Execute(ctx, call.Name, args)
+					result, err := n.Execute(ctx, call.Name, args)
 					if err != nil {
-						return "", costs.Perceive, fmt.Errorf("body tool %s: %w", call.Name, err)
+						return "", costs.Perceive, fmt.Errorf("nerve tool %s: %w", call.Name, err)
 					}
 					return result, costs.Perceive, nil
 				}

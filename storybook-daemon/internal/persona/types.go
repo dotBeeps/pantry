@@ -7,7 +7,7 @@ type Persona struct {
 	LLM        LLMConfig         `yaml:"llm"`
 	Attention  AttentionConfig   `yaml:"attention"`
 	Costs      CostConfig        `yaml:"costs"`
-	Bodies     []BodyConfig      `yaml:"bodies"`
+	Nerves     []NerveConfig     `yaml:"nerves"`
 	Interfaces []InterfaceConfig `yaml:"interfaces"`
 	Contracts  []Contract        `yaml:"contracts"`
 }
@@ -66,8 +66,8 @@ type CostConfig struct {
 	Perceive int `yaml:"perceive"` // voluntary attention to sense stream
 }
 
-// BodyConfig describes a connected body (external system) the persona inhabits.
-type BodyConfig struct {
+// NerveConfig describes a connected nerve (sensory connector) the persona senses through.
+type NerveConfig struct {
 	ID      string  `yaml:"id"`
 	Path    string  `yaml:"path"`
 	Type    string  `yaml:"type"`   // hoard | minecraft | app | api

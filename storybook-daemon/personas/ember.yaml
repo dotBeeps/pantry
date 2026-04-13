@@ -38,7 +38,7 @@ costs:
   search: 15
   perceive: 8
 
-bodies:
+nerves:
   - id: hoard-git
     type: hoard
     # Path to the hoard monorepo on disk; ~ is expanded at runtime

@@ -14,8 +14,8 @@ import (
 )
 
 // watcher watches the hoard repository for file changes and git events,
-// pushing sensory events to the body's event channel.
-// The dragon-body senses its environment through file system observation.
+// pushing sensory events to the nerve's event channel.
+// The hoard-nerve senses its environment through file system observation.
 type watcher struct {
 	path   string
 	events chan<- sensory.Event
@@ -50,7 +50,7 @@ func newWatcher(path string, events chan<- sensory.Event, log *slog.Logger) (*wa
 	refsPath := filepath.Join(path, ".git", "refs", "heads")
 	if err := fsw.Add(refsPath); err != nil {
 		// Not fatal — repo might not have local refs yet.
-		w.log.Debug("dragon-body: could not watch git refs", "path", refsPath, "err", err)
+		w.log.Debug("hoard-nerve: could not watch git refs", "path", refsPath, "err", err)
 	}
 
 	return w, nil
@@ -59,7 +59,7 @@ func newWatcher(path string, events chan<- sensory.Event, log *slog.Logger) (*wa
 // run starts the watcher loop. Call from a goroutine; blocks until ctx is cancelled.
 func (w *watcher) run(ctx context.Context) {
 	defer close(w.done)
-	w.log.Info("dragon-body: watcher started", "path", w.path)
+	w.log.Info("hoard-nerve: watcher started", "path", w.path)
 
 	// Debounce window: coalesce rapid writes into a single event.
 	const debounce = 100 * time.Millisecond
@@ -80,7 +80,7 @@ func (w *watcher) run(ctx context.Context) {
 				select {
 				case w.events <- *sensoryEv:
 				default:
-					w.log.Warn("dragon-body: event channel full, dropping", "kind", sensoryEv.Kind)
+					w.log.Warn("hoard-nerve: event channel full, dropping", "kind", sensoryEv.Kind)
 				}
 			}
 		}
@@ -89,7 +89,7 @@ func (w *watcher) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.log.Info("dragon-body: watcher stopped")
+			w.log.Info("hoard-nerve: watcher stopped")
 			return
 
 		case event, ok := <-w.fsw.Events:
@@ -120,7 +120,7 @@ func (w *watcher) run(ctx context.Context) {
 			if !ok {
 				return
 			}
-			w.log.Error("dragon-body: watcher error", "err", err)
+			w.log.Error("hoard-nerve: watcher error", "err", err)
 		}
 	}
 }

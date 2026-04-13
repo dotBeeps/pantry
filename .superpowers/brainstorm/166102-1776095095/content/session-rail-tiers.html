@@ -1,0 +1,125 @@
+<h2>Session Rail — Tier Badges</h2>
+<p class="subtitle">Permission tier shown as a colored ring around each session icon</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Session Rail</div>
+    <div class="mockup-body" style="background:#12121f; padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:14px; min-height:400px; width:64px;">
+
+      <!-- Ember: Dragon tier — amber ring -->
+      <div style="position:relative;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#e85d26;display:flex;align-items:center;justify-content:center;font-size:14px;color:white;font-weight:bold;box-shadow:0 0 0 2px #12121f, 0 0 0 4px #e85d26;">E</div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#4ade80;border:2px solid #12121f;"></div>
+      </div>
+
+      <!-- Maren: Dog tier — blue ring -->
+      <div style="position:relative;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#444;display:flex;align-items:center;justify-content:center;font-size:14px;color:#aaa;font-weight:bold;box-shadow:0 0 0 2px #12121f, 0 0 0 4px #3b82f6;">M</div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#666;border:2px solid #12121f;"></div>
+      </div>
+
+      <!-- Coder ally: Ally tier — yellow ring -->
+      <div style="position:relative;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#333;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa;font-weight:bold;box-shadow:0 0 0 2px #12121f, 0 0 0 4px #f59e0b;">cd</div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#4ade80;border:2px solid #12121f;"></div>
+      </div>
+
+      <!-- Scout: Puppy tier — green ring -->
+      <div style="position:relative;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#333;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa;font-weight:bold;box-shadow:0 0 0 2px #12121f, 0 0 0 4px #4ade80;">sc</div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#4ade80;border:2px solid #12121f;"></div>
+      </div>
+
+      <div style="flex:1;"></div>
+
+      <!-- Add button -->
+      <div style="width:36px;height:36px;border-radius:10px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:18px;color:#555;border:1px dashed #333;">+</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Dragon Guard — Session Detail</div>
+    <div class="mockup-body" style="background:#1a1a2e; padding:16px; font-family:monospace; font-size:12px; color:#ccc; min-height:400px;">
+
+      <!-- Session header -->
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #2a2a3e;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:bold;">cd</div>
+        <div>
+          <div style="color:#fff; font-weight:500;">ally-coder-a840</div>
+          <div style="color:#666; font-size:11px;">quest dispatch · sonnet</div>
+        </div>
+      </div>
+
+      <!-- Tier control -->
+      <div style="margin-bottom:16px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">Permission Tier</div>
+        <div style="display:flex; gap:4px;">
+          <div style="flex:1;text-align:center;padding:6px;border-radius:4px;background:#1a2a1a;border:1px solid #4ade80;color:#4ade80;font-size:10px;font-weight:600;cursor:pointer;">PUPPY</div>
+          <div style="flex:1;text-align:center;padding:6px;border-radius:4px;background:#12121f;border:1px solid #333;color:#666;font-size:10px;font-weight:600;cursor:pointer;">DOG</div>
+          <div style="flex:1;text-align:center;padding:6px;border-radius:4px;background:#2a2410;border:2px solid #f59e0b;color:#f59e0b;font-size:10px;font-weight:600;cursor:pointer;">ALLY ●</div>
+          <div style="flex:1;text-align:center;padding:6px;border-radius:4px;background:#12121f;border:1px solid #333;color:#666;font-size:10px;font-weight:600;cursor:pointer;">DRAGON</div>
+        </div>
+      </div>
+
+      <!-- Allowed tools -->
+      <div style="margin-bottom:16px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">Allowed Tools</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Read</span>
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Grep</span>
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Glob</span>
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Write</span>
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Edit</span>
+          <span style="background:#1a2a1a; color:#4ade80; font-size:10px; padding:3px 8px; border-radius:4px;">Bash</span>
+        </div>
+      </div>
+
+      <!-- Blocked tools -->
+      <div style="margin-bottom:16px;">
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">Blocked Tools</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          <span style="background:#2a1212; color:#ef4444; font-size:10px; padding:3px 8px; border-radius:4px;">Agent</span>
+          <span style="background:#2a1212; color:#ef4444; font-size:10px; padding:3px 8px; border-radius:4px;">git push</span>
+          <span style="background:#2a1212; color:#ef4444; font-size:10px; padding:3px 8px; border-radius:4px;">rm -rf</span>
+        </div>
+      </div>
+
+      <!-- Recent audit -->
+      <div>
+        <div style="color:#777; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.5px;">Recent Activity</div>
+        <div style="background:#12121f; border-radius:6px; overflow:hidden;">
+          <div style="padding:6px 10px; border-bottom:1px solid #1a1a2e; display:flex; align-items:center; gap:8px;">
+            <span style="color:#555; font-size:10px;">10:56</span>
+            <div style="width:5px;height:5px;border-radius:50%;background:#4ade80;"></div>
+            <span style="color:#ccc; font-size:11px;">Write</span>
+            <span style="color:#555; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">dragon-forge/export.py</span>
+          </div>
+          <div style="padding:6px 10px; border-bottom:1px solid #1a1a2e; display:flex; align-items:center; gap:8px;">
+            <span style="color:#555; font-size:10px;">10:56</span>
+            <div style="width:5px;height:5px;border-radius:50%;background:#4ade80;"></div>
+            <span style="color:#ccc; font-size:11px;">Bash</span>
+            <span style="color:#555; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ast.parse check</span>
+          </div>
+          <div style="padding:6px 10px; display:flex; align-items:center; gap:8px; background:#1a1212;">
+            <span style="color:#555; font-size:10px;">10:55</span>
+            <div style="width:5px;height:5px;border-radius:50%;background:#ef4444;"></div>
+            <span style="color:#ef4444; font-size:11px;">git push</span>
+            <span style="color:#555; font-size:11px;">ALLY tier — blocked</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <h3>Design Notes</h3>
+  <ul style="color:#aaa; line-height:1.8;">
+    <li><strong>Session rail</strong> — colored ring around each icon encodes the tier at a glance (green=puppy, blue=dog, amber=ally, ember-orange=dragon)</li>
+    <li><strong>Small dot</strong> bottom-right of icon = connection status (green=connected, grey=disconnected)</li>
+    <li><strong>Guard panel</strong> shows the selected session's detail — tier selector, tool whitelist/blocklist, and scoped audit log</li>
+    <li><strong>Click a tier button</strong> to promote/restrict — confirmation dialog for escalations</li>
+    <li><strong>Tool tags are clickable</strong> — toggle individual tools on/off within the tier's defaults</li>
+  </ul>
+</div>
