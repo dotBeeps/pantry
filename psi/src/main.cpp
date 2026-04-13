@@ -1,7 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQuickStyle>
-#include <QtQml>
 
 #include "daemonstate.h"
 #include "sseconnection.h"
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle("Material");
 
-    // Create backend objects on the stack — they outlive the engine.
+    // Create backend objects — parented to app for lifetime management.
     auto *theme = new ThemeEngine(&app);
     auto *sse = new SseConnection(&app);
     sse->setBaseUrl(QUrl("http://localhost:7432"));
@@ -40,14 +40,17 @@ int main(int argc, char *argv[])
             state->pollState(sse->baseUrl());
     });
 
-    // Register as QML singletons — more reliable than context properties in Qt 6.
-    qmlRegisterSingletonInstance("Psi", 1, 0, "Theme", theme);
-    qmlRegisterSingletonInstance("Psi", 1, 0, "Sse", sse);
-    qmlRegisterSingletonInstance("Psi", 1, 0, "Thoughts", thoughts);
-    qmlRegisterSingletonInstance("Psi", 1, 0, "State", state);
-
     QQmlApplicationEngine engine;
-    engine.loadFromModule("Psi", "Main");
+
+    // Expose to QML via context properties.
+    engine.rootContext()->setContextProperty("Theme", theme);
+    engine.rootContext()->setContextProperty("Sse", sse);
+    engine.rootContext()->setContextProperty("Thoughts", thoughts);
+    engine.rootContext()->setContextProperty("State", state);
+
+    // Load via resource URL — context properties work reliably with load().
+    const QUrl mainUrl(QStringLiteral("qrc:/qt/qml/Psi/qml/Main.qml"));
+    engine.load(mainUrl);
 
     if (engine.rootObjects().isEmpty())
         return -1;
