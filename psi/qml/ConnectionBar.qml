@@ -29,8 +29,10 @@ Rectangle {
                 color: State.connected ? "#4ade80" : "#ef4444"
 
                 SequentialAnimation on opacity {
+                    id: pulseAnim
                     running: !State.connected
                     loops: Animation.Infinite
+                    onRunningChanged: if (!running) parent.opacity = 1.0
                     NumberAnimation { to: 0.3; duration: 800 }
                     NumberAnimation { to: 1.0; duration: 800 }
                 }
