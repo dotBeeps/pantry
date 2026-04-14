@@ -1,5 +1,7 @@
 # Quest Planning & Tracking Implementation Plan
 
+> **Status: 🪦 Abandoned (2026-04-14).** Authored pre-scope-pivot. This plan assumed the storybook-daemon would become the persistent orchestrator with a file-backed task registry and stone federation bridge — an architecture that is no longer on the roadmap. The daemon is now a single-persona host (pi-as-persona); quest tracking, if revisited, will be rebuilt against that model. Some scope (active quest UI) will be reconsidered under a future psi sub-project 3 plan. Kept for historical context only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a file-backed task registry, stone federation bridge, and implement→review orchestration loop to the storybook-daemon so hoard allies gain structured plan/test/develop/review workflows.

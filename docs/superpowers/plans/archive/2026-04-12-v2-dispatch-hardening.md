@@ -1,5 +1,7 @@
 # V2 Dispatch Hardening Implementation Plan
 
+> **Status: 🪦 Abandoned (2026-04-14).** Authored pre-scope-pivot. Targeted the `internal/quest/` package in the daemon, which was never completed (see `2026-04-11-daemon-dispatch-surface.md`). Personality profiles, model cascade, and rally/chain orchestration already live in pi's `hoard-allies` extension — rebuilding them daemon-side is no longer on the roadmap. Kept for historical context only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make storybook-daemon quest dispatch spawn real allies with system prompts, env filtering, model cascade retry, and rally/chain group orchestration.

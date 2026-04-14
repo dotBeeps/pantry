@@ -1,5 +1,7 @@
 # Daemon Dispatch Surface Implementation Plan
 
+> **Status: 🪦 Abandoned (2026-04-14).** Superseded by the pi-as-persona architecture (`2026-04-13-pi-as-persona.md`). The daemon no longer owns a separate quest-dispatch layer — it spawns a `pi` subprocess directly as the persona, and quest dispatch lives in pi's `hoard-allies` extension. This plan's `internal/quest/` package was never built to completion. Kept for historical context only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement quest dispatch, stone broker, and taxonomy resolution in storybook-daemon so it can spawn and manage `claude` and `pi` ally subprocesses via MCP tools.
