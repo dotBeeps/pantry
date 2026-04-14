@@ -56,7 +56,7 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     spacing: 0
 
-                    ThoughtStream {
+                    ConversationStream {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                     }

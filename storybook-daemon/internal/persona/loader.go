@@ -72,24 +72,18 @@ func validate(p *Persona) error {
 	return nil
 }
 
-// applyDefaults fills in zero-value cost fields with sensible defaults.
+// applyDefaults fills in zero-value fields with sensible defaults.
 func applyDefaults(p *Persona) {
-	if p.Costs.Think == 0 {
-		p.Costs.Think = 5
-	}
-	if p.Costs.Speak == 0 {
-		p.Costs.Speak = 10
-	}
-	if p.Costs.Remember == 0 {
-		p.Costs.Remember = 20
-	}
-	if p.Costs.Search == 0 {
-		p.Costs.Search = 15
-	}
-	if p.Costs.Perceive == 0 {
-		p.Costs.Perceive = 8
+	if p.Costs.Beat == 0 {
+		p.Costs.Beat = 15
 	}
 	if p.Attention.Floor == 0 {
 		p.Attention.Floor = 50
+	}
+	if p.LLM.Model == "" {
+		p.LLM.Model = "claude-sonnet-4-6"
+	}
+	if p.LLM.Thinking == "" {
+		p.LLM.Thinking = "medium"
 	}
 }

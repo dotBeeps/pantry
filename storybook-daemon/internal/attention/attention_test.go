@@ -13,52 +13,39 @@ import (
 )
 
 // newLedger builds a Ledger from inline config values for test convenience.
-func newLedger(pool, floor, rate int, costs persona.CostConfig) *Ledger {
+func newLedger(pool, floor, rate int) *Ledger {
 	p := &persona.Persona{
 		Attention: persona.AttentionConfig{
 			Pool:  pool,
 			Floor: floor,
 			Rate:  rate,
 		},
-		Costs: costs,
 	}
 	return New(p, slog.Default())
-}
-
-// defaultCosts returns a CostConfig with small values suitable for most tests.
-func defaultCosts() persona.CostConfig {
-	return persona.CostConfig{
-		Think:    10,
-		Speak:    20,
-		Remember: 15,
-		Search:   5,
-		Perceive: 8,
-	}
 }
 
 // ---- Pool / initialisation -----------------------------------------------
 
 func TestNew_PoolInitialisedToMax(t *testing.T) {
-	l := newLedger(100, 50, 60, defaultCosts())
+	l := newLedger(100, 50, 60)
 	assert.Equal(t, 100, l.Pool())
 }
 
 func TestNew_ZeroPool(t *testing.T) {
 	// Zero pool is technically pathological, but New must not panic.
-	l := newLedger(0, 0, 0, defaultCosts())
+	l := newLedger(0, 0, 0)
 	assert.Equal(t, 0, l.Pool())
 }
 
 // ---- AboveFloor -----------------------------------------------------------
 
 func TestAboveFloor_TrueWhenPoolAboveFloor(t *testing.T) {
-	l := newLedger(100, 50, 0, defaultCosts())
+	l := newLedger(100, 50, 0)
 	assert.True(t, l.AboveFloor())
 }
 
 func TestAboveFloor_FalseWhenPoolAtFloor(t *testing.T) {
-	l := newLedger(50, 50, 0, defaultCosts())
-	// Spend enough to drop below max without going below floor
+	l := newLedger(50, 50, 0)
 	// Pool starts at 50, floor is 50 → should be at floor exactly.
 	assert.True(t, l.AboveFloor()) // floor means >= floor
 }
@@ -79,19 +66,19 @@ func TestAboveFloor_FalseWhenPoolBelowFloor(t *testing.T) {
 // ---- Spend ----------------------------------------------------------------
 
 func TestSpend_DeductsFromPool(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("test", 30))
 	assert.Equal(t, 70, l.Pool())
 }
 
 func TestSpend_ExactPool(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("test", 100))
 	assert.Equal(t, 0, l.Pool())
 }
 
 func TestSpend_InsufficientFunds_ReturnsError(t *testing.T) {
-	l := newLedger(50, 0, 0, defaultCosts())
+	l := newLedger(50, 0, 0)
 	err := l.Spend("test", 100)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "insufficient attention")
@@ -100,13 +87,13 @@ func TestSpend_InsufficientFunds_ReturnsError(t *testing.T) {
 }
 
 func TestSpend_ZeroCost_Succeeds(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("noop", 0))
 	assert.Equal(t, 100, l.Pool())
 }
 
 func TestSpend_MultipleDeductions(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("a", 30))
 	require.NoError(t, l.Spend("b", 30))
 	require.NoError(t, l.Spend("c", 30))
@@ -116,75 +103,23 @@ func TestSpend_MultipleDeductions(t *testing.T) {
 	require.Error(t, err)
 }
 
-// ---- Named Spend helpers --------------------------------------------------
+// ---- Beat cost (the only cost type now) -----------------------------------
 
-func TestSpendThink(t *testing.T) {
-	costs := defaultCosts()
-	l := newLedger(100, 0, 0, costs)
-	require.NoError(t, l.SpendThink())
-	assert.Equal(t, 100-costs.Think, l.Pool())
+func TestSpend_BeatCost(t *testing.T) {
+	l := newLedger(100, 0, 0)
+	require.NoError(t, l.Spend("beat", 25))
+	assert.Equal(t, 75, l.Pool())
 }
 
-func TestSpendSpeak(t *testing.T) {
-	costs := defaultCosts()
-	l := newLedger(100, 0, 0, costs)
-	require.NoError(t, l.SpendSpeak())
-	assert.Equal(t, 100-costs.Speak, l.Pool())
-}
-
-func TestSpendRemember(t *testing.T) {
-	costs := defaultCosts()
-	l := newLedger(100, 0, 0, costs)
-	require.NoError(t, l.SpendRemember())
-	assert.Equal(t, 100-costs.Remember, l.Pool())
-}
-
-func TestSpendSearch(t *testing.T) {
-	costs := defaultCosts()
-	l := newLedger(100, 0, 0, costs)
-	require.NoError(t, l.SpendSearch())
-	assert.Equal(t, 100-costs.Search, l.Pool())
-}
-
-func TestSpendPerceive(t *testing.T) {
-	costs := defaultCosts()
-	l := newLedger(100, 0, 0, costs)
-	require.NoError(t, l.SpendPerceive())
-	assert.Equal(t, 100-costs.Perceive, l.Pool())
-}
-
-func TestSpendHelpers_FailWhenExhausted(t *testing.T) {
-	tests := []struct {
-		name  string
-		spend func(*Ledger) error
-	}{
-		{"SpendThink", (*Ledger).SpendThink},
-		{"SpendSpeak", (*Ledger).SpendSpeak},
-		{"SpendRemember", (*Ledger).SpendRemember},
-		{"SpendSearch", (*Ledger).SpendSearch},
-		{"SpendPerceive", (*Ledger).SpendPerceive},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := newLedger(0, 0, 0, defaultCosts())
-			err := tt.spend(l)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "insufficient attention")
-		})
-	}
-}
-
-// ---- Exhaustion sequence --------------------------------------------------
-
-func TestExhaustion_SequentialSpends(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+func TestSpend_BeatExhaustion(t *testing.T) {
+	l := newLedger(100, 0, 0)
 	spent := 0
 	for {
-		err := l.SpendThink() // cost 10
+		err := l.Spend("beat", 10)
 		if err != nil {
 			break
 		}
-		spent += defaultCosts().Think
+		spent += 10
 	}
 	assert.Equal(t, 100, spent)
 	assert.Equal(t, 0, l.Pool())
@@ -193,7 +128,7 @@ func TestExhaustion_SequentialSpends(t *testing.T) {
 // ---- Audit trail ---------------------------------------------------------
 
 func TestDrainAudit_RecordsEntries(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("alpha", 10))
 	require.NoError(t, l.Spend("beta", 20))
 
@@ -208,7 +143,7 @@ func TestDrainAudit_RecordsEntries(t *testing.T) {
 }
 
 func TestDrainAudit_ClearsAfterDrain(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("x", 5))
 	l.DrainAudit()
 	entries := l.DrainAudit()
@@ -216,7 +151,7 @@ func TestDrainAudit_ClearsAfterDrain(t *testing.T) {
 }
 
 func TestDrainAudit_FailedSpendNotRecorded(t *testing.T) {
-	l := newLedger(5, 0, 0, defaultCosts())
+	l := newLedger(5, 0, 0)
 	_ = l.Spend("expensive", 100)
 	entries := l.DrainAudit()
 	assert.Empty(t, entries)
@@ -224,7 +159,7 @@ func TestDrainAudit_FailedSpendNotRecorded(t *testing.T) {
 
 func TestDrainAudit_TimestampSet(t *testing.T) {
 	before := time.Now()
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("ts-check", 1))
 	after := time.Now()
 
@@ -238,7 +173,7 @@ func TestDrainAudit_TimestampSet(t *testing.T) {
 
 func TestRegen_CapAtMax(t *testing.T) {
 	// Spend a little then allow regen with a high rate.
-	l := newLedger(100, 0, 3600, defaultCosts()) // rate: 3600/hr means 1/ms
+	l := newLedger(100, 0, 3600) // rate: 3600/hr means 1/ms
 	require.NoError(t, l.Spend("burn", 10))
 	// Force lastRegen back by 1 hour so regen math overflows to max.
 	l.mu.Lock()
@@ -251,7 +186,7 @@ func TestRegen_CapAtMax(t *testing.T) {
 
 func TestRegen_AddsUnitsOverTime(t *testing.T) {
 	// Rate: 3600/hr → 1/ms. Spend 10, wait ~15ms, should recover.
-	l := newLedger(100, 0, 3600, defaultCosts())
+	l := newLedger(100, 0, 3600)
 	require.NoError(t, l.Spend("drain", 10))
 	poolAfterSpend := l.Pool() // triggers regen; clamp tiny elapsed
 
@@ -265,7 +200,7 @@ func TestRegen_AddsUnitsOverTime(t *testing.T) {
 }
 
 func TestRegen_ZeroRate_NoRecovery(t *testing.T) {
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	require.NoError(t, l.Spend("drain", 50))
 	poolAfter := l.Pool()
 
@@ -280,7 +215,7 @@ func TestRegen_ZeroRate_NoRecovery(t *testing.T) {
 // ---- Status ---------------------------------------------------------------
 
 func TestStatus_ContainsKeyInfo(t *testing.T) {
-	l := newLedger(100, 50, 60, defaultCosts())
+	l := newLedger(100, 50, 60)
 	s := l.Status()
 	assert.Contains(t, s, "100")  // pool
 	assert.Contains(t, s, "50")   // floor
@@ -291,7 +226,7 @@ func TestStatus_ContainsKeyInfo(t *testing.T) {
 
 func TestConcurrent_SpendAndPool(t *testing.T) {
 	// Hammer Spend and Pool from many goroutines; must not race or panic.
-	l := newLedger(10000, 0, 0, defaultCosts())
+	l := newLedger(10000, 0, 0)
 
 	const workers = 20
 	const spends = 100
@@ -317,7 +252,7 @@ func TestConcurrent_SpendAndPool(t *testing.T) {
 
 func TestConcurrent_DrainAudit(t *testing.T) {
 	// Concurrent spends + drains: total audit entries drained must ≤ total spends.
-	l := newLedger(100000, 0, 0, defaultCosts())
+	l := newLedger(100000, 0, 0)
 
 	const workers = 10
 	const spends = 50
@@ -359,7 +294,7 @@ func TestConcurrent_DrainAudit(t *testing.T) {
 func TestSpend_NegativeCost_NeverExceedsMax(t *testing.T) {
 	// Negative cost would increase pool. The implementation uses float subtraction,
 	// so a negative cost adds to the pool. Ensure regen cap still applies.
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	// Spend negative = top-up, but cap at max.
 	_ = l.Spend("top-up", -50) // implementation allows this; pool = 150 before cap
 	// Pool is capped by regen only, so it could exceed max here.
@@ -369,14 +304,14 @@ func TestSpend_NegativeCost_NeverExceedsMax(t *testing.T) {
 }
 
 func TestLargePool_Allocation(t *testing.T) {
-	l := newLedger(1_000_000, 0, 0, defaultCosts())
+	l := newLedger(1_000_000, 0, 0)
 	require.NoError(t, l.Spend("big", 999_999))
 	assert.Equal(t, 1, l.Pool())
 }
 
 func TestNew_PersonaZeroFloor_DoesNotPanic(t *testing.T) {
 	// Floor of 0 means "always above floor" effectively.
-	l := newLedger(100, 0, 0, defaultCosts())
+	l := newLedger(100, 0, 0)
 	assert.True(t, l.AboveFloor())
 	require.NoError(t, l.Spend("all", 100))
 	// Pool is 0, floor is 0 — still at floor.

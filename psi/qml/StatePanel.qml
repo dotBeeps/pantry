@@ -156,6 +156,25 @@ Rectangle {
             spacing: 4
 
             Text {
+                text: "STONE"
+                font.pixelSize: 10
+                font.bold: true
+                font.letterSpacing: 1.5
+                color: Theme.textDim
+            }
+
+            Text {
+                text: Mcp.connected ? "connected" : "disconnected"
+                font.pixelSize: 11
+                color: Mcp.connected ? "#4ade80" : Theme.textDim
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            Text {
                 text: "LAST BEAT"
                 font.pixelSize: 10
                 font.bold: true

@@ -19,7 +19,7 @@ import (
 func testPersona() *persona.Persona {
 	return &persona.Persona{
 		Attention: persona.AttentionConfig{Pool: 100, Rate: 0, Floor: 10},
-		Costs:     persona.CostConfig{Think: 5},
+		Costs:     persona.CostConfig{Beat: 5},
 	}
 }
 

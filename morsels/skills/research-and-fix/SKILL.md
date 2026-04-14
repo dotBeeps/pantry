@@ -51,3 +51,11 @@ Synthesize all findings into a 3-sentence root cause summary. Then pair with an 
 - Spawn Phase 2 agents only for concerns actually surfaced in Phase 1, not speculatively
 - The main agent synthesizes and directs; sub-agents research and report — don't let sub-agents write code
 - All sub-agent findings must be summarized before the opus fix agent starts
+
+## When not to use
+
+- Root cause is already obvious — use `/fix` instead; multi-agent orchestration is overhead.
+- Typo or one-line fix — just edit it.
+- Bug is in code you just wrote this session — context is already loaded; skip the research fleet.
+- No failing reproduction exists yet — get a failing test first, then decide if research is warranted.
+- Exploring a codebase for understanding (not fixing a bug) — use codebase-memory or Grep.

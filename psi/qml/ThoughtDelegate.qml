@@ -4,6 +4,13 @@ import QtQuick.Layouts
 Item {
     id: delegateRoot
 
+    // These were previously injected as required properties by ThoughtStream's
+    // delegate declaration. Now declared here so ThoughtDelegate is self-contained.
+    property string type: ""
+    property string text: ""
+    property string nerve: ""
+    property date timestamp
+
     implicitHeight: row.implicitHeight + 8
 
     readonly property color typeColor: {
@@ -16,7 +23,7 @@ Item {
         }
     }
 
-    readonly property string typeLabel: {
+    readonly property string displayLabel: {
         switch (type) {
         case "think": return "think"
         case "speak": return "speak"
@@ -49,8 +56,8 @@ Item {
             }
 
             Text {
-                visible: typeLabel !== ""
-                text: typeLabel
+                visible: displayLabel !== ""
+                text: displayLabel
                 font.pixelSize: 11
                 font.family: "monospace"
                 font.bold: true

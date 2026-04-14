@@ -19,7 +19,7 @@ func newTestLedger() *attention.Ledger {
 			Floor: 10,
 		},
 		Costs: persona.CostConfig{
-			Think: 5,
+			Beat: 5,
 		},
 	}
 	return attention.New(p, slog.Default())

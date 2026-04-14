@@ -15,6 +15,9 @@ qt_add_executable(psi
     src/thoughtmodel.h src/thoughtmodel.cpp
     src/daemonstate.h src/daemonstate.cpp
     src/themeengine.h src/themeengine.cpp
+    src/conversationmodel.h src/conversationmodel.cpp
+    src/mcpclient.h src/mcpclient.cpp
+    src/stonepoller.h src/stonepoller.cpp
 )
 
 qt_add_qml_module(psi
@@ -24,8 +27,12 @@ qt_add_qml_module(psi
         qml/Main.qml
         qml/SessionRail.qml
         qml/ConnectionBar.qml
-        qml/ThoughtStream.qml
+        qml/ConversationStream.qml
         qml/ThoughtDelegate.qml
+        qml/DotMessageDelegate.qml
+        qml/StoneDelegate.qml
+        qml/QuestEventDelegate.qml
+        qml/SummaryDelegate.qml
         qml/StreamFilter.qml
         qml/InputBar.qml
         qml/StatePanel.qml

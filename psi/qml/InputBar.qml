@@ -29,6 +29,7 @@ Rectangle {
 
             onAccepted: {
                 if (input.text.trim().length === 0) return
+                Conversation.addDotMessage(input.text)
                 Sse.sendMessage(input.text)
                 input.text = ""
             }

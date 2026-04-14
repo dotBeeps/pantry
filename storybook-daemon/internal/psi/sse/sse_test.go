@@ -87,7 +87,7 @@ func startTestIfaceFull(t *testing.T) (*sse.Interface, string) {
 	port := freePort(t)
 	ledger := minimalLedger()
 	agg := sensory.New(20)
-	b := sse.New("test", port, ledger, agg, slog.Default())
+	b := sse.New("test", port, ledger, agg, nil, slog.Default())
 
 	require.NoError(t, b.Start(context.Background()))
 

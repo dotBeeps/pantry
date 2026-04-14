@@ -26,7 +26,10 @@ Rectangle {
                 { label: "speak", color: Theme.colorSpeak },
                 { label: "text", color: Theme.colorText },
                 { label: "observe", color: Theme.colorObserve },
-                { label: "beat", color: Theme.colorBeat }
+                { label: "beat", color: Theme.colorBeat },
+                { label: "dot", color: "#7ec8e3" },
+                { label: "ally", color: Theme.tierAlly },
+                { label: "quest", color: "#c9a0dc" }
             ]
 
             Rectangle {
@@ -61,7 +64,7 @@ Rectangle {
         Item { Layout.fillWidth: true }
 
         Text {
-            text: Thoughts.count + " events"
+            text: Conversation.count + " events"
             font.pixelSize: 10
             font.family: "monospace"
             color: Theme.textDim

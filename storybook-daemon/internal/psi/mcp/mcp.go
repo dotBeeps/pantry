@@ -16,6 +16,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/conversation"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/quest"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
@@ -38,6 +39,7 @@ type Interface struct {
 	port     int
 	vault    *memory.Vault
 	ledger   *attention.Ledger
+	convo    *conversation.Ledger
 	broker   *Broker
 	questMgr *quest.Manager
 	log      *slog.Logger
@@ -51,7 +53,7 @@ type Interface struct {
 
 // New creates an MCP Interface that serves on the given port.
 // questMgr may be nil; a default Manager will be created internally.
-func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Interface {
+func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, convo *conversation.Ledger, log *slog.Logger) *Interface {
 	broker := NewBroker(256)
 	qm := quest.NewManager(broker, port, func(args ...any) { log.Info(fmt.Sprint(args...)) })
 	return &Interface{
@@ -59,6 +61,7 @@ func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log
 		port:     port,
 		vault:    vault,
 		ledger:   ledger,
+		convo:    convo,
 		broker:   broker,
 		questMgr: qm,
 		log:      log,
@@ -458,6 +461,13 @@ func (b *Interface) handleStoneSend(ctx context.Context, _ *gomcp.CallToolReques
 	}
 	if err := b.broker.Send(ctx, input.SessionID, msg); err != nil {
 		return nil, stoneSendOutput{}, err
+	}
+	if b.convo != nil && (input.Type == "result" || input.Type == "question") {
+		b.convo.Append(conversation.Entry{
+			Role:    "ally:" + input.From,
+			Content: input.Content,
+			Source:  "stone",
+		})
 	}
 
 	return nil, stoneSendOutput{

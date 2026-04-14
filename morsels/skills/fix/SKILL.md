@@ -26,3 +26,11 @@ Fix a bug. No plan docs. Ship working code.
 - Never mock the database or fake infrastructure in tests.
 - Never skip the failing-test step — even for "obvious" fixes.
 - If the bug is in a component with no existing tests, write the first test for it.
+
+## When not to use
+
+- Root cause is unclear or the bug spans multiple systems — use `/research-and-fix`.
+- Adding a new feature (no pre-existing failure) — this is a bug-fix workflow, not a feature one.
+- Refactoring or style cleanup — no regression test to anchor the change.
+- Pure documentation or comment changes — no test, no fix loop.
+- Fixing flaky tests — diagnose flake first; a regression test on flake masks it.

@@ -19,30 +19,55 @@ Rectangle {
         Item { Layout.fillWidth: true }
 
         Row {
-            spacing: 6
+            spacing: 12
 
-            Rectangle {
-                width: 8
-                height: 8
-                radius: 4
-                anchors.verticalCenter: parent.verticalCenter
-                color: Daemon.connected ? "#4ade80" : "#ef4444"
+            Row {
+                spacing: 4
 
-                SequentialAnimation on opacity {
-                    id: pulseAnim
-                    running: !Daemon.connected
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) parent.opacity = 1.0
-                    NumberAnimation { to: 0.3; duration: 800 }
-                    NumberAnimation { to: 1.0; duration: 800 }
+                Rectangle {
+                    width: 8; height: 8; radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Daemon.connected ? "#4ade80" : "#ef4444"
+
+                    SequentialAnimation on opacity {
+                        running: !Daemon.connected
+                        loops: Animation.Infinite
+                        onRunningChanged: if (!running) parent.opacity = 1.0
+                        NumberAnimation { to: 0.3; duration: 800 }
+                        NumberAnimation { to: 1.0; duration: 800 }
+                    }
+                }
+
+                Text {
+                    text: "SSE"
+                    font.pixelSize: 10
+                    color: Theme.textDim
                 }
             }
 
-            Text {
-                text: Daemon.connected ? "SSE connected" : "SSE disconnected"
-                font.pixelSize: 11
-                color: Theme.textDim
+            Row {
+                spacing: 4
+
+                Rectangle {
+                    width: 8; height: 8; radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Mcp.connected ? "#4ade80" : "#ef4444"
+                }
+
+                Text {
+                    text: "MCP"
+                    font.pixelSize: 10
+                    color: Theme.textDim
+                }
             }
+        }
+
+        Text {
+            visible: Mcp.sessionId !== ""
+            text: Mcp.sessionId
+            font.pixelSize: 10
+            font.family: "monospace"
+            color: Theme.textDim
         }
     }
 }

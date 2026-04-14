@@ -33,3 +33,7 @@ build/
 *.class
 *.jar
 runs/
+
+# Superpowers brainstorming session state
+.superpowers/
+AGENTS.override.md

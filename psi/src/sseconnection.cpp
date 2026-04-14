@@ -5,6 +5,7 @@
 #include <QNetworkRequest>
 #include <QVariantMap>
 
+
 SseConnection::SseConnection(QObject *parent)
     : QObject(parent)
 {
