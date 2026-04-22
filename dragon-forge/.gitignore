@@ -1,8 +1,0 @@
-out/
-*.jsonl
-!seed/*.jsonl
-!probes.jsonl
-__pycache__/
-*.pyc
-.venv/
-checkpoints/

@@ -1,4 +1,4 @@
-> **Part of [Hoard](../../../AGENTS.md)** — read root AGENTS.md for context.
+> **Part of [Pantry](../../../AGENTS.md)** — read root AGENTS.md for context.
 
 # dragon-guard Extension
 
@@ -37,6 +37,7 @@ tool_call event
 ### Permission Dialogs
 
 When a tool requires permission, the extension:
+
 1. **Formats** the tool call (name + truncated JSON params)
 2. **Optionally summarizes** using Haiku LLM (if `llmSummaries: true`) to explain potential impact
 3. **Prompts** the user with:
@@ -50,6 +51,7 @@ Tool summaries are LLM-accelerated to catch nuanced impact (e.g., "this bash com
 ### Complexity Auto-Detection
 
 Before agent start, if Dog Mode is active and the prompt looks complex (`complexityScore(prompt) >= threshold`), auto-switch to Puppy Mode and notify the user. Triggers on:
+
 - Keywords: "refactor", "architecture", "migration", "plan", "design"
 - Sequencing words: "first", "then", "step", "phase"
 - Broad scope: "entire codebase", "all files", "throughout"
@@ -61,6 +63,7 @@ Reduces score for questions ("what is", "how does").
 Puppy Mode uses pattern-based bash classification:
 
 **SAFE_PLAN_BASH** (auto-allow in Puppy):
+
 - Read-only: `cat`, `head`, `tail`, `diff`, `grep`, `rg`, `jq`
 - Directory: `ls`, `find`, `pwd`, `tree`
 - System info: `env`, `uname`, `date`, `uptime`, `du`, `df`
@@ -68,6 +71,7 @@ Puppy Mode uses pattern-based bash classification:
 - Package queries: `npm list`, `yarn info`, `pip freeze`
 
 **MUTATING_BASH** (prompt in Puppy):
+
 - File ops: `rm`, `mkdir`, `touch`, `chmod`
 - Package mutations: `npm install`, `yarn add`, `pip install`
 - Git mutations: `git add`, `git commit`, `git push`, `git rebase`
@@ -81,6 +85,7 @@ Chained commands (`; && ||`) are always considered mutating.
 State (mode + tool overrides) is stored via `pi.appendEntry()` as `dragon-guard-state` custom entries. Reconstructed on `session_start`, `session_switch`, `session_fork`, `session_tree`.
 
 Tool override sets:
+
 - `dogModeSessionAllowedTools` — tools allowed in this session (Dog Mode only)
 - `dogModeSessionBlockedTools` — tools blocked in this session (Dog Mode only)
 - `puppyModeSessionAllowedTools` — tools allowed in this session (Puppy Mode only)
@@ -100,25 +105,25 @@ When the daemon spawns a subagent (child process), `PI_SUBAGENT_DEPTH > 0` cause
 
 ## Configuration
 
-All settings live under `hoard.guard.*` in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+All settings live under `pantry.guard.*` in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
-| Setting | Type | Default | Notes |
-|---------|------|---------|-------|
-| `hoard.guard.autoDetect` | bool | `true` | Auto-switch to Puppy Mode for complex prompts |
-| `hoard.guard.complexityThreshold` | number | `4` | Score threshold (higher = less sensitive) |
-| `hoard.guard.llmSummaries` | bool | `true` | Use Haiku to summarize tool calls in dialogs |
-| `hoard.guard.dogAllowedTools` | string[] | `["read", "ls", "find", "grep", "questionnaire"]` | Default Dog Mode whitelist |
-| `hoard.guard.puppyAllowedTools` | string[] | `["read", "ls", "find", "grep", "questionnaire", "bash"]` | Default Puppy Mode whitelist |
-| `hoard.guard.dragonKey` | string | `"ctrl+alt+d"` | Keyboard shortcut to Dragon Mode |
-| `hoard.guard.puppyKey` | string | `"ctrl+alt+p"` | Keyboard shortcut to Puppy Mode |
-| `hoard.guard.dogKey` | string | `"ctrl+alt+n"` | Keyboard shortcut to Dog Mode |
-| `hoard.guard.panelKey` | string | `"alt+g"` | Keyboard shortcut to toggle guard panel |
+| Setting                            | Type     | Default                                                   | Notes                                         |
+| ---------------------------------- | -------- | --------------------------------------------------------- | --------------------------------------------- |
+| `pantry.guard.autoDetect`          | bool     | `true`                                                    | Auto-switch to Puppy Mode for complex prompts |
+| `pantry.guard.complexityThreshold` | number   | `4`                                                       | Score threshold (higher = less sensitive)     |
+| `pantry.guard.llmSummaries`        | bool     | `true`                                                    | Use Haiku to summarize tool calls in dialogs  |
+| `pantry.guard.dogAllowedTools`     | string[] | `["read", "ls", "find", "grep", "questionnaire"]`         | Default Dog Mode whitelist                    |
+| `pantry.guard.puppyAllowedTools`   | string[] | `["read", "ls", "find", "grep", "questionnaire", "bash"]` | Default Puppy Mode whitelist                  |
+| `pantry.guard.dragonKey`           | string   | `"ctrl+alt+d"`                                            | Keyboard shortcut to Dragon Mode              |
+| `pantry.guard.puppyKey`            | string   | `"ctrl+alt+p"`                                            | Keyboard shortcut to Puppy Mode               |
+| `pantry.guard.dogKey`              | string   | `"ctrl+alt+n"`                                            | Keyboard shortcut to Dog Mode                 |
+| `pantry.guard.panelKey`            | string   | `"alt+g"`                                                 | Keyboard shortcut to toggle guard panel       |
 
 Example `.pi/settings.json`:
 
 ```json
 {
-  "hoard": {
+  "pantry": {
     "guard": {
       "autoDetect": false,
       "complexityThreshold": 5,
@@ -160,7 +165,7 @@ Example `.pi/settings.json`:
 ```
 dragon-guard/
 ├── index.ts           Entry point, event hooks, commands, UI rendering
-├── settings.ts        Settings readers (hoard.guard.*), mutable accessors
+├── settings.ts        Settings readers (pantry.guard.*), mutable accessors
 ├── state.ts           Mode, tool policies, session persistence, reconstruction
 ├── panel.ts           Guard panel component (chrome, items, input, render)
 └── bash-patterns.ts   Safe/mutating bash regex patterns, classification

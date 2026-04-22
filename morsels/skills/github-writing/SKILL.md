@@ -13,7 +13,7 @@ Collaboratively draft high-quality documents for GitHub repositories. **Do not e
 Before drafting, determine the active writing style. Check settings first, then ask if unclear:
 
 ```json
-// ~/.pi/agent/settings.json → hoard.tone
+// ~/.pi/agent/settings.json → pantry.tone
 {
   "default": "friendly",
   "overrides": {
@@ -25,19 +25,20 @@ Before drafting, determine the active writing style. Check settings first, then 
 ```
 
 **Resolution order:**
+
 1. Check `overrides` for the document type (`pr`, `issue`, `readme`, `contributing`, `release`, `security`, `coc`, `template`)
 2. Fall back to `default`
 3. If no setting exists, ask the user or default to `friendly`
 
 **Available styles** — read the full style file before drafting:
 
-| Style | Voice | Best For |
-|-------|-------|----------|
-| **formal** | Precise, impersonal, technical | Public libs, corporate, security docs |
-| **friendly** | Warm, approachable, professional | OSS projects, broad audiences (default) |
-| **personality** | Character-driven, expressive | Personal projects, branded repos |
-| **narrative** | Story-driven, investigative | Complex PRs, release notes, post-mortems |
-| **minimal** | Terse, factual, zero fluff | Internal tools, automation, expert audiences |
+| Style           | Voice                            | Best For                                     |
+| --------------- | -------------------------------- | -------------------------------------------- |
+| **formal**      | Precise, impersonal, technical   | Public libs, corporate, security docs        |
+| **friendly**    | Warm, approachable, professional | OSS projects, broad audiences (default)      |
+| **personality** | Character-driven, expressive     | Personal projects, branded repos             |
+| **narrative**   | Story-driven, investigative      | Complex PRs, release notes, post-mortems     |
+| **minimal**     | Terse, factual, zero fluff       | Internal tools, automation, expert audiences |
 
 Style files live in `berrygems/styles/`. Read the full style file before drafting.
 
@@ -54,6 +55,7 @@ Follow these steps in order. Do not skip the approval gate.
 Determine the document type. Each links to a structure guide in `references/`:
 
 **Code workflow documents:**
+
 - **PR description** — summarizing changes for reviewers → [references/pr-template.md](references/pr-template.md)
 - **Bug report** — reproducing and documenting a defect → [references/issue-templates.md](references/issue-templates.md)
 - **Feature request** — proposing new functionality → [references/issue-templates.md](references/issue-templates.md)
@@ -61,12 +63,14 @@ Determine the document type. Each links to a structure guide in `references/`:
 - **Release notes** — communicating what shipped → [references/release-notes-guide.md](references/release-notes-guide.md)
 
 **Repository documents:**
+
 - **README** — project introduction and onboarding → [references/readme-guide.md](references/readme-guide.md)
 - **CONTRIBUTING guide** — how to contribute → [references/contributing-guide.md](references/contributing-guide.md)
 - **Community docs** — CODE_OF_CONDUCT, SECURITY, FUNDING, LICENSE → [references/community-docs-guide.md](references/community-docs-guide.md)
 - **Repo templates** — `.github/` issue/PR/discussion templates → [references/repo-templates-guide.md](references/repo-templates-guide.md)
 
 **Other:**
+
 - **Discussion post** — questions, announcements, show-and-tell → treat as issue with less formality
 - **Wiki page** — extended documentation → treat as README section
 - **Profile README** — personal or org landing page → [references/readme-guide.md](references/readme-guide.md) (profile section)
@@ -89,6 +93,7 @@ Keep the interview fast — two focused questions are better than four vague one
 ### 3. Research (Read-Only)
 
 Gather context **without executing any commands that modify state**. Allowed:
+
 - Read diffs, logs, file contents: `git diff`, `git log`, `git show`, source files
 - Read issues/PRs: `gh issue view`, `gh pr view`
 - Read existing docs: READMEs, CONTRIBUTING, templates already in the repo
@@ -111,6 +116,7 @@ Present a structured outline before writing:
 Present the outline and ask: **"Ready to draft?"**
 
 The user can:
+
 - Approve → proceed to drafting
 - Adjust sections, reorder, add/remove content
 - Write manual sections inline
@@ -123,6 +129,7 @@ The user can:
 Read the resolved style file from `styles/` and apply its voice, word choice, and structure rules. Write the complete document in a fenced code block for easy review and copying. Use GitHub Flavored Markdown (see `github-markdown` skill for conventions).
 
 **Style enforcement during drafting:**
+
 - Reread the style's Guardrails section before writing
 - If the style says "never" do something, don't do it
 - If personality/narrative styles feel forced for the content, tell the user and suggest a better fit
@@ -133,6 +140,7 @@ Read the resolved style file from `styles/` and apply its voice, word choice, an
 Present the draft and ask: **"Ready to submit?"**
 
 Only after final approval, offer to run the appropriate command:
+
 - PR: `gh pr create --body-file <file>`
 - Issue: `gh issue create --body-file <file>`
 - Release: `gh release create --notes-file <file>`
@@ -145,7 +153,7 @@ Only after final approval, offer to run the appropriate command:
 Read the contributor identity from settings before writing attribution:
 
 ```json
-// ~/.pi/agent/settings.json → hoard.contributor
+// ~/.pi/agent/settings.json → pantry.contributor
 {
   "name": "Ember 🐉",
   "email": "ember-ai@dotbeeps.dev",
@@ -198,6 +206,7 @@ Place at the bottom of the document, before any footers. This is for technical t
 ### Crediting Others
 
 When building on someone else's work, report, or suggestion:
+
 - "Thanks to @user for reporting this in #123"
 - "Based on the approach suggested by @user in #456"
 - Link to the original issue, discussion, or comment
@@ -208,7 +217,7 @@ When building on someone else's work, report, or suggestion:
 
 ✅ Even a two-line summary is infinitely better than nothing.
 
-❌ **Wall of diff, no explanation** — The diff is already visible. The description explains *why*.
+❌ **Wall of diff, no explanation** — The diff is already visible. The description explains _why_.
 
 ✅ Summarize the approach, link to the issue, note anything non-obvious.
 

@@ -1,11 +1,17 @@
 {
-  "name": "hoard",
+  "name": "pantry",
   "version": "1.0.0",
-  "description": "A dragon's hoard of agent tools — extensions, skills, and a daemon that tends them. Built by a small dog and a large dragon.",
-  "keywords": ["pi-package"],
+  "description": "A dragon's pantry — extensions and skills for AI coding agents. Built by a small dog and a large dragon.",
+  "keywords": [
+    "pi-package"
+  ],
   "license": "MIT",
   "pi": {
-    "extensions": ["berrygems/extensions"],
-    "skills": ["morsels/skills"]
+    "extensions": [
+      "berrygems/extensions"
+    ],
+    "skills": [
+      "morsels/skills"
+    ]
   }
 }

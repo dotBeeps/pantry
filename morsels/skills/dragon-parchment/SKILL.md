@@ -12,8 +12,10 @@ Build floating overlay panels that integrate with dragon-parchment — the centr
 ## API Access
 
 ```typescript
-const PANELS_KEY = Symbol.for("hoard.parchment");
-function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
+const PANELS_KEY = Symbol.for("pantry.parchment");
+function getPanels(): any {
+  return (globalThis as any)[PANELS_KEY];
+}
 ```
 
 Never import `dragon-parchment.ts` directly — jiti isolates module caches per extension entry point.
@@ -24,11 +26,11 @@ The factory passed to `createPanel()` receives a `PanelContext`:
 
 ```typescript
 interface PanelContext {
-    tui:        TUI;
-    theme:      Theme;
-    cwd:        string;
-    isFocused:  () => boolean;
-    focusIndex: () => { index: number; total: number } | null; // 1-based position in cycle
+  tui: TUI;
+  theme: Theme;
+  cwd: string;
+  isFocused: () => boolean;
+  focusIndex: () => { index: number; total: number } | null; // 1-based position in cycle
 }
 ```
 
@@ -36,10 +38,10 @@ interface PanelContext {
 
 ```typescript
 interface PanelComponent {
-    render(width: number): string[];  // each line MUST NOT exceed width
-    invalidate(): void;
-    handleInput?(data: string): void; // extension-specific keys only
-    dispose?(): void;
+  render(width: number): string[]; // each line MUST NOT exceed width
+  invalidate(): void;
+  handleInput?(data: string): void; // extension-specific keys only
+  dispose?(): void;
 }
 ```
 
@@ -51,48 +53,61 @@ if (!panels) return "dragon-parchment not loaded";
 
 let myComp: MyComponent | null = null;
 
-panels.createPanel("my-panel", (panelCtx) => {
+panels.createPanel(
+  "my-panel",
+  (panelCtx) => {
     myComp = new MyComponent(panelCtx);
     return {
-        render:      (w)    => myComp!.render(w),
-        invalidate:  ()     => myComp!.invalidate(),
-        handleInput: (data) => myComp!.handleInput(data),
-        dispose:     ()     => myComp!.cleanup(),
+      render: (w) => myComp!.render(w),
+      invalidate: () => myComp!.invalidate(),
+      handleInput: (data) => myComp!.handleInput(data),
+      dispose: () => myComp!.cleanup(),
     };
-}, {
-    anchor:      "right-center",
-    width:       "30%",
-    focusOnOpen: true,          // optional — focus immediately after open
-    onClose:     () => { myComp = null; },
-});
+  },
+  {
+    anchor: "right-center",
+    width: "30%",
+    focusOnOpen: true, // optional — focus immediately after open
+    onClose: () => {
+      myComp = null;
+    },
+  },
+);
 
 // Clean up on session events
-pi.on("session_switch",   async () => { myComp = null; });
-pi.on("session_shutdown", async () => { myComp = null; });
+pi.on("session_switch", async () => {
+  myComp = null;
+});
+pi.on("session_shutdown", async () => {
+  myComp = null;
+});
 ```
 
 ## Focus Counter in Hint Bar
 
 ```typescript
-const kh  = getPanels()?.keyHints;
+const kh = getPanels()?.keyHints;
 const idx = panelCtx.focusIndex();
 const counter = idx ? ` ${idx.index}/${idx.total}` : "";
 const hint = panelCtx.isFocused()
-    ? th.fg("dim", `↑↓ nav · ${kh?.focused ?? "Q close · Escape unfocus"}${counter}`)
-    : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /mycommand help`);
+  ? th.fg(
+      "dim",
+      `↑↓ nav · ${kh?.focused ?? "Q close · Escape unfocus"}${counter}`,
+    )
+  : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /mycommand help`);
 ```
 
 ## keyHints
 
 ```typescript
 const kh = getPanels()?.keyHints;
-kh.focusKey         // "Alt+T"
-kh.focusReverseKey  // "Shift+Tab"
-kh.closeKey         // "Q"
-kh.unfocusKey       // "Escape"
-kh.focused          // "Q close · Escape unfocus"
-kh.unfocused        // "Alt+T focus"
-kh.focusReverse     // "Shift+Tab prev"
+kh.focusKey; // "Alt+T"
+kh.focusReverseKey; // "Shift+Tab"
+kh.closeKey; // "Q"
+kh.unfocusKey; // "Escape"
+kh.focused; // "Q close · Escape unfocus"
+kh.unfocused; // "Alt+T focus"
+kh.focusReverse; // "Shift+Tab prev"
 ```
 
 ## Smart Placement
@@ -113,24 +128,24 @@ Collision avoidance adjusts `offsetY`/`offsetX` to stack panels at the same anch
 
 ```typescript
 panels.createPanel("detail-panel", factory, {
-    anchor: {
-        relativeTo: "list-panel",  // ID of reference panel
-        edge:       "bottom",       // top | bottom | left | right | top-left | …
-        offsetX:    0,
-        offsetY:    1,
-    },
-    width: "30%",
+  anchor: {
+    relativeTo: "list-panel", // ID of reference panel
+    edge: "bottom", // top | bottom | left | right | top-left | …
+    offsetX: 0,
+    offsetY: 1,
+  },
+  width: "30%",
 });
 ```
 
 ## Configurable Hotkeys
 
-| Setting | Default | Action |
-|---------|---------|--------|
-| `hoard.panels.focusKey` | `alt+t` | Cycle focus forward |
-| `hoard.panels.focusReverseKey` | `shift+tab` | Cycle focus backward |
-| `hoard.panels.closeKey` | `q` | Close focused panel |
-| `hoard.panels.unfocusKey` | `escape` | Unfocus panel |
+| Setting                         | Default     | Action               |
+| ------------------------------- | ----------- | -------------------- |
+| `pantry.panels.focusKey`        | `alt+t`     | Cycle focus forward  |
+| `pantry.panels.focusReverseKey` | `shift+tab` | Cycle focus backward |
+| `pantry.panels.closeKey`        | `q`         | Close focused panel  |
+| `pantry.panels.unfocusKey`      | `escape`    | Unfocus panel        |
 
 ## TUI Rendering
 
@@ -161,39 +176,39 @@ Use `truncateToWidth()` for ANSI-decorated lines — never slice directly.
 
 ## Reference — API Methods
 
-| Method | Description |
-|--------|-------------|
+| Method                            | Description                                  |
+| --------------------------------- | -------------------------------------------- |
 | `createPanel(id, factory, opts?)` | **Primary API** — create, position, register |
-| `suggestLayout(count)` | Positions for N new panels |
-| `getGeometry(id)` | Tracked geometry for a panel |
-| `close(id)` | Close and dispose |
-| `closeAll()` | Close all |
-| `isOpen(id)` | Open check |
-| `list()` | `{ id, focused }[]` |
-| `focusPanel(id)` | Focus by ID |
-| `cycleFocus(direction?)` | 1 = next (default), -1 = prev |
-| `unfocusAll()` | Remove all focus |
-| `requestRender()` | Trigger re-render |
+| `suggestLayout(count)`            | Positions for N new panels                   |
+| `getGeometry(id)`                 | Tracked geometry for a panel                 |
+| `close(id)`                       | Close and dispose                            |
+| `closeAll()`                      | Close all                                    |
+| `isOpen(id)`                      | Open check                                   |
+| `list()`                          | `{ id, focused }[]`                          |
+| `focusPanel(id)`                  | Focus by ID                                  |
+| `cycleFocus(direction?)`          | 1 = next (default), -1 = prev                |
+| `unfocusAll()`                    | Remove all focus                             |
+| `requestRender()`                 | Trigger re-render                            |
 
 ## Reference — PanelCreateOptions
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `anchor` | `OverlayAnchor \| PanelAnchorRef` | auto | Position or panel-relative anchor |
-| `width` | `number \| string` | `"30%"` | Columns or percentage |
-| `minWidth` | `number` | `30` | Minimum columns |
-| `maxHeight` | `number \| string` | `"90%"` | Rows or percentage |
-| `offsetX` | `number` | `0` | Horizontal offset |
-| `offsetY` | `number` | `0` | Vertical offset |
-| `margin` | `number \| object` | `1` | Sides or `{ top, right, bottom, left }` |
-| `allowOverlap` | `boolean` | `false` | Skip collision avoidance |
-| `focusOnOpen` | `boolean` | `false` | Focus immediately after creation |
-| `visible` | `(w, h) => boolean` | — | Responsive visibility |
-| `onClose` | `() => void` | — | Called after close |
+| Option         | Type                              | Default | Description                             |
+| -------------- | --------------------------------- | ------- | --------------------------------------- |
+| `anchor`       | `OverlayAnchor \| PanelAnchorRef` | auto    | Position or panel-relative anchor       |
+| `width`        | `number \| string`                | `"30%"` | Columns or percentage                   |
+| `minWidth`     | `number`                          | `30`    | Minimum columns                         |
+| `maxHeight`    | `number \| string`                | `"90%"` | Rows or percentage                      |
+| `offsetX`      | `number`                          | `0`     | Horizontal offset                       |
+| `offsetY`      | `number`                          | `0`     | Vertical offset                         |
+| `margin`       | `number \| object`                | `1`     | Sides or `{ top, right, bottom, left }` |
+| `allowOverlap` | `boolean`                         | `false` | Skip collision avoidance                |
+| `focusOnOpen`  | `boolean`                         | `false` | Focus immediately after creation        |
+| `visible`      | `(w, h) => boolean`               | —       | Responsive visibility                   |
+| `onClose`      | `() => void`                      | —       | Called after close                      |
 
 ## Anti-Patterns
 
-- **Don't import dragon-parchment directly** — use `globalThis[Symbol.for("hoard.parchment")]`
+- **Don't import dragon-parchment directly** — use `globalThis[Symbol.for("pantry.parchment")]`
 - **Don't call `ctx.ui.custom()` yourself** — use `createPanel()`
 - **Don't handle Esc, Q, or focus keys in your component** — dragon-parchment consumes these first
 - **Don't register your own focus shortcut** — dragon-parchment owns those `registerShortcut` calls

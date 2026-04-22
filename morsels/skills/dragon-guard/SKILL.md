@@ -12,9 +12,11 @@ compatibility: "Designed for Pi (pi-coding-agent)"
 **dragon-guard** is a permission system that decides whether the agent can execute each tool call based on the current mode and what the tool does.
 
 When a tool is blocked, you'll see a message like:
+
 > Tool use blocked in Dog Mode until permission is granted or Dragon Mode is enabled.
 
 This happens because the extension evaluated the tool call against three rules:
+
 1. Is the tool in the default/session allow list? → Execute
 2. Is the tool in the session block list? → Block
 3. Otherwise → Prompt for permission (or block without UI)
@@ -47,12 +49,14 @@ The guard does **not** prevent read-only inspection tools (`read`, `ls`, `grep`)
 ## How to Check Current Guard Mode
 
 Use the `/mode` command:
+
 ```
 /mode
 → Current guard mode: Dog Mode
 ```
 
 Or open the guard panel with `/guard` (or `Alt+G`). The panel shows:
+
 - Current mode (Dog, Puppy, Dragon)
 - Auto-detect status (ON/OFF)
 - Sensitivity slider (2–8)
@@ -89,14 +93,14 @@ Read file contents without modifying files.
 
 ## Commands & Keybinds
 
-| Command | Shortcut | Effect |
-|---------|----------|--------|
-| `/mode` | — | Show current mode |
-| `/dragon` | `Ctrl+Alt+D` | Switch to Dragon Mode (all tools) |
-| `/puppy` | `Ctrl+Alt+P` | Switch to Puppy Mode (read-only planning) |
-| `/dog` | `Ctrl+Alt+N` | Switch to Dog Mode (permission-gated) |
-| `/guard` | `Alt+G` | Toggle the guard panel |
-| `/guard status` | — | Show config and session overrides |
+| Command         | Shortcut     | Effect                                    |
+| --------------- | ------------ | ----------------------------------------- |
+| `/mode`         | —            | Show current mode                         |
+| `/dragon`       | `Ctrl+Alt+D` | Switch to Dragon Mode (all tools)         |
+| `/puppy`        | `Ctrl+Alt+P` | Switch to Puppy Mode (read-only planning) |
+| `/dog`          | `Ctrl+Alt+N` | Switch to Dog Mode (permission-gated)     |
+| `/guard`        | `Alt+G`      | Toggle the guard panel                    |
+| `/guard status` | —            | Show config and session overrides         |
 
 ## Tips
 
@@ -133,7 +137,7 @@ Configure dragon-guard in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
-  "hoard": {
+  "pantry": {
     "guard": {
       "autoDetect": true,
       "complexityThreshold": 4,

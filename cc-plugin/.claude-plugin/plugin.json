@@ -1,5 +1,0 @@
-{
-  "name": "hoard",
-  "description": "Ember's hoard — storybook-daemon integration for Claude Code. Exposes persona memory, attention state, and sending stone; provides ally subagent definitions for parallel quest dispatch.",
-  "version": "0.1.0"
-}

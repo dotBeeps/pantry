@@ -1,20 +1,20 @@
 # berrygems — AGENTS.md
 
-> **Part of [Hoard](../AGENTS.md)** — read the root AGENTS.md first for project-wide context.
+> **Part of [Pantry](../AGENTS.md)** — read the root AGENTS.md first for project-wide context.
 > **Governed by [ETHICS.md](../ETHICS.md)** — read before modifying permission guards, user data handling, or consent UX.
 
 ## What This Is
 
 **berrygems** is the crystallized tool layer of the dragon. Delicious bite-sized knowledge, hardened into deterministic programmatic extensions for pi.
 
-These extensions are what the dragon uses *through her pi body*. They're the interface between the agent and the world during a pi session — panels, permissions, diagnostics, carbon tracking, image rendering, compaction, todo management, code review, and more.
+These extensions are what the dragon uses _through her pi body_. They're the interface between the agent and the world during a pi session — panels, permissions, diagnostics, carbon tracking, image rendering, compaction, todo management, code review, and more.
 
 When we hit technical ceilings in what the agent can do, this is where we forge new capabilities.
 
-## Relationship to the Hoard
+## Relationship to the Pantry
 
-- **storybook-daemon** is the persistent core — mind, soul, connectors. berrygems tools are what the daemon *uses* when inhabiting a pi session.
-- **morsels** teach agents *how* to use berrygems. Several skills exist specifically to document berrygem APIs (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
+- **storybook-daemon** is the persistent core — mind, soul, connectors. berrygems tools are what the daemon _uses_ when inhabiting a pi session.
+- **morsels** teach agents _how_ to use berrygems. Several skills exist specifically to document berrygem APIs (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
 - **ETHICS.md** governs everything. berrygems implements user-facing consent UX (dragon-guard), privacy controls, and transparency features.
 
 ## Architecture
@@ -32,11 +32,11 @@ Extensions communicate via `globalThis` + `Symbol.for()`, never direct imports:
 
 ```typescript
 // Publisher
-const API_KEY = Symbol.for("hoard.parchment");
+const API_KEY = Symbol.for("pantry.parchment");
 (globalThis as any)[API_KEY] = { register, close, focusPanel };
 
 // Consumer
-const panels = (globalThis as any)[Symbol.for("hoard.parchment")];
+const panels = (globalThis as any)[Symbol.for("pantry.parchment")];
 panels?.register("my-panel", { handle, invalidate, dispose });
 ```
 
@@ -46,14 +46,14 @@ Every `pi.registerTool()` call **must** include `promptSnippet` and `promptGuide
 
 ```typescript
 pi.registerTool({
-	name: "my_tool",
-	description: "Full description for the XML schema block",
-	promptSnippet: "One-line summary for the Available Tools section",
-	promptGuidelines: [
-		"When to use this tool and what to expect",
-		"Common mistakes to avoid",
-	],
-	// ...
+  name: "my_tool",
+  description: "Full description for the XML schema block",
+  promptSnippet: "One-line summary for the Available Tools section",
+  promptGuidelines: [
+    "When to use this tool and what to expect",
+    "Common mistakes to avoid",
+  ],
+  // ...
 });
 ```
 
@@ -61,7 +61,7 @@ Without these, pi omits the tool from the system prompt's "Available tools" and 
 
 ### Settings
 
-All under `hoard.*` in `~/.pi/agent/settings.json`. See root AGENTS.md for the full namespace map.
+All under `pantry.*` in `~/.pi/agent/settings.json`. See root AGENTS.md for the full namespace map.
 
 ## Development
 
@@ -80,6 +80,7 @@ cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
 ### Symlink Repair
 
 If symlinks break after pi updates:
+
 ```bash
 PI_MODULES="$HOME/.npm/lib/node_modules/mitsupi/node_modules"
 mkdir -p node_modules/@mariozechner

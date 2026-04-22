@@ -39,11 +39,13 @@ Before starting, ask 2–4 of these (skip what's already clear):
 ## Extension Structure
 
 ### Single File
+
 ```
 ~/.pi/agent/extensions/my-extension.ts
 ```
 
 ### Directory (multi-file or with deps)
+
 ```
 ~/.pi/agent/extensions/my-extension/
 ├── index.ts           # Entry point (default export)
@@ -83,11 +85,17 @@ pi.registerTool({
   async execute(toolCallId, params, signal, onUpdate, ctx) {
     return {
       content: [{ type: "text", text: "Result for LLM" }],
-      details: { /* for rendering & state reconstruction */ },
+      details: {
+        /* for rendering & state reconstruction */
+      },
     };
   },
-  renderCall(args, theme, context) { /* return Component */ },
-  renderResult(result, { expanded, isPartial }, theme, context) { /* return Component */ },
+  renderCall(args, theme, context) {
+    /* return Component */
+  },
+  renderResult(result, { expanded, isPartial }, theme, context) {
+    /* return Component */
+  },
 });
 ```
 
@@ -124,6 +132,7 @@ async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 ```
 
 **Key points:**
+
 - Pass the resolved **absolute path**, not the raw user argument
 - Queue the **entire** read-modify-write window, not just the write
 - Without this, two parallel tool calls editing the same file will race
@@ -135,17 +144,22 @@ async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 ```typescript
 pi.registerTool({
   parameters: Type.Object({
-    edits: Type.Array(Type.Object({
-      oldText: Type.String(),
-      newText: Type.String(),
-    })),
+    edits: Type.Array(
+      Type.Object({
+        oldText: Type.String(),
+        newText: Type.String(),
+      }),
+    ),
   }),
   prepareArguments(args) {
     if (!args || typeof args !== "object") return args;
     const input = args as any;
     // Migrate old flat format → new array format
     if (input.oldText && !input.edits) {
-      return { ...input, edits: [{ oldText: input.oldText, newText: input.newText }] };
+      return {
+        ...input,
+        edits: [{ oldText: input.oldText, newText: input.newText }],
+      };
     }
     return args;
   },
@@ -189,10 +203,29 @@ Always tell the LLM when output is truncated and where to find the full version.
 All components implement `{ render(width): string[], handleInput?(data): void, invalidate(): void }`.
 
 ### Key Imports
+
 ```typescript
-import { Text, Box, Container, Spacer, Markdown, SelectList, SettingsList } from "@mariozechner/pi-tui";
-import { matchesKey, Key, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
-import { DynamicBorder, BorderedLoader, getMarkdownTheme } from "@mariozechner/pi-coding-agent";
+import {
+  Text,
+  Box,
+  Container,
+  Spacer,
+  Markdown,
+  SelectList,
+  SettingsList,
+} from "@mariozechner/pi-tui";
+import {
+  matchesKey,
+  Key,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@mariozechner/pi-tui";
+import {
+  DynamicBorder,
+  BorderedLoader,
+  getMarkdownTheme,
+} from "@mariozechner/pi-coding-agent";
 ```
 
 ### Overlays (Popovers)
@@ -205,13 +238,13 @@ const result = await ctx.ui.custom<ResultType | null>(
   {
     overlay: true,
     overlayOptions: {
-      anchor: "center",        // 9 positions: center, top-left, top-center, etc.
-      width: "60%",            // number or percentage
+      anchor: "center", // 9 positions: center, top-left, top-center, etc.
+      width: "60%", // number or percentage
       maxHeight: "80%",
       minWidth: 40,
       margin: 2,
     },
-  }
+  },
 );
 ```
 
@@ -236,8 +269,11 @@ pi.on("session_tree", async (_event, ctx) => reconstructState(ctx));
 
 const reconstructState = (ctx: ExtensionContext) => {
   for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type === "message" && entry.message.role === "toolResult"
-        && entry.message.toolName === "my_tool") {
+    if (
+      entry.type === "message" &&
+      entry.message.role === "toolResult" &&
+      entry.message.toolName === "my_tool"
+    ) {
       const details = entry.message.details as MyDetails;
       // Rebuild in-memory state from details
     }
@@ -251,20 +287,27 @@ Register `/commands` for user-triggered actions and keyboard shortcuts for quick
 
 ```typescript
 pi.registerCommand("myext", {
-	description: "Manage my extension",
-	handler: async (args, ctx) => {
-		const parts = (args ?? "").trim().split(/\s+/);
-		switch (parts[0]) {
-			case "open": ctx.ui.notify(doOpen(), "info"); return;
-			case "close": ctx.ui.notify(doClose(), "info"); return;
-			default: ctx.ui.notify("Usage: /myext open|close", "info");
-		}
-	},
+  description: "Manage my extension",
+  handler: async (args, ctx) => {
+    const parts = (args ?? "").trim().split(/\s+/);
+    switch (parts[0]) {
+      case "open":
+        ctx.ui.notify(doOpen(), "info");
+        return;
+      case "close":
+        ctx.ui.notify(doClose(), "info");
+        return;
+      default:
+        ctx.ui.notify("Usage: /myext open|close", "info");
+    }
+  },
 });
 
 pi.registerShortcut("alt+m", {
-	description: "Toggle my extension",
-	handler: async () => { toggle(); },
+  description: "Toggle my extension",
+  handler: async () => {
+    toggle();
+  },
 });
 ```
 
@@ -274,13 +317,13 @@ pi.registerShortcut("alt+m", {
 
 ```typescript
 pi.registerTool({
-	name: "my_tool",
-	// ...
-	promptSnippet: "One-line summary shown in system prompt",
-	promptGuidelines: [
-		"Use X for this, Y for that — be specific about when to use each action",
-		"Don't do Z — explain the common mistake",
-	],
+  name: "my_tool",
+  // ...
+  promptSnippet: "One-line summary shown in system prompt",
+  promptGuidelines: [
+    "Use X for this, Y for that — be specific about when to use each action",
+    "Don't do Z — explain the common mistake",
+  ],
 });
 ```
 
@@ -300,15 +343,19 @@ const API_KEY = Symbol.for("my-namespace.api");
 (globalThis as any)[API_KEY] = { method1, method2, property };
 
 // Consumer extension
-function getApi(): any { return (globalThis as any)[Symbol.for("my-namespace.api")]; }
-getApi()?.method1();  // Always use optional chaining — publisher may not be loaded yet
+function getApi(): any {
+  return (globalThis as any)[Symbol.for("my-namespace.api")];
+}
+getApi()?.method1(); // Always use optional chaining — publisher may not be loaded yet
 ```
 
 ### pi.events (for notifications)
 
 ```typescript
 pi.events.emit("my-ext:ready", { version: 1 });
-pi.events.on("my-ext:ready", (data) => { /* react */ });
+pi.events.on("my-ext:ready", (data) => {
+  /* react */
+});
 ```
 
 For panel extensions specifically, see the `dragon-parchment` skill.
@@ -334,7 +381,7 @@ For panel extensions specifically, see the `dragon-parchment` skill.
 ✅ Extract to `berrygems/lib/` on second use. A comment justifying duplication is a refactor trigger.
 
 ❌ **Hand-rolling settings parsing** — every extension re-reading `settings.json` manually.
-✅ Use `readHoardSetting()` from `berrygems/lib/settings.ts` for all settings access.
+✅ Use `readPantrySetting()` from `berrygems/lib/settings.ts` for all settings access.
 
 ❌ **Registering multiple tools in one file** — god files grow fast.
 ✅ One file per tool registration. 300+ lines in an extension file = split candidate.
@@ -360,12 +407,11 @@ Pi platform (@mariozechner/pi-*)
 **Before writing any utility function,** `grep berrygems/lib/` for existing solutions.
 
 Current shared libs:
-- `settings.ts` — `readHoardSetting()` for all settings access
-- `ally-taxonomy.ts` — Ally type enums, combos, cost calculation
+
+- `settings.ts` — `readPantrySetting()` for all settings access
 - `pi-spawn.ts` — Pi subprocess spawning, NDJSON parsing
 - `id.ts` — Standardized ID generation (`crypto.randomUUID`)
 - `cooldown.ts` — Generic timed exclusion tracker
-- `local-server.ts` — HTTP server lifecycle + SSE broadcaster
 - `sse-client.ts` — SSE client with reconnection
 - `panel-chrome.ts` — Border/focus/header/footer rendering, 19 skins
 - `compaction-templates.ts` — Structured summary templates
@@ -389,6 +435,7 @@ Current shared libs:
 ## Reference
 
 For detailed API docs and patterns, read these files:
+
 - [Extension API](references/extension-api.md) — Full event list, ctx methods, registration APIs
 - [TUI Patterns](references/tui-patterns.md) — Copy-paste patterns for common UI needs
 

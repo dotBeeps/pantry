@@ -40,13 +40,14 @@ refactor(parser): extract token validation
 ## Scope Detection
 
 Run `git log -n 30 --pretty=format:%s` to identify patterns:
+
 - If the project uses scopes consistently, match the existing convention
 - Common scopes come from directory structure (`extensions`, `skills`, `api`) or feature areas
 - If no clear pattern exists, omit scope — `feat: add panel support`
 
 ## Body
 
-- OPTIONAL — add when the *why* isn't obvious from the summary
+- OPTIONAL — add when the _why_ isn't obvious from the summary
 - Blank line between subject and body
 - Short paragraphs explaining motivation or context
 - Do NOT include sign-offs (`Signed-off-by`)
@@ -57,7 +58,7 @@ Run `git log -n 30 --pretty=format:%s` to identify patterns:
 When an AI agent authors or co-authors a commit, add a `Co-authored-by` trailer. Read the contributor identity from settings:
 
 ```json
-// ~/.pi/agent/settings.json → hoard.contributor
+// ~/.pi/agent/settings.json → pantry.contributor
 {
   "name": "Ember 🐉",
   "email": "ember-ai@dotbeeps.dev",

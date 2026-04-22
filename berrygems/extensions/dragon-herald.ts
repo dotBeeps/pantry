@@ -11,7 +11,7 @@
  *   2. notify-send — Linux desktop fallback for terminals that don't forward
  *      OSC sequences. Requires libnotify.
  *
- * Settings (hoard.herald.*):
+ * Settings (pantry.herald.*):
  *   enabled      — master switch (default: true)
  *   title        — notification title (default: "Ember 🐉")
  *   method       — "auto" | "osc777" | "notify-send" (default: "auto")
@@ -22,39 +22,39 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execSync } from "node:child_process";
-import { readHoardSetting } from "../lib/settings.ts";
+import { readPantrySetting } from "../lib/settings.ts";
 
 // ── Settings ──
 
 function cfg<T>(key: string, fallback: T): T {
-	return readHoardSetting<T>(`herald.${key}`, fallback);
+  return readPantrySetting<T>(`herald.${key}`, fallback);
 }
 
 // ── Notification Methods ──
 
 /** Send via OSC 777 escape sequence — works in Ghostty, WezTerm, iTerm2, foot. */
 function sendOsc777(title: string, body: string): void {
-	// Escape semicolons so they don't corrupt the sequence
-	const safeTitle = title.replace(/;/g, ",");
-	const safeBody = body.replace(/;/g, ",");
-	process.stdout.write(`\x1b]777;notify;${safeTitle};${safeBody}\x07`);
+  // Escape semicolons so they don't corrupt the sequence
+  const safeTitle = title.replace(/;/g, ",");
+  const safeBody = body.replace(/;/g, ",");
+  process.stdout.write(`\x1b]777;notify;${safeTitle};${safeBody}\x07`);
 }
 
 /** Send via notify-send (Linux, libnotify). */
 function sendNotifySend(title: string, body: string): void {
-	const safeTitle = title.replace(/"/g, '\\"');
-	const safeBody = body.replace(/"/g, '\\"');
-	execSync(`notify-send "${safeTitle}" "${safeBody}"`, { stdio: "ignore" });
+  const safeTitle = title.replace(/"/g, '\\"');
+  const safeBody = body.replace(/"/g, '\\"');
+  execSync(`notify-send "${safeTitle}" "${safeBody}"`, { stdio: "ignore" });
 }
 
 /** Check once at startup whether notify-send is available. */
 function hasNotifySend(): boolean {
-	try {
-		execSync("which notify-send", { stdio: "ignore" });
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    execSync("which notify-send", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── Message Extraction ──
@@ -62,94 +62,98 @@ function hasNotifySend(): boolean {
 type MsgPart = { type: string; text?: string };
 
 function isTextPart(p: unknown): p is { type: "text"; text: string } {
-	return (
-		typeof p === "object" &&
-		p !== null &&
-		(p as MsgPart).type === "text" &&
-		typeof (p as MsgPart).text === "string"
-	);
+  return (
+    typeof p === "object" &&
+    p !== null &&
+    (p as MsgPart).type === "text" &&
+    typeof (p as MsgPart).text === "string"
+  );
 }
 
 /** Pull raw text from the last assistant message in the history. */
 function extractLastAssistantText(messages: unknown[]): string | null {
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const msg = messages[i] as { role?: string; content?: unknown };
-		if (msg?.role !== "assistant") continue;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i] as { role?: string; content?: unknown };
+    if (msg?.role !== "assistant") continue;
 
-		const { content } = msg;
-		if (typeof content === "string") return content.trim() || null;
-		if (Array.isArray(content)) {
-			const text = content.filter(isTextPart).map((p) => p.text).join(" ").trim();
-			return text || null;
-		}
-		return null;
-	}
-	return null;
+    const { content } = msg;
+    if (typeof content === "string") return content.trim() || null;
+    if (Array.isArray(content)) {
+      const text = content
+        .filter(isTextPart)
+        .map((p) => p.text)
+        .join(" ")
+        .trim();
+      return text || null;
+    }
+    return null;
+  }
+  return null;
 }
 
 /** Strip markdown punctuation for a clean notification body. */
 function stripMarkdown(text: string): string {
-	return text
-		.replace(/```[\s\S]*?```/g, "[code]")  // fenced code blocks
-		.replace(/`[^`]*`/g, "[code]")          // inline code
-		.replace(/!\[.*?\]\(.*?\)/g, "")         // images
-		.replace(/\[([^\]]+)\]\(.*?\)/g, "$1")  // links → label
-		.replace(/^#{1,6}\s+/gm, "")            // headings
-		.replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, "$1") // bold/italic/strike
-		.replace(/^\s*[-*+>]\s+/gm, "")         // list bullets / blockquotes
-		.replace(/\s+/g, " ")
-		.trim();
+  return text
+    .replace(/```[\s\S]*?```/g, "[code]") // fenced code blocks
+    .replace(/`[^`]*`/g, "[code]") // inline code
+    .replace(/!\[.*?\]\(.*?\)/g, "") // images
+    .replace(/\[([^\]]+)\]\(.*?\)/g, "$1") // links → label
+    .replace(/^#{1,6}\s+/gm, "") // headings
+    .replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, "$1") // bold/italic/strike
+    .replace(/^\s*[-*+>]\s+/gm, "") // list bullets / blockquotes
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Produce a ≤100-char summary suitable for a notification body. */
 function buildBody(messages: unknown[], errored: boolean): string {
-	if (errored) return "The dragon encountered an error.";
+  if (errored) return "The dragon encountered an error.";
 
-	const raw = extractLastAssistantText(messages);
-	if (!raw) return "Done.";
+  const raw = extractLastAssistantText(messages);
+  if (!raw) return "Done.";
 
-	const clean = stripMarkdown(raw);
-	if (!clean) return "Done.";
+  const clean = stripMarkdown(raw);
+  if (!clean) return "Done.";
 
-	return clean.length > 100 ? `${clean.slice(0, 99)}…` : clean;
+  return clean.length > 100 ? `${clean.slice(0, 99)}…` : clean;
 }
 
 // ── Main ──
 
 export default function (pi: ExtensionAPI) {
-	if (!cfg<boolean>("enabled", true)) return;
+  if (!cfg<boolean>("enabled", true)) return;
 
-	const notifySendAvailable = hasNotifySend();
-	let agentStartedAt = 0;
+  const notifySendAvailable = hasNotifySend();
+  let agentStartedAt = 0;
 
-	pi.on("agent_start", () => {
-		agentStartedAt = Date.now();
-	});
+  pi.on("agent_start", () => {
+    agentStartedAt = Date.now();
+  });
 
-	pi.on("agent_end", async (event: any) => {
-		const title = cfg<string>("title", "Ember 🐉");
-		const method = cfg<string>("method", "auto");
-		const minDuration = cfg<number>("minDuration", 5000);
+  pi.on("agent_end", async (event: any) => {
+    const title = cfg<string>("title", "Ember 🐉");
+    const method = cfg<string>("method", "auto");
+    const minDuration = cfg<number>("minDuration", 5000);
 
-		// Skip fast responses
-		if (agentStartedAt > 0 && Date.now() - agentStartedAt < minDuration) return;
+    // Skip fast responses
+    if (agentStartedAt > 0 && Date.now() - agentStartedAt < minDuration) return;
 
-		const messages: unknown[] = event?.messages ?? [];
-		const errored: boolean = event?.error != null;
-		const body = buildBody(messages, errored);
+    const messages: unknown[] = event?.messages ?? [];
+    const errored: boolean = event?.error != null;
+    const body = buildBody(messages, errored);
 
-		try {
-			if (method === "osc777") {
-				sendOsc777(title, body);
-			} else if (method === "notify-send") {
-				if (notifySendAvailable) sendNotifySend(title, body);
-			} else {
-				// auto — OSC 777 first, notify-send as fallback
-				sendOsc777(title, body);
-				if (notifySendAvailable) sendNotifySend(title, body);
-			}
-		} catch {
-			// Notifications are best-effort; never crash the agent
-		}
-	});
+    try {
+      if (method === "osc777") {
+        sendOsc777(title, body);
+      } else if (method === "notify-send") {
+        if (notifySendAvailable) sendNotifySend(title, body);
+      } else {
+        // auto — OSC 777 first, notify-send as fallback
+        sendOsc777(title, body);
+        if (notifySendAvailable) sendNotifySend(title, body);
+      }
+    } catch {
+      // Notifications are best-effort; never crash the agent
+    }
+  });
 }

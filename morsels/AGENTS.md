@@ -1,13 +1,13 @@
 # morsels — AGENTS.md
 
-> **Part of [Hoard](../AGENTS.md)** — read the root AGENTS.md first for project-wide context.
+> **Part of [Pantry](../AGENTS.md)** — read the root AGENTS.md first for project-wide context.
 > **Governed by [ETHICS.md](../ETHICS.md)** — read before creating skills that handle user data, consent flows, or memory access.
 
 ## What This Is
 
 **morsels** is the knowledge layer of the dragon. Yummy generalized AI snacks — general-purpose agentic skills that are inherently non-programmatic. They can't be hardened into a gem or shaped into a body, but they're quick, grab-and-go bites of knowledge for any agent.
 
-## Relationship to the Hoard
+## Relationship to the Pantry
 
 - **berrygems** is the programmatic tool layer. Some morsels exist specifically to teach agents how to use berrygems (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
 - **storybook-daemon** is the persistent core. Morsels are portable knowledge any body can consume — during a pi session, through a daemon-directed subagent, or standalone.
@@ -37,7 +37,7 @@ Compliant with the [agentskills.io](https://agentskills.io) open standard. Full 
 ---
 name: skill-name # required — must match directory name, lowercase-hyphenated
 description: "What this skill does and when to use it. Include trigger keywords."
-license: MIT # required — all hoard morsels are MIT
+license: MIT # required — all pantry morsels are MIT
 compatibility: "..." # optional — only if there are env/harness requirements
 ---
 ```
@@ -46,7 +46,7 @@ compatibility: "..." # optional — only if there are env/harness requirements
 
 - `name` — lowercase, hyphens only, matches directory name
 - `description` — describes _what_ the skill does AND _when_ to use it; include keywords that help agents identify relevant tasks; max 1024 chars
-- `license` — always `MIT` for hoard morsels
+- `license` — always `MIT` for pantry morsels
 
 **Optional fields:**
 

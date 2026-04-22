@@ -17,7 +17,7 @@ This means writing a very large `reserveTokens` (to trigger compaction earlier) 
 
 - Writing a **safe `reserveTokens`** (16384) to settings — keeps the compaction output budget reasonable
 - Enforcing the **real trigger** through extension hooks (`turn_end` and `session_before_compact`)
-- Storing the user's actual trigger parameters separately under `hoard` in settings
+- Storing the user's actual trigger parameters separately under `pantry` in settings
 
 ## Compaction Event Ordering
 
@@ -47,9 +47,9 @@ Pi fires this when its native trigger (`contextWindow - reserveTokens`) is met. 
 
 ```typescript
 pi.on("session_before_compact", async (event, ctx) => {
-	if (!isOurThresholdMet(ctx)) {
-		return { cancel: true };
-	}
+  if (!isOurThresholdMet(ctx)) {
+    return { cancel: true };
+  }
 });
 ```
 
@@ -59,9 +59,9 @@ For trigger points **earlier** than pi's native threshold, pi will never fire on
 
 ```typescript
 pi.on("turn_end", async (_event, ctx) => {
-	if (isOurThresholdMet(ctx) && !compactionInProgress) {
-		ctx.compact({ customInstructions: strategyInstructions });
-	}
+  if (isOurThresholdMet(ctx) && !compactionInProgress) {
+    ctx.compact({ customInstructions: strategyInstructions });
+  }
 });
 ```
 
@@ -73,23 +73,23 @@ If we manage ALL compaction via `ctx.compact()` from `turn_end`, pi only shows i
 
 ## dragon-parchment globalThis API
 
-`dragon-parchment.ts` publishes its API at `Symbol.for("hoard.parchment")`. Primary method:
+`dragon-parchment.ts` publishes its API at `Symbol.for("pantry.parchment")`. Primary method:
 
 ```typescript
-const panels = (globalThis as any)[Symbol.for("hoard.parchment")];
+const panels = (globalThis as any)[Symbol.for("pantry.parchment")];
 
 // Primary API — handles overlay creation, key routing, geometry tracking
-panels.createPanel(id, (panelCtx) => component, options)  // Create & register
-panels.close(id)                                          // Close a panel
-panels.focusPanel(id)                                     // Focus specific panel
-panels.cycleFocus()                                       // Cycle focus between panels
-panels.suggestLayout(count)                               // Optimal positions for N panels
-panels.getGeometry(id)                                    // Panel position info
-panels.keyHints                                           // { focusKey, closeKey, focused, unfocused }
+panels.createPanel(id, (panelCtx) => component, options); // Create & register
+panels.close(id); // Close a panel
+panels.focusPanel(id); // Focus specific panel
+panels.cycleFocus(); // Cycle focus between panels
+panels.suggestLayout(count); // Optimal positions for N panels
+panels.getGeometry(id); // Panel position info
+panels.keyHints; // { focusKey, closeKey, focused, unfocused }
 
 // Backward compat (prefer createPanel)
-panels.register(id, managedPanel)                         // Low-level registration
-panels.wrapComponent(id, component)                       // Low-level key routing
+panels.register(id, managedPanel); // Low-level registration
+panels.wrapComponent(id, component); // Low-level key routing
 ```
 
 Always use optional chaining (`panels?.createPanel(...)`) — dragon-parchment may not be loaded yet depending on extension load order. Listen for `pi.events.on("panels:ready", ...)` if you need guaranteed availability.
@@ -98,10 +98,10 @@ Always use optional chaining (`panels?.createPanel(...)`) — dragon-parchment m
 
 The digestion panel supports three trigger modes. Each has a different relationship to `reserveTokens`:
 
-| Mode | User Controls | reserveTokens in Settings | Trigger Logic |
-|---|---|---|---|
-| **Reserve** | Response budget (tokens) | User's value directly | `tokens > contextWindow - userReserve` |
-| **Percentage** | Context fill % | Always `SAFE_RESERVE_TOKENS` (16384) | `tokens > contextWindow × (pct / 100)` |
-| **Fixed** | Token threshold | Always `SAFE_RESERVE_TOKENS` (16384) | `tokens > fixedThreshold` |
+| Mode           | User Controls            | reserveTokens in Settings            | Trigger Logic                          |
+| -------------- | ------------------------ | ------------------------------------ | -------------------------------------- |
+| **Reserve**    | Response budget (tokens) | User's value directly                | `tokens > contextWindow - userReserve` |
+| **Percentage** | Context fill %           | Always `SAFE_RESERVE_TOKENS` (16384) | `tokens > contextWindow × (pct / 100)` |
+| **Fixed**      | Token threshold          | Always `SAFE_RESERVE_TOKENS` (16384) | `tokens > fixedThreshold`              |
 
 In Reserve mode, `reserveTokens` IS the user's value. In Percentage/Fixed modes, `reserveTokens` is always the safe constant — the actual trigger is enforced by extension hooks, not pi's native mechanism.

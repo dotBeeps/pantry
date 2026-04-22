@@ -1,6 +1,6 @@
 {
   "name": "morsels",
-  "description": "Hoard morsels — bite-sized agent skills for git, github, testing, refactoring, docker, database, and more. Loaded by pi directly and by Claude Code via this plugin manifest.",
+  "description": "Pantry morsels — bite-sized agent skills for git, github, testing, refactoring, docker, database, and more. Loaded by pi directly and by Claude Code via this plugin manifest.",
   "version": "1.0.0",
   "author": {
     "name": "dot",
