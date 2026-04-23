@@ -6,25 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish /home/dot/Development/hoard/.claude/hooks/pre-block-gosum.fish"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "fish /home/dot/Development/hoard/.claude/hooks/stop-phase-gate.fish"
-          },
-          {
-            "type": "command",
-            "command": "fish /home/dot/Development/hoard/.claude/hooks/stop-parity-check.fish"
-          },
-          {
-            "type": "command",
-            "command": "fish /home/dot/Development/hoard/.claude/hooks/stop-doc-sync.fish"
+            "command": "fish /home/dot/Development/pantry/.claude/hooks/pre-block-gosum.fish"
           }
         ]
       }
