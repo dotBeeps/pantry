@@ -7,5 +7,6 @@ export default defineConfig({
       viteModuleRunner: false,
     },
     globals: false,
+    passWithNoTests: true,
   },
 });
