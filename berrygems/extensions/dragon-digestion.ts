@@ -1935,15 +1935,6 @@ class CompactionPanelComponent {
 
 const PANEL_ID = "digestion";
 
-/**
- * Anthropic beta feature needed for context_management API.
- * NOT currently injected — registerProvider header override strips OAuth betas
- * (claude-code-20250219, oauth-2025-04-20), causing 401 for OAuth users.
- * Blocked until hoard-lab extension can detect auth type and merge headers safely.
- * See: den/plans/dragon-digestion-v2.md "Beta Header Setup" section.
- */
-// const ANTHROPIC_CONTEXT_MGMT_BETA = "context-management-2025-06-27";
-
 export default function (pi: ExtensionAPI) {
   let ctxRef: ExtensionContext | null = null;
   let panelComponent: CompactionPanelComponent | null = null;

@@ -4,14 +4,13 @@
 
 ## What It Does
 
-**dragon-guard** is a four-tier permission system for tool calls. It lets the user control how aggressively the agent explores the codebase and system through a modal, stateful permission model.
+**dragon-guard** is a three-tier permission system for tool calls. It lets the user control how aggressively the agent explores the codebase and system through a modal, stateful permission model.
 
-Four modes:
+Three modes:
 
 - **Puppy Mode** (`plan`): Read-only planning. Safe bash commands (`cat`, `diff`, `git status`) and read-only tools auto-allow. Mutating tools require permission. Designed for analysis and planning before implementation.
 - **Dog Mode** (default, `none`): Permission-gated. Tools like `edit` and `write` prompt for confirmation before executing. Safe read-only tools (`read`, `ls`, `find`, `grep`) auto-execute. User can allow-once, allow-this-session, or switch modes from the dialog.
-- **Ally Mode** (`ally`): Quest-dispatched allies only. Tool whitelist set by hoard-allies at spawn time via env vars. No prompting — whitelisted tools execute, everything else is silently blocked. Cannot escalate to any other mode. Set at process birth, immutable.
-- **Dragon Mode** (`dragon`): All tools allowed, no prompting. Full implementation mode. Manual activation only, primary session only — allies can never enter Dragon mode.
+- **Dragon Mode** (`dragon`): All tools allowed, no prompting. Full implementation mode. Manual activation only, primary session only.
 
 Mode state persists across session branches via session entries.
 

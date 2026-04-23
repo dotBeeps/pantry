@@ -10,7 +10,7 @@
 ## Relationship to the Pantry
 
 - **berrygems** is the programmatic tool layer. Some morsels exist specifically to teach agents how to use berrygems (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
-- **storybook-daemon** is the persistent core. Morsels are portable knowledge any body can consume — during a pi session, through a daemon-directed subagent, or standalone.
+- **berrygems** is the programmatic tool layer. Some morsels teach agents how to use berrygems APIs directly.
 - **ETHICS.md** governs everything. Skills that touch consent, privacy, memory, or observation must respect the ethical contract.
 
 ## Architecture

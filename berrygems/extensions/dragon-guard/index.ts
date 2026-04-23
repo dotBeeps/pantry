@@ -1,10 +1,9 @@
 /**
- * Dragon Guard — Four-tier permission guard for pi.
+ * Dragon Guard — Three-tier permission guard for pi.
  *
  * Modes:
  * - Puppy Mode: read-only planning — safe tools auto-allowed, restricted tools prompt
  * - Dog Mode (default): permission-gated — prompts before non-allowlisted tools
- * - Ally Mode: quest-dispatched allies — job whitelist only, no prompting, no escalation
  * - Dragon Mode: all tools allowed, full implementation enabled
  *
  * A small dog and a large dragon made this together.
@@ -33,8 +32,6 @@ import {
   setMode as setModeState,
   getDogModeToolPolicy,
   getPuppyModeToolPolicy,
-  getAllyModeToolPolicy,
-  initAllyMode,
   reconstructState,
   persistState as doPersistState,
   dogModeSessionAllowedTools,
@@ -185,39 +182,7 @@ function shouldAutoPlan(prompt: string): boolean {
 // ── Extension Entry Point ──
 
 export default function dragonGuardExtension(pi: ExtensionAPI): void {
-  // ── Ally Mode: quest-dispatched allies get locked tool whitelist ──
-  const guardModeEnv = process.env.PANTRY_GUARD_MODE;
-  const allyToolsEnv = process.env.PANTRY_ALLY_TOOLS;
-
-  if (guardModeEnv === "ally" && allyToolsEnv) {
-    initAllyMode(allyToolsEnv.split(","));
-    // Ally mode: no UI, no panel, no commands, no shortcuts.
-    // Just register the tool_call handler and return.
-    pi.on("tool_call", async (event, _ctx) => {
-      const policy = getAllyModeToolPolicy(event.toolName);
-      if (policy === "allow") return;
-      return {
-        block: true,
-        reason: `Tool "${event.toolName}" is not available in ally mode (not in job whitelist). Do not retry this tool — continue your task and return your results as plain text instead.`,
-      };
-    });
-
-    pi.on("before_agent_start", async (event, ctx) => {
-      const base = event.systemPrompt ?? ctx.getSystemPrompt();
-      return {
-        systemPrompt:
-          base +
-          "\n\n" +
-          "[ALLY MODE: TOOL WHITELIST ENFORCED]\n" +
-          "You are operating under Ally Mode. Only your job-assigned tools are available. " +
-          "Do not attempt to use tools outside your assignment.",
-      };
-    });
-
-    return; // No further initialization — no UI, no panel, no mode switching
-  }
-
-  // ── Legacy subagent bail-out (non-hoard subagents) ──
+  // ── Subagent guard — extensions only run in primary sessions ──
   const subagentDepth = Number(process.env.PI_SUBAGENT_DEPTH ?? "0");
   if (subagentDepth > 0) return;
 

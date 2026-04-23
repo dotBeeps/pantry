@@ -6,8 +6,6 @@
  * temp file management for system prompt injection, timeout/abort, and
  * structured result extraction.
  *
- * Extracted from berrygems/extensions/hoard-allies/spawn.ts for use across
- * any extension that needs to dispatch pi subprocesses.
  */
 
 import { spawn, execSync } from "node:child_process";

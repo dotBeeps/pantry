@@ -13,7 +13,7 @@ When we hit technical ceilings in what the agent can do, this is where we forge 
 
 ## Relationship to the Pantry
 
-- **storybook-daemon** is the persistent core — mind, soul, connectors. berrygems tools are what the daemon _uses_ when inhabiting a pi session.
+- **berrygems** are pi extensions — self-contained tools that run within a pi session. Each extension loads independently; no persistent daemon coordinates them.
 - **morsels** teach agents _how_ to use berrygems. Several skills exist specifically to document berrygem APIs (dragon-parchment, kitty-gif-renderer, kobold-housekeeping, extension-designer).
 - **ETHICS.md** governs everything. berrygems implements user-facing consent UX (dragon-guard), privacy controls, and transparency features.
 
@@ -67,7 +67,7 @@ All under `pantry.*` in `~/.pi/agent/settings.json`. See root AGENTS.md for the 
 
 ```bash
 # Type check
-cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
+tsc --project berrygems/tsconfig.json
 
 # Reload after changes
 /reload  # in pi
