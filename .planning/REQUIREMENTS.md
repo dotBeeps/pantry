@@ -85,35 +85,45 @@ Explicitly excluded. Anti-features from PROJECT.md and research FEATURES.md.
 
 ## Traceability
 
-Phases populated during roadmap creation.
+Phases populated during roadmap creation 2026-04-22. See `ROADMAP.md` for phase goals and success criteria.
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| AMP-01      | TBD   | Pending |
-| AMP-02      | TBD   | Pending |
-| AMP-03      | TBD   | Pending |
-| AMP-04      | TBD   | Pending |
-| AMP-05      | TBD   | Pending |
-| TEST-01     | TBD   | Pending |
-| TEST-02     | TBD   | Pending |
-| TEST-03     | TBD   | Pending |
-| TEST-04     | TBD   | Pending |
-| CI-01       | TBD   | Pending |
-| CI-02       | TBD   | Pending |
-| DOCS-01     | TBD   | Pending |
-| DOCS-02     | TBD   | Pending |
-| DOCS-03     | TBD   | Pending |
-| DOCS-04     | TBD   | Pending |
-| LIC-01      | TBD   | Pending |
-| REL-01      | TBD   | Pending |
+| Requirement | Phase                                    | Status  |
+| ----------- | ---------------------------------------- | ------- |
+| AMP-01      | Phase 1 (Amputation Cleanup & tsc-Green) | Pending |
+| AMP-02      | Phase 1 (Amputation Cleanup & tsc-Green) | Pending |
+| AMP-03      | Phase 1 (Amputation Cleanup & tsc-Green) | Pending |
+| AMP-04      | Phase 1 (Amputation Cleanup & tsc-Green) | Pending |
+| AMP-05      | Phase 1 (Amputation Cleanup & tsc-Green) | Pending |
+| TEST-01     | Phase 2 (Tests & Quality Infrastructure) | Pending |
+| TEST-02     | Phase 2 (Tests & Quality Infrastructure) | Pending |
+| TEST-03     | Phase 2 (Tests & Quality Infrastructure) | Pending |
+| TEST-04     | Phase 2 (Tests & Quality Infrastructure) | Pending |
+| DOCS-01     | Phase 3 (Documentation & License)        | Pending |
+| DOCS-02     | Phase 3 (Documentation & License)        | Pending |
+| DOCS-03     | Phase 3 (Documentation & License)        | Pending |
+| DOCS-04     | Phase 3 (Documentation & License)        | Pending |
+| LIC-01      | Phase 3 (Documentation & License)        | Pending |
+| CI-01       | Phase 4 (CI Pipeline)                    | Pending |
+| CI-02       | Phase 4 (CI Pipeline)                    | Pending |
+| REL-01      | Phase 5 (Release v1.0.0)                 | Pending |
 
 **Coverage:**
 
 - v1 requirements: 17 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0
+
+Phase distribution:
+
+| Phase                                    | Requirement count       |
+| ---------------------------------------- | ----------------------- |
+| Phase 1 (Amputation Cleanup & tsc-Green) | 5 (AMP-01..05)          |
+| Phase 2 (Tests & Quality Infrastructure) | 4 (TEST-01..04)         |
+| Phase 3 (Documentation & License)        | 5 (DOCS-01..04, LIC-01) |
+| Phase 4 (CI Pipeline)                    | 2 (CI-01, CI-02)        |
+| Phase 5 (Release v1.0.0)                 | 1 (REL-01)              |
 
 ---
 
 _Requirements defined: 2026-04-22_
-_Last updated: 2026-04-22 after initial definition_
+_Last updated: 2026-04-22 after roadmap creation — traceability populated, coverage = 100%_
