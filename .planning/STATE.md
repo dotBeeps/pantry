@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: "**Goal:** An annotated `v1.0.0` tag exists on GitHub at a commit where CI is green; `pi install github:dotbeeps/pantry#v1.0.0` resolves and produces a working install; `main` is protected so future pushes can't silently break the tracks-main install."
-status: phase_complete
-last_updated: "2026-04-23T04:00:00.000Z"
+status: completed
+last_updated: "2026-04-23T04:24:54.384Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 5
   completed_plans: 5
-  percent: 20
+  percent: 100
 ---
 
 # STATE: pantry v1.0 stabilization
