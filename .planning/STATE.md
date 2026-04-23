@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: "**Goal:** An annotated `v1.0.0` tag exists on GitHub at a commit where CI is green; `pi install github:dotbeeps/pantry#v1.0.0` resolves and produces a working install; `main` is protected so future pushes can't silently break the tracks-main install."
-status: Not started
-last_updated: "2026-04-23T03:03:18.929Z"
+status: executing
+last_updated: "2026-04-23T03:32:26.754Z"
 progress:
   total_phases: 5
   completed_phases: 0
@@ -25,9 +25,12 @@ progress:
 
 ## Current Position
 
+Phase: 1 (Amputation Cleanup & tsc-Green) — EXECUTING
+Plan: 1 of 5
+
 - **Phase:** 1 — Amputation Cleanup & tsc-Green
 - **Plan:** None (plans TBD; run `/gsd-plan-phase 1` to decompose)
-- **Status:** Not started
+- **Status:** Executing Phase 1
 - **Progress:** 0/5 phases complete
 
 ### Phase Progress

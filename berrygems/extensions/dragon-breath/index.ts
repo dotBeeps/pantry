@@ -17,7 +17,7 @@ import type {
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
 import type { Usage } from "@mariozechner/pi-ai";
-import { readPantrySetting, readPantryKey } from "../lib/settings.ts";
+import { readPantrySetting, readPantryKey } from "../../lib/settings.ts";
 
 // ── Energy Model ──────────────────────────────────────────────────────────────
 
