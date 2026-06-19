@@ -1,7 +1,7 @@
 # Pantry Rewrite — Plan & Tracking
 
 **Created:** 2026-06-19
-**Status:** 🐣 in-progress — **Phases 0–2 complete** (repo rot fix, non-survivors archived, 4 survivors scattered). **Phase 3 next** (fold ~14 skills into `~/.pi/agent/skills/`). For the live state snapshot + non-obvious gotchas, read [HANDOFF.md](HANDOFF.md).
+**Status:** 🐣 in-progress — **Phases 0–3 complete** (repo rot fix, non-survivors archived, 4 survivors scattered, 22 skills folded into `~/.pi/agent/skills/`). **Phase 4 next** (retire pantry-the-package: empty the pi manifest, rewrite README, mark PROJECT/ROADMAP retired). For the live state snapshot + non-obvious gotchas, read [HANDOFF.md](HANDOFF.md).
 **Authority:** This doc governs the pantry retirement/scatter described in
 `~/pantry-triage/SYNTHESIS.md`. The full per-item evidence lives in
 `~/pantry-triage/cluster-*.md` (8 cluster reports). This doc is the
@@ -237,13 +237,17 @@ These are independent efforts; order doesn't matter. None block each other.
 
 ### Phase 3 — fold skills into `~/.pi/agent/skills/` (1 commit)
 
-- [ ] **3.1** For each skill in the §1.2 "fold standalone" list: copy into
+- [x] **3.1** For each skill in the §1.2 "fold standalone" list: copy into
       `~/.pi/agent/skills/`, applying the per-skill edit noted.
-- [ ] **3.2** For each "fold as nugget" source: extract the noted nugget into
+      *(22 skills folded: 18 fold-standalone incl. `rust`/`quickshell`/`gdscript`, + 2 decoupled image-doc skills. Per-skill edits applied: neoforge merged MC sections + dropped dual-loader framing; atproto generalized to Go/`indigo`; extension-designer pruned pantry examples + rewrote `references/pi-internals.md` clean; fix de-Go-ified; dependency-management trimmed to command tables; github-writing salvaged voice system into local `styles/` + attribution, dropped template bodies; git slimmed to conventions + added `--force-with-lease`/`rerere`; gdscript enriched with gdformat/gdlint/gdparse + typed/packed containers + corrected GdUnit4 headless-test note. `rust` folded exactly as-is per dot's decision.)*
+- [x] **3.2** For each "fold as nugget" source: extract the noted nugget into
       its target skill, then move the source to `pantry/archived/skills/`.
-- [ ] **3.3** Verify each folded skill's frontmatter is valid (`name`,
+      *(minecraft-modding→neoforge; kotlin/java→neoforge (no nuggets beyond neoforge — generic remainder dropped); go-check→go (linter triage + key-linters table); typescript-check/typescript→extension-designer pi-internals.md; pi-events/pi-sessions/pi-tui→extension-designer pi-internals.md (decision tree, reserveTokens/compaction gotchas, consolidated anti-patterns); gdscript expand-then-folded. All 31 remaining morsels/skills/ → archived/skills/; morsels/skills/ now empty.)*
+- [x] **3.3** Verify each folded skill's frontmatter is valid (`name`,
       `description` per agentskills.io spec; `name` ≤64 chars `[a-z0-9-]`).
+      *(22/22 pass; `scripts/lint-skills.ts` is inoperative post-Phase-1 — its `berrygems/lib/globals.ts` dependency is archived. Validated with an equivalent ad-hoc check against `~/.pi/agent/skills/`.)*
 - [ ] **3.4** Spot-check 2–3 skills load as `/skill:<name>` in pi.
+      *(DEFERRED to dot's next `/reload` — frontmatter is valid, content is self-contained.)*
 
 **Commit (in pantry):** `chore: fold keeper skills to ~/.pi; archive the rest`
 

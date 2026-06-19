@@ -58,10 +58,12 @@ genuinely depend on the `animated-image*` modules.)
 
 ## Skills (`archived/skills/`)
 
-23 skills retired outright here. (Another ~10 nugget-source skills stay in
-`morsels/skills/` until Phase 3, where their unique bits are extracted into
-keeper skills and *then* archived.) Reasons are summarized from the triage
-cluster reports:
+54 of 54 skills now retired here — **Phase 3 is complete**: every keeper
+skill's content was folded into `~/.pi/agent/skills/` (22 skills: 18
+fold-standalone, `rust`, `quickshell`, plus the 2 decoupled image-doc
+skills), the nugget-source skills had their unique bits extracted into those
+keepers, and then *everything* in `morsels/skills/` moved here. `morsels/skills/`
+is now empty. Reasons are summarized from the triage cluster reports:
 
 | Skill | Why retired |
 |---|---|
@@ -88,6 +90,23 @@ cluster reports:
 | `kobold-housekeeping` (doc) | Coupled to its retired extension + parchment; goes with them. |
 | `dragon-guard` (doc) | Follows its retired extension's fate. |
 | `dragon-parchment` (doc) | Follows its retired extension's fate (popup stack dropped). |
+
+**Phase 3 additions** (folded into `~/.pi/agent/skills/` keepers first, then
+archived here — the source is retained for git history):
+
+| Skill | Folded into | What was kept |
+|---|---|---|
+| `minecraft-modding` | `neoforge` | Stack-agnostic MC sections (mixins, codecs, sided-exec, datagen, perf, compat); dual-loader framing dropped. |
+| `kotlin`, `java` | `neoforge` | No KFF-/mixin-specific nuggets beyond what neoforge already covers — generic remainder dropped. |
+| `go-check` | `go` | Linter-triage ordering + key-linters table; command catalogs dropped. |
+| `typescript-check` | `extension-designer` (references) | Pi-extension TS gotchas (jiti/symlinks/`matchesKey`/`KeyId`); tsc/eslint primer dropped. |
+| `typescript` | `extension-designer` (references) | Boundary-validation rule + >4-params→options-object; generic remainder dropped. |
+| `pi-events`, `pi-sessions`, `pi-tui` | `extension-designer` (references) | Event decision tree, reserveTokens/compaction gotchas, consolidated anti-patterns; raw API is in pi docs. |
+
+The keeper skills themselves (`go`, `neoforge`, `gdscript`, `fix`, `git`,
+`atproto`, `dependency-management`, `github-writing`, `extension-designer`,
+`rust`, `quickshell`, etc.) live at `~/.pi/agent/skills/`, not here — this
+archive holds only the retired sources.
 
 ## Tests (`archived/tests/`)
 
