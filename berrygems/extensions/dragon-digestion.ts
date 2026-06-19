@@ -24,16 +24,16 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   Theme,
-} from "@mariozechner/pi-coding-agent";
-import type { TUI } from "@mariozechner/pi-tui";
-import { matchesKey, Key } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import type { TUI } from "@earendil-works/pi-tui";
+import { matchesKey, Key } from "@earendil-works/pi-tui";
 import {
   renderHeader,
   renderFooter,
   padContentLine,
   type ChromeOptions,
 } from "../lib/panel-chrome.ts";
-import { complete, type UserMessage } from "@mariozechner/pi-ai";
+import { complete, type UserMessage } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import {
   buildFirstCompactionPrompt,

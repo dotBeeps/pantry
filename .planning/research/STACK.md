@@ -51,7 +51,7 @@
 ```fish
 # Berrygems test stack — inside berrygems/
 cd /home/dot/Development/pantry/berrygems
-pnpm add -D vitest@^4.1 @marcfargas/pi-test-harness@^0.5 @mariozechner/pi-agent-core @mariozechner/pi-ai @mariozechner/pi-coding-agent
+pnpm add -D vitest@^4.1 @marcfargas/pi-test-harness@^0.5 @earendil-works/pi-agent-core @earendil-works/pi-ai @earendil-works/pi-coding-agent
 
 # Morsels lint stack — root (single skill-lint script), devDependencies only
 cd /home/dot/Development/pantry
@@ -59,7 +59,7 @@ pnpm add -D yaml@^2.8 zod@^4.3
 # (If you'd rather keep it scoped to morsels/, add an inner package.json with devDeps there.)
 ```
 
-Note: the pi-test-harness peer deps (`@mariozechner/pi-coding-agent`, `pi-ai`, `pi-agent-core`) are already resolved in `berrygems/node_modules/@mariozechner/` via the existing pi-install symlink dance. Adding them as explicit devDependencies is only necessary if you want CI to install them from npm without relying on a pre-installed pi — which we do, because the CI runner won't have pi globally installed.
+Note: the pi-test-harness peer deps (`@earendil-works/pi-coding-agent`, `pi-ai`, `pi-agent-core`) are already resolved in `berrygems/node_modules/@mariozechner/` via the existing pi-install symlink dance. Adding them as explicit devDependencies is only necessary if you want CI to install them from npm without relying on a pre-installed pi — which we do, because the CI runner won't have pi globally installed.
 
 ## Alternatives Considered
 
@@ -113,7 +113,7 @@ Note: the pi-test-harness peer deps (`@mariozechner/pi-coding-agent`, `pi-ai`, `
 | ------------------------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `vitest@^4.1`                                          | Node 20.19+, 22.12+, 24+                  | Node 22.18+ enables native TS stripping (no loader needed). Use Node 22 LTS on CI.                                      |
 | `vitest@^4.1` + `experimental.viteModuleRunner: false` | Node 22.15+ for `vi.mock` support         | We don't expect to need `vi.mock` — the pi-test-harness owns the mocking layer.                                         |
-| `@marcfargas/pi-test-harness@^0.5`                     | `@mariozechner/pi-coding-agent >= 0.50.0` | Peer-dep check; pi's current release line satisfies this.                                                               |
+| `@marcfargas/pi-test-harness@^0.5`                     | `@earendil-works/pi-coding-agent >= 0.50.0` | Peer-dep check; pi's current release line satisfies this.                                                               |
 | `zod@^4`                                               | TypeScript ^5, any Node ≥ 18              | Zod 4 is a major bump from 3.x with better perf; no migration pain for greenfield use.                                  |
 | `yaml@^2.8`                                            | Node ≥ 14, ESM + CJS                      | Pure JS, no native bindings.                                                                                            |
 | `pnpm@^10` + `pnpm/action-setup@v4`                    | Node ≥ 18                                 | Use `cache: true` and omit `store prune` — the action handles it.                                                       |

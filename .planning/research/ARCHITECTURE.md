@@ -299,7 +299,7 @@ developer runs `pnpm test`
     → loads berrygems/tests/extensions/dragon-guard.test.ts
       → test imports createPantrySession from tests/helpers/session.ts
         → session.ts calls createTestSession from @marcfargas/pi-test-harness
-          → harness loads real @mariozechner/pi-coding-agent runtime
+          → harness loads real @earendil-works/pi-coding-agent runtime
             → pi's extension loader jiti-imports berrygems/extensions/dragon-guard/index.ts
               → dragon-guard/index.ts registers its tool + hook via pi.registerTool / pi.on
           → harness returns TestSession with real ExtensionAPI wired up

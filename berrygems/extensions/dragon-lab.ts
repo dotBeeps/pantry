@@ -11,8 +11,8 @@
 // globalThis API: PANTRY_KEYS.lab (via getGlobal/registerGlobal in lib/globals.ts)
 // Settings:       pantry.lab.*
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import type { Model, Api } from "@mariozechner/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Model, Api } from "@earendil-works/pi-ai";
 import { readPantrySetting } from "../lib/settings.ts";
 import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 

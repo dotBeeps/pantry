@@ -59,7 +59,7 @@ Before starting, ask 2–4 of these (skip what's already clear):
 Every extension exports a default function receiving `ExtensionAPI`:
 
 ```typescript
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
   // Register tools, commands, event handlers, shortcuts
@@ -68,10 +68,10 @@ export default function (pi: ExtensionAPI) {
 
 ## Custom Tools
 
-Register tools the LLM can call. Use `StringEnum` from `@mariozechner/pi-ai` for string enums (required for Google compatibility). Use `Type` from `@sinclair/typebox` for parameter schemas.
+Register tools the LLM can call. Use `StringEnum` from `@earendil-works/pi-ai` for string enums (required for Google compatibility). Use `Type` from `@sinclair/typebox` for parameter schemas.
 
 ```typescript
-import { StringEnum } from "@mariozechner/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 
 pi.registerTool({
@@ -114,7 +114,7 @@ pi.registerTool({
 Tools run in parallel by default. If your tool mutates files, wrap the read-modify-write in `withFileMutationQueue()` so it shares a per-file queue with built-in `edit` and `write`:
 
 ```typescript
-import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { resolve } from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 
@@ -179,7 +179,7 @@ import {
   truncateTail,       // Keep last N lines/bytes (logs, command output)
   DEFAULT_MAX_BYTES,  // 50KB
   DEFAULT_MAX_LINES,  // 2000
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 async execute(toolCallId, params, signal, onUpdate, ctx) {
   const output = await runCommand();
@@ -213,19 +213,19 @@ import {
   Markdown,
   SelectList,
   SettingsList,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import {
   matchesKey,
   Key,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import {
   DynamicBorder,
   BorderedLoader,
   getMarkdownTheme,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 ```
 
 ### Overlays (Popovers)
@@ -366,13 +366,13 @@ For panel extensions specifically, see the `dragon-parchment` skill.
 ✅ Store state in tool result `details` and reconstruct from session entries.
 
 ❌ **Using `Type.Union`/`Type.Literal` for string enums** — breaks Google API.
-✅ Use `StringEnum(["a", "b"] as const)` from `@mariozechner/pi-ai`.
+✅ Use `StringEnum(["a", "b"] as const)` from `@earendil-works/pi-ai`.
 
 ❌ **Importing theme at module level** — theme can change at runtime.
 ✅ Use `theme` from callbacks (`ctx.ui.custom`, `renderResult`, etc.).
 
 ❌ **Returning large untruncated output from tools** — overwhelms context.
-✅ Use `truncateHead`/`truncateTail` from `@mariozechner/pi-coding-agent`.
+✅ Use `truncateHead`/`truncateTail` from `@earendil-works/pi-coding-agent`.
 
 ❌ **Fire-and-forget overlays without `done()` callback** — leaks UI state.
 ✅ Always call `done()` on escape/cancel/confirm to close overlays.
@@ -401,7 +401,7 @@ Extensions (tool registration, event hooks, UI)
         ↓ imports
 Shared libs — berrygems/lib/ (generic, reusable)
         ↓ imports
-Pi platform (@mariozechner/pi-*)
+Pi platform (@earendil-works/pi-*)
 ```
 
 **Before writing any utility function,** `grep berrygems/lib/` for existing solutions.

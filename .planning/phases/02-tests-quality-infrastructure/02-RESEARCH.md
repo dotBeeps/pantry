@@ -19,9 +19,9 @@ Exact versions locked per STACK.md. These land in the `devDependencies` of the i
 | ------------------------------- | ------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `vitest`                        | `^4.1` (resolves 4.1.5+) | `berrygems/package.json` | Test runner. `experimental.viteModuleRunner: false` for native-Node TS to mirror pi's jiti loader. |
 | `@marcfargas/pi-test-harness`   | `^0.5` (0.5.0)           | `berrygems/package.json` | `createTestSession`, `verifySandboxInstall`, `createMockPi`. Peer deps must resolve.               |
-| `@mariozechner/pi-agent-core`   | matching harness peer    | `berrygems/package.json` | Harness peer dep (CI has no global pi).                                                            |
-| `@mariozechner/pi-ai`           | matching harness peer    | `berrygems/package.json` | Harness peer dep.                                                                                  |
-| `@mariozechner/pi-coding-agent` | `>= 0.50.0`              | `berrygems/package.json` | Harness peer dep (floor).                                                                          |
+| `@earendil-works/pi-agent-core`   | matching harness peer    | `berrygems/package.json` | Harness peer dep (CI has no global pi).                                                            |
+| `@earendil-works/pi-ai`           | matching harness peer    | `berrygems/package.json` | Harness peer dep.                                                                                  |
+| `@earendil-works/pi-coding-agent` | `>= 0.50.0`              | `berrygems/package.json` | Harness peer dep (floor).                                                                          |
 | `yaml`                          | `^2.8` (2.8.3)           | root `package.json`      | Frontmatter parser for `lint-skills.ts`. Modern ESM, TS types bundled. Replaces `gray-matter`.     |
 | `zod`                           | `^4.3` (4.3.6)           | root `package.json`      | Schema validation for frontmatter + settings. Used by both TEST-04 and the D-09 settings wrapper.  |
 
@@ -30,7 +30,7 @@ Exact versions locked per STACK.md. These land in the `devDependencies` of the i
 ```fish
 # Berrygems test stack
 pnpm --dir berrygems add -D vitest@^4.1 @marcfargas/pi-test-harness@^0.5 \
-  @mariozechner/pi-agent-core @mariozechner/pi-ai @mariozechner/pi-coding-agent
+  @earendil-works/pi-agent-core @earendil-works/pi-ai @earendil-works/pi-coding-agent
 
 # Root lint stack
 pnpm add -D yaml@^2.8 zod@^4.3

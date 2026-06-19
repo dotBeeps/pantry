@@ -100,7 +100,7 @@ Pantry is a two-package pi-package: `berrygems/` (TypeScript extensions loaded b
   - `berrygems/lib/settings.ts:228-230`: `readPantryKey` returns `any` to avoid cast noise at call sites ("avoids string → KeyId cast noise everywhere").
 - `unknown` + narrowing for untrusted input, e.g. `berrygems/lib/settings.ts:44,60-68` walks `Record<string, unknown>` through `resolvePath` without trusting the shape.
 - `noUnusedLocals`/`noUnusedParameters` are on — prefix unused params with `_` if you must keep the signature.
-- Prefer `import type { … }` for pure-type imports (e.g. `import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";` in every extension).
+- Prefer `import type { … }` for pure-type imports (e.g. `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";` in every extension).
 
 ## Import Organization
 
@@ -111,14 +111,14 @@ Observed order across extension files (see `berrygems/extensions/dragon-curfew.t
    import type {
      ExtensionAPI,
      ToolCallEventResult,
-   } from "@mariozechner/pi-coding-agent";
+   } from "@earendil-works/pi-coding-agent";
    import type {
      OverlayAnchor,
      OverlayHandle,
      TUI,
-   } from "@mariozechner/pi-tui";
-   import { matchesKey, isKeyRelease, isKeyRepeat } from "@mariozechner/pi-tui";
-   import { StringEnum } from "@mariozechner/pi-ai";
+   } from "@earendil-works/pi-tui";
+   import { matchesKey, isKeyRelease, isKeyRepeat } from "@earendil-works/pi-tui";
+   import { StringEnum } from "@earendil-works/pi-ai";
    import { Type, type Static } from "@sinclair/typebox";
    ```
 2. **Node stdlib** (only when needed): `import { execSync } from "node:child_process";`, `import { readFileSync, existsSync } from "node:fs";`. Always use the `node:` prefix.
@@ -140,7 +140,7 @@ Observed order across extension files (see `berrygems/extensions/dragon-curfew.t
 
 **Path aliases (tsconfig, not consumer-facing):**
 
-- Defined in `berrygems/tsconfig.json:13-17` to resolve `@mariozechner/pi-*` and `@sinclair/typebox` through the symlinks at `berrygems/node_modules/`.
+- Defined in `berrygems/tsconfig.json:13-17` to resolve `@earendil-works/pi-*` and `@sinclair/typebox` through the symlinks at `berrygems/node_modules/`.
 - There are no `@/` or app-level aliases — relative paths within `berrygems/` only.
 
 ## Shared-Library-First Rule

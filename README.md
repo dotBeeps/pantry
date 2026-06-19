@@ -1,6 +1,6 @@
 # 🐉 Pantry
 
-A dragon's pantry of agent content for [pi](https://github.com/badlogic/pi-mono) — extensions and skills, nothing more.
+A dragon's pantry of agent content for [pi](https://github.com/earendil-works/pi) — extensions and skills, nothing more.
 
 Built by a small dog and a large dragon.
 

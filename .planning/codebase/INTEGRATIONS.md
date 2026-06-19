@@ -18,7 +18,7 @@ No inbound webhooks. No database. No persistent server. No deployment pipeline.
 
 ### Pi Extension API (what pantry consumes from pi)
 
-Every extension imports from `@mariozechner/pi-coding-agent`. The integration contract is the `ExtensionAPI` object passed into each extension's default export.
+Every extension imports from `@earendil-works/pi-coding-agent`. The integration contract is the `ExtensionAPI` object passed into each extension's default export.
 
 - **Registration surface:** `pi.registerTool()`, `pi.registerProvider()`, `pi.registerSlashCommand()`, `pi.appendEntry()`, extension lifecycle hooks.
 - **Event lifecycle** (per `AGENTS.md` §Event Lifecycle): `session_start` → `input` → `before_agent_start` → `agent_start` → `turn_start` → `context` → `before_provider_request` → `tool_call` → `tool_result` → `turn_end` → `agent_end`.
@@ -62,11 +62,11 @@ Morsels integrate with any agent harness that can load Markdown skills. Pi disco
 
 ## Outbound APIs & External Services
 
-### LLM Providers (routed through `@mariozechner/pi-ai`)
+### LLM Providers (routed through `@earendil-works/pi-ai`)
 
 Pantry never holds LLM API keys. All model calls go through pi's configured model registry and provider credentials.
 
-- `complete()` from `@mariozechner/pi-ai` is used by `dragon-musings.ts`, `dragon-inquiry.ts`, `dragon-loop.ts`, `dragon-guard/index.ts`, `dragon-scroll.ts`, `dragon-image-fetch.ts`, and `berrygems/lib/giphy-source.ts`.
+- `complete()` from `@earendil-works/pi-ai` is used by `dragon-musings.ts`, `dragon-inquiry.ts`, `dragon-loop.ts`, `dragon-guard/index.ts`, `dragon-scroll.ts`, `dragon-image-fetch.ts`, and `berrygems/lib/giphy-source.ts`.
 - Default preferred model: `anthropic/claude-haiku-4-5` (hardcoded in `dragon-musings.ts`, `dragon-guard/index.ts`, `dragon-image-fetch.ts`'s `DEFAULT_VIBE_MODEL`, `lib/giphy-source.ts`'s `VIBE_MODEL`). Fallback order in `dragon-musings.ts`: `anthropic`, `google`, `openai` via `ctx.modelRegistry.find(provider, model)`.
 - Anthropic provider-header override in `berrygems/extensions/dragon-lab.ts` — registers `pi.registerProvider("anthropic", { headers: { "anthropic-beta": ... } })` to gate on-demand Anthropic beta features (e.g. `anthropic.context-management`). The extension mirrors pi-ai's hardcoded beta list and warns that it overwrites pi's base value entirely.
 

@@ -20,9 +20,9 @@ tech-stack:
     [
       vitest@4.1.5,
       "@marcfargas/pi-test-harness@0.5.0",
-      "@mariozechner/pi-agent-core@0.69.0",
-      "@mariozechner/pi-ai@0.69.0",
-      "@mariozechner/pi-coding-agent@0.69.0",
+      "@earendil-works/pi-agent-core@0.69.0",
+      "@earendil-works/pi-ai@0.69.0",
+      "@earendil-works/pi-coding-agent@0.69.0",
       yaml@2.8.3,
       zod@4.3.6,
     ]
@@ -130,7 +130,7 @@ None beyond the passWithNoTests gap captured above.
 - [x] `berrygems/tsconfig.tests.json` exists with `"extends": "./tsconfig.json"` and 3-entry include array (tests, lib, extensions)
 - [x] Shipped `berrygems/tsconfig.json` unchanged — tests/\*\* not in its include
 - [x] All 5 test subdirs exist with .gitkeep placeholders
-- [x] berrygems/package.json has vitest, @marcfargas/pi-test-harness, @mariozechner/pi-agent-core, @mariozechner/pi-ai, @mariozechner/pi-coding-agent in devDependencies
+- [x] berrygems/package.json has vitest, @marcfargas/pi-test-harness, @earendil-works/pi-agent-core, @earendil-works/pi-ai, @earendil-works/pi-coding-agent in devDependencies
 - [x] Root package.json has yaml + zod in devDependencies
 - [x] berrygems/package.json scripts.test = "vitest run"
 - [x] berrygems/package.json scripts["test:watch"] = "vitest"

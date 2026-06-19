@@ -11,9 +11,9 @@
 		"skipLibCheck": true,
 		"esModuleInterop": true,
 		"paths": {
-			"@mariozechner/pi-tui": ["../node_modules/@mariozechner/pi-tui/dist"],
-			"@mariozechner/pi-coding-agent": ["../node_modules/@mariozechner/pi-coding-agent/dist"],
-			"@mariozechner/pi-ai": ["../node_modules/@mariozechner/pi-ai/dist"],
+			"@earendil-works/pi-tui": ["../node_modules/@earendil-works/pi-tui/dist"],
+			"@earendil-works/pi-coding-agent": ["../node_modules/@earendil-works/pi-coding-agent/dist"],
+			"@earendil-works/pi-ai": ["../node_modules/@earendil-works/pi-ai/dist"],
 			"@sinclair/typebox": ["../node_modules/@sinclair/typebox"]
 		}
 	},

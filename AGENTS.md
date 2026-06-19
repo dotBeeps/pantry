@@ -8,7 +8,7 @@ ETHICS.md is the project's ethical foundation — not advisory. It informs how u
 
 ## Project Overview
 
-**Pantry** is a pi-package — a monorepo of extensions and skills for [pi](https://github.com/badlogic/pi-mono), installable as a single unit.
+**Pantry** is a pi-package — a monorepo of extensions and skills for [pi](https://github.com/earendil-works/pi), installable as a single unit.
 
 - **berrygems/** — pi extensions (TypeScript). Programmatic, deterministic tools loaded by pi at session start. Panels, guards, diagnostics, carbon tracking, image rendering, compaction, todos, code review.
 - **morsels/** — agent skills (Markdown). Harness-agnostic, grab-and-go knowledge any agent can consume. Some morsels document specific berrygem APIs; most are general-purpose.
@@ -88,20 +88,22 @@ There is one automated gate: `tsc` over the berrygems source. Everything else is
 cd /home/dot/Development/pantry; and tsc --project berrygems/tsconfig.json
 ```
 
-- `tsconfig.json` resolves `@mariozechner/pi-*` via local `node_modules` symlinks.
-- Symlinks point to pi's installed packages under `~/.npm/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/`.
+- `tsconfig.json` resolves `@earendil-works/pi-*` via local `node_modules` symlinks.
+- Symlinks point to pi's installed packages under `~/.npm/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/`.
 - If symlinks break after pi updates, recreate them:
+
   ```fish
-  set PI_MODULES "$HOME/.npm/lib/node_modules/@mariozechner/pi-coding-agent/node_modules"
-  mkdir -p node_modules/@mariozechner berrygems/node_modules/@mariozechner
+  set PI_MODULES "$HOME/.npm/lib/node_modules/@earendil-works/pi-coding-agent/node_modules"
+  mkdir -p node_modules/@earendil-works berrygems/node_modules/@earendil-works
   for MODULE_ROOT in node_modules berrygems/node_modules
-      ln -sf "$HOME/.npm/lib/node_modules/@mariozechner/pi-coding-agent" "$MODULE_ROOT/@mariozechner/pi-coding-agent"
-      ln -sf "$PI_MODULES/@mariozechner/pi-tui" "$MODULE_ROOT/@mariozechner/pi-tui"
-      ln -sf "$PI_MODULES/@mariozechner/pi-ai" "$MODULE_ROOT/@mariozechner/pi-ai"
-      ln -sf "$PI_MODULES/@mariozechner/pi-agent-core" "$MODULE_ROOT/@mariozechner/pi-agent-core"
+      ln -sf "$HOME/.npm/lib/node_modules/@earendil-works/pi-coding-agent" "$MODULE_ROOT/@earendil-works/pi-coding-agent"
+      ln -sf "$PI_MODULES/@earendil-works/pi-tui" "$MODULE_ROOT/@earendil-works/pi-tui"
+      ln -sf "$PI_MODULES/@earendil-works/pi-ai" "$MODULE_ROOT/@earendil-works/pi-ai"
+      ln -sf "$PI_MODULES/@earendil-works/pi-agent-core" "$MODULE_ROOT/@earendil-works/pi-agent-core"
       ln -sf "$PI_MODULES/typebox" "$MODULE_ROOT/typebox"
   end
   ```
+
 - No eslint config. No test framework. Type checking is the only automated gate; behaviour testing is manual via `/reload` in pi.
 
 ### morsels (Markdown)
@@ -120,16 +122,16 @@ cd /home/dot/Development/pantry; and tsc --project berrygems/tsconfig.json
 
 ## Pi Platform
 
-This project extends [pi](https://github.com/badlogic/pi-mono), a terminal coding agent harness.
+This project extends [pi](https://github.com/earendil-works/pi), a terminal coding agent harness.
 
 ### Monorepo Packages
 
 | Package                         | Role                                                               | You Import                                                                                                                                                           |
 | ------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@mariozechner/pi-ai`           | LLM API, model discovery, streaming                                | `StringEnum`                                                                                                                                                         |
-| `@mariozechner/pi-tui`          | Terminal UI components, keyboard, rendering                        | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`                                                     |
-| `@mariozechner/pi-agent-core`   | Agent loop, state, transport abstraction                           | (rarely imported directly)                                                                                                                                           |
-| `@mariozechner/pi-coding-agent` | Coding agent CLI — tools, sessions, extensions, skills, compaction | `ExtensionAPI`, `ExtensionContext`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `CustomEditor` |
+| `@earendil-works/pi-ai`           | LLM API, model discovery, streaming                                | `StringEnum`                                                                                                                                                         |
+| `@earendil-works/pi-tui`          | Terminal UI components, keyboard, rendering                        | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`                                                     |
+| `@earendil-works/pi-agent-core`   | Agent loop, state, transport abstraction                           | (rarely imported directly)                                                                                                                                           |
+| `@earendil-works/pi-coding-agent` | Coding agent CLI — tools, sessions, extensions, skills, compaction | `ExtensionAPI`, `ExtensionContext`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `CustomEditor` |
 | `typebox`                      | JSON schema definitions                                            | `Type` for tool parameter schemas                                                                                                                                    |
 
 ### Extension Runtime

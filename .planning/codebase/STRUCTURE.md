@@ -184,7 +184,7 @@ see CONCERNS.md for cleanup recommendation):
 
 **`berrygems/node_modules/`:**
 
-- Purpose: Symlinks to pi packages so `tsc` can resolve `@mariozechner/pi-tui`, `@mariozechner/pi-coding-agent`, `@mariozechner/pi-ai`, `@mariozechner/pi-agent-core`, `@sinclair/typebox`. Targets live in `~/.npm/lib/node_modules/mitsupi/node_modules/`. Repair procedure documented in `AGENTS.md:94–102`.
+- Purpose: Symlinks to pi packages so `tsc` can resolve `@earendil-works/pi-tui`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@sinclair/typebox`. Targets live in `~/.npm/lib/node_modules/mitsupi/node_modules/`. Repair procedure documented in `AGENTS.md:94–102`.
 - Not committed in a meaningful sense — the symlinks are reconstructed when pi is reinstalled.
 
 **`morsels/skills/`:**

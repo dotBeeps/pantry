@@ -12,8 +12,8 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
-import { complete, type UserMessage } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import { complete, type UserMessage } from "@earendil-works/pi-ai";
 
 import {
   GUARD_DRAGON_KEY,

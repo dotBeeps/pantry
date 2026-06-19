@@ -8,7 +8,7 @@
 ## What Happened
 
 ### Phase 2: Compaction Takeover (Completed)
-- Imported `complete` from `@mariozechner/pi-ai` for LLM calls
+- Imported `complete` from `@earendil-works/pi-ai` for LLM calls
 - Consolidated STRATEGY_PRESETS — removed local 4-preset array, now imports 5-preset version from `lib/compaction-templates.ts` (adds `debug`)
 - Added `resolveSummaryModel()` — resolves cheapest available model or user-configured one
 - Added `serializeMessages()` — converts message array to prompt text

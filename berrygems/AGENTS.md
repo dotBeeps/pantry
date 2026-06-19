@@ -73,7 +73,7 @@ tsc --project berrygems/tsconfig.json
 /reload  # in pi
 ```
 
-- tsconfig resolves `@mariozechner/pi-*` via symlinks in `node_modules/`
+- tsconfig resolves `@earendil-works/pi-*` via symlinks in `node_modules/`
 - No eslint — type checking is the primary gate
 - No test framework — manual testing via `/reload`
 
@@ -82,13 +82,13 @@ tsc --project berrygems/tsconfig.json
 If symlinks break after pi updates:
 
 ```bash
-PI_MODULES="$HOME/.npm/lib/node_modules/mitsupi/node_modules"
-mkdir -p node_modules/@mariozechner
-ln -sf "$PI_MODULES/@mariozechner/pi-tui" node_modules/@mariozechner/pi-tui
-ln -sf "$PI_MODULES/@mariozechner/pi-coding-agent" node_modules/@mariozechner/pi-coding-agent
-ln -sf "$PI_MODULES/@mariozechner/pi-ai" node_modules/@mariozechner/pi-ai
-ln -sf "$PI_MODULES/@mariozechner/pi-agent-core" node_modules/@mariozechner/pi-agent-core
-ln -sf "$PI_MODULES/@sinclair" node_modules/@sinclair
+PI_MODULES="$HOME/.npm/lib/node_modules/@earendil-works/pi-coding-agent/node_modules"
+mkdir -p node_modules/@earendil-works
+ln -sf "$PI_MODULES/@earendil-works/pi-tui" node_modules/@earendil-works/pi-tui
+ln -sf "$HOME/.npm/lib/node_modules/@earendil-works/pi-coding-agent" node_modules/@earendil-works/pi-coding-agent
+ln -sf "$PI_MODULES/@earendil-works/pi-ai" node_modules/@earendil-works/pi-ai
+ln -sf "$PI_MODULES/@earendil-works/pi-agent-core" node_modules/@earendil-works/pi-agent-core
+ln -sf "$PI_MODULES/typebox" node_modules/typebox
 ```
 
 ## Code Style

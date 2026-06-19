@@ -20,9 +20,9 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   Theme,
-} from "@mariozechner/pi-coding-agent";
-import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
-import { matchesKey, isKeyRelease, isKeyRepeat } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import type { OverlayAnchor, OverlayHandle, TUI } from "@earendil-works/pi-tui";
+import { matchesKey, isKeyRelease, isKeyRepeat } from "@earendil-works/pi-tui";
 import { readPantrySetting, readPantryKey, keyLabel } from "../lib/settings.ts";
 import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 import {

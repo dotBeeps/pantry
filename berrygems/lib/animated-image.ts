@@ -8,7 +8,7 @@
  * A small dog and a large dragon made this together.
  */
 
-import { calculateImageRows, getCellDimensions, getGifDimensions } from "@mariozechner/pi-tui";
+import { calculateImageRows, getCellDimensions, getGifDimensions } from "@earendil-works/pi-tui";
 
 // ── Types ──
 

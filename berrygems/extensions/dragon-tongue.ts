@@ -12,12 +12,12 @@
  * She was about 2/3 goop at the time and still wagging.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { matchesKey, Key } from "@mariozechner/pi-tui";
-import type { TUI } from "@mariozechner/pi-tui";
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { matchesKey, Key } from "@earendil-works/pi-tui";
+import type { TUI } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { StringEnum } from "@mariozechner/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { execSync } from "node:child_process";
 import { resolve, relative } from "node:path";
 import { existsSync, watch, type FSWatcher } from "node:fs";

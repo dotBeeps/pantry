@@ -103,7 +103,7 @@ When both `tsc` and `eslint` are available, run `tsc` first — type errors ofte
 
 Pi extensions load TypeScript directly via jiti — no build step. Type checking uses a `tsconfig.json` with path mappings to pi's installed packages.
 
-If `tsc` reports `Cannot find module '@mariozechner/pi-*'`:
+If `tsc` reports `Cannot find module '@earendil-works/pi-*'`:
 1. Check that `node_modules/` symlinks exist pointing to pi's packages
 2. Verify `tsconfig.json` has correct `paths` entries
 3. See project's AGENTS.md for symlink recreation commands

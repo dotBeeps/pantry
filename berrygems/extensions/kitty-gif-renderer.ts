@@ -15,8 +15,8 @@
  * A small dog and a large dragon made this together.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import {
   AnimatedImagePlayer,
   type ImageFrames,

@@ -9,7 +9,7 @@ compatibility: "Designed for Pi (pi-coding-agent)"
 
 How pi stores conversation history, manages branches, handles compaction, and how extensions should manage state. Essential reading for any extension that persists data or hooks into session lifecycle.
 
-For the full session format, read `/opt/pi-coding-agent/docs/session.md`. For compaction internals, read `/opt/pi-coding-agent/docs/compaction.md`.
+For the full session format, read pi's [session-format.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/session-format.md). For compaction internals, read pi's [compaction.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/compaction.md).
 
 ## Session Tree Model
 
@@ -22,6 +22,7 @@ Sessions are **JSONL files** with a tree structure. Each entry has `id` and `par
 ```
 
 Key concepts:
+
 - **Leaf** — the current position in the tree (`ctx.sessionManager.getLeafId()`)
 - **Branch** — path from leaf to root (`ctx.sessionManager.getBranch()`)
 - **`/tree`** — navigate to any point, continue from there, all history preserved
@@ -34,11 +35,11 @@ Key concepts:
 ```typescript
 // Store state
 async execute(toolCallId, params, signal, onUpdate, ctx) {
-	items.push(params.text);
-	return {
-		content: [{ type: "text", text: "Added" }],
-		details: { items: [...items] },  // Full snapshot for reconstruction
-	};
+ items.push(params.text);
+ return {
+  content: [{ type: "text", text: "Added" }],
+  details: { items: [...items] },  // Full snapshot for reconstruction
+ };
 }
 ```
 
@@ -48,13 +49,13 @@ Rebuild state from the session branch on every session event:
 
 ```typescript
 const reconstructState = (ctx: ExtensionContext) => {
-	items = [];
-	for (const entry of ctx.sessionManager.getBranch()) {
-		if (entry.type === "message" && entry.message.role === "toolResult"
-		    && entry.message.toolName === "my_tool") {
-			items = entry.message.details?.items ?? [];
-		}
-	}
+ items = [];
+ for (const entry of ctx.sessionManager.getBranch()) {
+  if (entry.type === "message" && entry.message.role === "toolResult"
+      && entry.message.toolName === "my_tool") {
+   items = entry.message.details?.items ?? [];
+  }
+ }
 };
 
 pi.on("session_start", async (_event, ctx) => reconstructState(ctx));
@@ -94,6 +95,7 @@ Manual: /compact [custom instructions]
 ### reserveTokens Double Duty
 
 `reserveTokens` controls **two things:**
+
 - **Trigger threshold** — when to fire compaction
 - **Output budget** — compaction LLM gets `0.8 × reserveTokens` as `max_tokens`
 
@@ -107,26 +109,26 @@ Intercept compaction to cancel, modify, or fully replace the summary:
 
 ```typescript
 pi.on("session_before_compact", async (event, ctx) => {
-	const { preparation, branchEntries, customInstructions, signal } = event;
+ const { preparation, branchEntries, customInstructions, signal } = event;
 
-	// preparation.messagesToSummarize — messages to summarize
-	// preparation.previousSummary — previous compaction summary (iterative)
-	// preparation.firstKeptEntryId — where kept messages start
-	// preparation.tokensBefore — context tokens before compaction
-	// preparation.fileOps — extracted file operations
+ // preparation.messagesToSummarize — messages to summarize
+ // preparation.previousSummary — previous compaction summary (iterative)
+ // preparation.firstKeptEntryId — where kept messages start
+ // preparation.tokensBefore — context tokens before compaction
+ // preparation.fileOps — extracted file operations
 
-	// Cancel:
-	return { cancel: true };
+ // Cancel:
+ return { cancel: true };
 
-	// Custom summary:
-	return {
-		compaction: {
-			summary: "Your custom summary...",
-			firstKeptEntryId: preparation.firstKeptEntryId,
-			tokensBefore: preparation.tokensBefore,
-			details: { readFiles: [...], modifiedFiles: [...] },
-		},
-	};
+ // Custom summary:
+ return {
+  compaction: {
+   summary: "Your custom summary...",
+   firstKeptEntryId: preparation.firstKeptEntryId,
+   tokensBefore: preparation.tokensBefore,
+   details: { readFiles: [...], modifiedFiles: [...] },
+  },
+ };
 });
 ```
 
@@ -136,15 +138,15 @@ For trigger points earlier than pi's native threshold, pi won't fire on its own.
 
 ```typescript
 pi.on("turn_end", async (_event, ctx) => {
-	const usage = ctx.getContextUsage();
-	if (usage && usage.tokens > myThreshold && !compactionInProgress) {
-		ctx.compact({
-			customInstructions: "Focus on code changes and technical decisions",
-			onComplete: () => { compactionInProgress = false; },
-			onError: () => { compactionInProgress = false; },
-		});
-		compactionInProgress = true;
-	}
+ const usage = ctx.getContextUsage();
+ if (usage && usage.tokens > myThreshold && !compactionInProgress) {
+  ctx.compact({
+   customInstructions: "Focus on code changes and technical decisions",
+   onComplete: () => { compactionInProgress = false; },
+   onError: () => { compactionInProgress = false; },
+  });
+  compactionInProgress = true;
+ }
 });
 ```
 
@@ -160,17 +162,17 @@ When `/tree` navigates to a different branch, pi can summarize the abandoned bra
 
 ```typescript
 pi.on("session_before_tree", async (event, ctx) => {
-	const { preparation, signal } = event;
-	// preparation.targetId, oldLeafId, commonAncestorId
-	// preparation.entriesToSummarize, userWantsSummary
+ const { preparation, signal } = event;
+ // preparation.targetId, oldLeafId, commonAncestorId
+ // preparation.entriesToSummarize, userWantsSummary
 
-	// Cancel navigation:
-	return { cancel: true };
+ // Cancel navigation:
+ return { cancel: true };
 
-	// Custom summary (only used if userWantsSummary is true):
-	if (preparation.userWantsSummary) {
-		return { summary: { summary: "Your summary...", details: {} } };
-	}
+ // Custom summary (only used if userWantsSummary is true):
+ if (preparation.userWantsSummary) {
+  return { summary: { summary: "Your summary...", details: {} } };
+ }
 });
 ```
 
@@ -181,9 +183,9 @@ Check how full the context window is:
 ```typescript
 const usage = ctx.getContextUsage();
 if (usage) {
-	usage.tokens;         // Current token count
-	usage.contextWindow;  // Model's context window
-	usage.percent;        // Usage percentage (0-100)
+ usage.tokens;         // Current token count
+ usage.contextWindow;  // Model's context window
+ usage.percent;        // Usage percentage (0-100)
 }
 ```
 

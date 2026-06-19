@@ -15,8 +15,8 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
-import type { Usage } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import type { Usage } from "@earendil-works/pi-ai";
 import { readPantrySetting, readPantryKey } from "../../lib/settings.ts";
 import { PANTRY_KEYS, registerGlobal } from "../../lib/globals.ts";
 

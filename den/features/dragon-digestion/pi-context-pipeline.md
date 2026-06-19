@@ -759,7 +759,7 @@ type ToolCallResult = {
 ### Handler Signature
 
 ```typescript
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 pi.on("tool_call", async (event, ctx) => {
   // event.toolName - name of tool being called

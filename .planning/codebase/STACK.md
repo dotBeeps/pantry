@@ -35,10 +35,10 @@
 
 **Core (consumed, not bundled):**
 
-- `@mariozechner/pi-coding-agent` — extension API surface (`ExtensionAPI`, `ExtensionContext`, `ExtensionCommandContext`, `SessionBeforeSwitchEvent`, `Theme`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`).
-- `@mariozechner/pi-tui` — terminal UI primitives (`Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `Input`, `Spacer`, `fuzzyFilter`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`, `getGifDimensions`, `calculateImageRows`, `getCellDimensions`, `MarkdownTheme`, `OverlayAnchor`, `OverlayHandle`, `TUI`, `isKeyRelease`, `isKeyRepeat`).
-- `@mariozechner/pi-ai` — LLM invocation layer (`complete`, `StringEnum`, and types `Api`, `Model`, `UserMessage`, `Context`, `Usage`).
-- `@mariozechner/pi-agent-core` — agent loop primitives (symlinked but rarely imported directly; surfaced only through pi-coding-agent).
+- `@earendil-works/pi-coding-agent` — extension API surface (`ExtensionAPI`, `ExtensionContext`, `ExtensionCommandContext`, `SessionBeforeSwitchEvent`, `Theme`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`).
+- `@earendil-works/pi-tui` — terminal UI primitives (`Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `Input`, `Spacer`, `fuzzyFilter`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`, `getGifDimensions`, `calculateImageRows`, `getCellDimensions`, `MarkdownTheme`, `OverlayAnchor`, `OverlayHandle`, `TUI`, `isKeyRelease`, `isKeyRepeat`).
+- `@earendil-works/pi-ai` — LLM invocation layer (`complete`, `StringEnum`, and types `Api`, `Model`, `UserMessage`, `Context`, `Usage`).
+- `@earendil-works/pi-agent-core` — agent loop primitives (symlinked but rarely imported directly; surfaced only through pi-coding-agent).
 - `@sinclair/typebox` — JSON-schema type builder (`Type`, `Static`) used for every tool parameter schema.
 
 **Testing:**
@@ -55,9 +55,9 @@
 
 **Critical:**
 
-- `@mariozechner/pi-coding-agent` — pi's extension host SDK; every extension file imports from it. Resolved via symlink at `berrygems/node_modules/@mariozechner/pi-coding-agent/`.
-- `@mariozechner/pi-tui` — every panel, overlay, and input handler depends on it. Resolved via symlink.
-- `@mariozechner/pi-ai` — used by extensions that call LLMs directly (`dragon-musings.ts`, `dragon-inquiry.ts`, `dragon-guard/`, `dragon-scroll.ts`, `dragon-loop.ts`, `dragon-image-fetch.ts`, `lib/giphy-source.ts`). Resolved via symlink.
+- `@earendil-works/pi-coding-agent` — pi's extension host SDK; every extension file imports from it. Resolved via symlink at `berrygems/node_modules/@earendil-works/pi-coding-agent/`.
+- `@earendil-works/pi-tui` — every panel, overlay, and input handler depends on it. Resolved via symlink.
+- `@earendil-works/pi-ai` — used by extensions that call LLMs directly (`dragon-musings.ts`, `dragon-inquiry.ts`, `dragon-guard/`, `dragon-scroll.ts`, `dragon-loop.ts`, `dragon-image-fetch.ts`, `lib/giphy-source.ts`). Resolved via symlink.
 - `@sinclair/typebox` — mandatory for tool registration (all 11 `pi.registerTool()` call sites use `Type.*`).
 
 **Infrastructure:**
@@ -82,7 +82,7 @@
 
 **Build:**
 
-- `berrygems/tsconfig.json` — the only build-adjacent config. Key flags: `"strict": true`, `"noEmit": true`, `"allowImportingTsExtensions": true`, `"moduleResolution": "bundler"`, `"noUnusedLocals": true`, `"noUnusedParameters": true`. `paths` aliases map `@mariozechner/pi-*` and `@sinclair/typebox` to `../node_modules/...` so `tsc` resolves against pi's installed copies via the berrygems symlinks.
+- `berrygems/tsconfig.json` — the only build-adjacent config. Key flags: `"strict": true`, `"noEmit": true`, `"allowImportingTsExtensions": true`, `"moduleResolution": "bundler"`, `"noUnusedLocals": true`, `"noUnusedParameters": true`. `paths` aliases map `@earendil-works/pi-*` and `@sinclair/typebox` to `../node_modules/...` so `tsc` resolves against pi's installed copies via the berrygems symlinks.
 - `berrygems/node_modules/@mariozechner/` — four symlinks (`pi-ai`, `pi-agent-core`, `pi-coding-agent`, `pi-tui`) pointing into `~/.npm/lib/node_modules/mitsupi/node_modules/@mariozechner/`. `berrygems/node_modules/@sinclair` is symlinked the same way.
 
 ## Platform Requirements

@@ -13,10 +13,10 @@
 
 | Package | Purpose |
 |---------|---------|
-| `@mariozechner/pi-coding-agent` | Extension types, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `truncateHead`, `truncateTail` |
+| `@earendil-works/pi-coding-agent` | Extension types, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `truncateHead`, `truncateTail` |
 | `@sinclair/typebox` | `Type` for tool parameter schemas |
-| `@mariozechner/pi-ai` | `StringEnum` for Google-compatible enums |
-| `@mariozechner/pi-tui` | TUI components: `Text`, `Box`, `Container`, `Spacer`, `Markdown`, `Image`, `SelectList`, `SettingsList`, `Input`, `Editor`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`, `wrapTextWithAnsi`, `CURSOR_MARKER` |
+| `@earendil-works/pi-ai` | `StringEnum` for Google-compatible enums |
+| `@earendil-works/pi-tui` | TUI components: `Text`, `Box`, `Container`, `Spacer`, `Markdown`, `Image`, `SelectList`, `SettingsList`, `Input`, `Editor`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`, `wrapTextWithAnsi`, `CURSOR_MARKER` |
 
 ## Event Lifecycle
 

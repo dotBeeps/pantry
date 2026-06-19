@@ -23,7 +23,7 @@
 - Purpose: Programmatic, deterministic tools pi loads into each session.
 - Location: `berrygems/extensions/` (17 extensions total — 14 single-file, 3 multi-file directories).
 - Contains: One default-exported `function (pi: ExtensionAPI)` per file; calls to `pi.registerTool()`, `pi.registerCommand()`, and `pi.on(event)` inside that function wire the extension to the pi runtime.
-- Depends on: `@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui`, `@mariozechner/pi-ai`, `@sinclair/typebox` (all resolved via symlinks in `berrygems/node_modules/`), plus `berrygems/lib/*` for shared utilities.
+- Depends on: `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `@earendil-works/pi-ai`, `@sinclair/typebox` (all resolved via symlinks in `berrygems/node_modules/`), plus `berrygems/lib/*` for shared utilities.
 - Used by: The pi harness at session start.
 
 **2. Shared library layer — `berrygems/lib/`:**
@@ -110,13 +110,13 @@ Extensions register handlers on these events via `pi.on("<event>", handler)`. Fo
 
 ## Key Abstractions
 
-**`ExtensionAPI` (imported from `@mariozechner/pi-coding-agent`):**
+**`ExtensionAPI` (imported from `@earendil-works/pi-coding-agent`):**
 
 - Purpose: The contract every extension receives as its default-export argument. Provides `registerTool`, `registerCommand`, `on`, `appendEntry`, and access to the session/context.
 - Examples: `berrygems/extensions/dragon-herald.ts:123`, `berrygems/extensions/dragon-guard/index.ts`, `berrygems/extensions/dragon-scroll.ts:711`.
 - Pattern: Every extension's top-level export is `export default function (pi: ExtensionAPI) { ... }` — the function body is the full extension registration.
 
-**`ExtensionContext` (imported from `@mariozechner/pi-coding-agent`):**
+**`ExtensionContext` (imported from `@earendil-works/pi-coding-agent`):**
 
 - Purpose: The per-invocation context passed to event handlers and tool implementations. Provides access to the session manager, current cwd, TUI, and model metadata.
 - Examples: `berrygems/extensions/dragon-guard/index.ts:14–16`, `berrygems/extensions/dragon-parchment.ts:20–22`.

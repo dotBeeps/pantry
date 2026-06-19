@@ -13,9 +13,9 @@
  * A small dog and a large dragon made this together.
  */
 
-import { complete, type Context } from "@mariozechner/pi-ai";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { getGifDimensions } from "@mariozechner/pi-tui";
+import { complete, type Context } from "@earendil-works/pi-ai";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getGifDimensions } from "@earendil-works/pi-tui";
 import { execSync } from "node:child_process";
 import {
   existsSync,

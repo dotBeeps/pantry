@@ -5,8 +5,8 @@ Copy-paste patterns for common extension UI needs.
 ## Pattern 1: Selection Dialog (SelectList)
 
 ```typescript
-import { DynamicBorder } from "@mariozechner/pi-coding-agent";
-import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
+import { DynamicBorder } from "@earendil-works/pi-coding-agent";
+import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 
 const items: SelectItem[] = [
   { value: "opt1", label: "Option 1", description: "First option" },
@@ -41,7 +41,7 @@ const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
 ## Pattern 2: Async with Cancel (BorderedLoader)
 
 ```typescript
-import { BorderedLoader } from "@mariozechner/pi-coding-agent";
+import { BorderedLoader } from "@earendil-works/pi-coding-agent";
 
 const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
   const loader = new BorderedLoader(tui, theme, "Loading...");
@@ -164,8 +164,8 @@ ctx.ui.setStatus("my-ext", undefined); // Clear
 ## Pattern 7: Settings Toggles
 
 ```typescript
-import { getSettingsListTheme } from "@mariozechner/pi-coding-agent";
-import { SettingsList, type SettingItem } from "@mariozechner/pi-tui";
+import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { SettingsList, type SettingItem } from "@earendil-works/pi-tui";
 
 const items: SettingItem[] = [
   { id: "verbose", label: "Verbose", currentValue: "off", values: ["on", "off"] },
@@ -183,7 +183,7 @@ const settingsList = new SettingsList(
 ## Keyboard Input
 
 ```typescript
-import { matchesKey, Key } from "@mariozechner/pi-tui";
+import { matchesKey, Key } from "@earendil-works/pi-tui";
 
 // Named keys
 matchesKey(data, Key.enter)

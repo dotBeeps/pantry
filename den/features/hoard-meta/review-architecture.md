@@ -38,7 +38,7 @@ const dreamResult = await ctx.runLLM({
 });
 ```
 
-**This API doesn't exist.** Pi extensions make LLM calls via `complete()` from `@mariozechner/pi-ai`, which requires manually resolving a model, getting API keys, and calling the function directly. See dragon-guard (`index.ts:306`) and todo-lists (`todo-lists.ts:332`) for the actual pattern:
+**This API doesn't exist.** Pi extensions make LLM calls via `complete()` from `@earendil-works/pi-ai`, which requires manually resolving a model, getting API keys, and calling the function directly. See dragon-guard (`index.ts:306`) and todo-lists (`todo-lists.ts:332`) for the actual pattern:
 
 ```typescript
 const model = ctx.modelRegistry.find("anthropic", "claude-haiku-4-5");
@@ -227,7 +227,7 @@ Current order: Vault → Memory Ops → Daemon+Dream → Implicit Learning → A
 - **Why second:** Builds on Phase 1's extension structure, no daemon needed
 
 ### Phase 3: Dream Engine (in-process)
-- LLM-based session review using `complete()` from `@mariozechner/pi-ai`
+- LLM-based session review using `complete()` from `@earendil-works/pi-ai`
 - `/dream` command (manual trigger)
 - Auto-dream on `session_shutdown`
 - Dream at session start if previous session wasn't dreamed

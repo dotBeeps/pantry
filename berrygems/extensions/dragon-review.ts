@@ -19,9 +19,9 @@
  * /end-review to return from the review branch.
  */
 
-import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder, BorderedLoader } from "@mariozechner/pi-coding-agent";
-import { Container, SelectList, Text, Spacer, Input, fuzzyFilter, type SelectItem } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, BorderedLoader } from "@earendil-works/pi-coding-agent";
+import { Container, SelectList, Text, Spacer, Input, fuzzyFilter, type SelectItem } from "@earendil-works/pi-tui";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 

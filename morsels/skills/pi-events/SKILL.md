@@ -9,7 +9,7 @@ compatibility: "Designed for Pi (pi-coding-agent)"
 
 Subscribe to pi's event lifecycle to intercept tool calls, transform input, inject context, and react to changes. Every extension capability is built on events.
 
-For the full event reference, read `/opt/pi-coding-agent/docs/extensions.md` (Events section).
+For the full event reference, read the Events section of pi's [extensions.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md).
 
 ## Decision Tree
 
@@ -45,33 +45,34 @@ For the full event reference, read `/opt/pi-coding-agent/docs/extensions.md` (Ev
 Fires before tool execution. **Can block.** Can mutate arguments.
 
 ```typescript
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 pi.on("tool_call", async (event, ctx) => {
-	// Type-narrow built-in tools
-	if (isToolCallEventType("bash", event)) {
-		// event.input is { command: string; timeout?: number }
+ // Type-narrow built-in tools
+ if (isToolCallEventType("bash", event)) {
+  // event.input is { command: string; timeout?: number }
 
-		// Block dangerous commands
-		if (event.input.command.includes("rm -rf /")) {
-			return { block: true, reason: "Blocked: destructive command" };
-		}
+  // Block dangerous commands
+  if (event.input.command.includes("rm -rf /")) {
+   return { block: true, reason: "Blocked: destructive command" };
+  }
 
-		// Mutate arguments (in-place, no return needed)
-		event.input.command = `source ~/.profile\n${event.input.command}`;
-	}
+  // Mutate arguments (in-place, no return needed)
+  event.input.command = `source ~/.profile\n${event.input.command}`;
+ }
 
-	if (isToolCallEventType("write", event)) {
-		// Protect paths
-		if (event.input.path.includes(".env")) {
-			const ok = await ctx.ui.confirm("Protected File", `Allow write to ${event.input.path}?`);
-			if (!ok) return { block: true, reason: "Protected by extension" };
-		}
-	}
+ if (isToolCallEventType("write", event)) {
+  // Protect paths
+  if (event.input.path.includes(".env")) {
+   const ok = await ctx.ui.confirm("Protected File", `Allow write to ${event.input.path}?`);
+   if (!ok) return { block: true, reason: "Protected by extension" };
+  }
+ }
 });
 ```
 
 **Key behaviors:**
+
 - `event.input` is mutable — mutate in place to patch arguments
 - Later handlers see mutations from earlier handlers
 - No re-validation after mutation
@@ -84,18 +85,18 @@ Fires after execution, before the result is finalized. Can modify content, detai
 
 ```typescript
 pi.on("tool_result", async (event, ctx) => {
-	// event.toolName, event.toolCallId, event.input
-	// event.content, event.details, event.isError
+ // event.toolName, event.toolCallId, event.input
+ // event.content, event.details, event.isError
 
-	// Add metadata
-	return {
-		details: { ...event.details, timestamp: Date.now() },
-	};
+ // Add metadata
+ return {
+  details: { ...event.details, timestamp: Date.now() },
+ };
 
-	// Or transform content
-	return {
-		content: [{ type: "text", text: summarize(event.content) }],
-	};
+ // Or transform content
+ return {
+  content: [{ type: "text", text: summarize(event.content) }],
+ };
 });
 ```
 
@@ -107,23 +108,23 @@ Fires when user input is received, after extension commands but **before** skill
 
 ```typescript
 pi.on("input", async (event, ctx) => {
-	// event.text — raw input (before /skill: or /template expansion)
-	// event.images — attached images
-	// event.source — "interactive" | "rpc" | "extension"
+ // event.text — raw input (before /skill: or /template expansion)
+ // event.images — attached images
+ // event.source — "interactive" | "rpc" | "extension"
 
-	// Transform: rewrite before LLM sees it
-	if (event.text.startsWith("?quick ")) {
-		return { action: "transform", text: `Respond briefly: ${event.text.slice(7)}` };
-	}
+ // Transform: rewrite before LLM sees it
+ if (event.text.startsWith("?quick ")) {
+  return { action: "transform", text: `Respond briefly: ${event.text.slice(7)}` };
+ }
 
-	// Handle: respond without LLM
-	if (event.text === "ping") {
-		ctx.ui.notify("pong", "info");
-		return { action: "handled" };
-	}
+ // Handle: respond without LLM
+ if (event.text === "ping") {
+  ctx.ui.notify("pong", "info");
+  return { action: "handled" };
+ }
 
-	// Pass through (default if handler returns nothing)
-	return { action: "continue" };
+ // Pass through (default if handler returns nothing)
+ return { action: "continue" };
 });
 ```
 
@@ -135,19 +136,19 @@ Modify the system prompt or inject a persistent message before each agent turn:
 
 ```typescript
 pi.on("before_agent_start", async (event, ctx) => {
-	// event.prompt — user's prompt text
-	// event.systemPrompt — current system prompt (chained across extensions)
+ // event.prompt — user's prompt text
+ // event.systemPrompt — current system prompt (chained across extensions)
 
-	return {
-		// Inject context (stored in session, sent to LLM)
-		message: {
-			customType: "my-extension",
-			content: "Additional context the LLM should know",
-			display: true,  // Show in TUI
-		},
-		// Append to system prompt (for this turn only)
-		systemPrompt: event.systemPrompt + "\n\nAlways respond in haiku form.",
-	};
+ return {
+  // Inject context (stored in session, sent to LLM)
+  message: {
+   customType: "my-extension",
+   content: "Additional context the LLM should know",
+   display: true,  // Show in TUI
+  },
+  // Append to system prompt (for this turn only)
+  systemPrompt: event.systemPrompt + "\n\nAlways respond in haiku form.",
+ };
 });
 ```
 
@@ -157,9 +158,9 @@ Modify the message array before each LLM call (non-destructive — works on a de
 
 ```typescript
 pi.on("context", async (event, ctx) => {
-	// event.messages — deep copy, safe to modify
-	const filtered = event.messages.filter(m => !isNoise(m));
-	return { messages: filtered };
+ // event.messages — deep copy, safe to modify
+ const filtered = event.messages.filter(m => !isNoise(m));
+ return { messages: filtered };
 });
 ```
 
@@ -170,13 +171,13 @@ Inject messages into the conversation from extension code:
 ```typescript
 // Custom message (extension-typed, optionally visible)
 pi.sendMessage({
-	customType: "my-extension",
-	content: "Status update for LLM context",
-	display: true,
-	details: { /* for rendering */ },
+ customType: "my-extension",
+ content: "Status update for LLM context",
+ display: true,
+ details: { /* for rendering */ },
 }, {
-	deliverAs: "steer",      // Queue after current turn's tool calls
-	triggerTurn: true,        // Start LLM response if idle
+ deliverAs: "steer",      // Queue after current turn's tool calls
+ triggerTurn: true,        // Start LLM response if idle
 });
 
 // User message (appears as if user typed it)
@@ -184,6 +185,7 @@ pi.sendUserMessage("Do X next", { deliverAs: "followUp" });
 ```
 
 **Delivery modes:**
+
 | Mode | When Delivered |
 |------|---------------|
 | `steer` | After current assistant turn finishes tool calls, before next LLM call |
@@ -196,11 +198,11 @@ React to model changes from `/model`, Ctrl+P cycling, or session restore:
 
 ```typescript
 pi.on("model_select", async (event, ctx) => {
-	// event.model — new model
-	// event.previousModel — previous (undefined if first)
-	// event.source — "set" | "cycle" | "restore"
+ // event.model — new model
+ // event.previousModel — previous (undefined if first)
+ // event.source — "set" | "cycle" | "restore"
 
-	ctx.ui.setStatus("model", `${event.model.provider}/${event.model.id}`);
+ ctx.ui.setStatus("model", `${event.model.provider}/${event.model.id}`);
 });
 ```
 
@@ -211,8 +213,8 @@ Track streaming and message completion:
 ```typescript
 pi.on("message_start", async (event) => { /* event.message */ });
 pi.on("message_update", async (event) => {
-	// event.message — current state
-	// event.assistantMessageEvent — token-by-token stream event
+ // event.message — current state
+ // event.assistantMessageEvent — token-by-token stream event
 });
 pi.on("message_end", async (event) => { /* event.message */ });
 ```
@@ -223,13 +225,13 @@ Track tool execution progress (separate from interception):
 
 ```typescript
 pi.on("tool_execution_start", async (event) => {
-	// event.toolCallId, event.toolName, event.args
+ // event.toolCallId, event.toolName, event.args
 });
 pi.on("tool_execution_update", async (event) => {
-	// event.partialResult — streaming tool output
+ // event.partialResult — streaming tool output
 });
 pi.on("tool_execution_end", async (event) => {
-	// event.result, event.isError
+ // event.result, event.isError
 });
 ```
 
@@ -241,9 +243,9 @@ Inspect or patch the serialized payload right before it's sent to the provider:
 
 ```typescript
 pi.on("before_provider_request", (event, ctx) => {
-	console.log(JSON.stringify(event.payload, null, 2));
-	// Return modified payload to replace it:
-	// return { ...event.payload, temperature: 0 };
+ console.log(JSON.stringify(event.payload, null, 2));
+ // Return modified payload to replace it:
+ // return { ...event.payload, temperature: 0 };
 });
 ```
 
@@ -255,13 +257,13 @@ Intercept `!command` and `!!command` from the user:
 
 ```typescript
 pi.on("user_bash", (event, ctx) => {
-	// event.command, event.excludeFromContext (!! prefix), event.cwd
+ // event.command, event.excludeFromContext (!! prefix), event.cwd
 
-	// Provide custom execution backend (e.g., SSH)
-	return { operations: remoteBashOps };
+ // Provide custom execution backend (e.g., SSH)
+ return { operations: remoteBashOps };
 
-	// Or return result directly
-	return { result: { output: "...", exitCode: 0, cancelled: false, truncated: false } };
+ // Or return result directly
+ return { result: { output: "...", exitCode: 0, cancelled: false, truncated: false } };
 });
 ```
 
@@ -271,12 +273,12 @@ React to session changes. Reconstruct extension state from session entries:
 
 ```typescript
 const handleSessionChange = async (_event: any, ctx: ExtensionContext) => {
-	// Rebuild in-memory state from the current branch
-	for (const entry of ctx.sessionManager.getBranch()) {
-		if (entry.type === "custom" && entry.customType === "my-state") {
-			// Restore from entry.data
-		}
-	}
+ // Rebuild in-memory state from the current branch
+ for (const entry of ctx.sessionManager.getBranch()) {
+  if (entry.type === "custom" && entry.customType === "my-state") {
+   // Restore from entry.data
+  }
+ }
 };
 
 pi.on("session_start", handleSessionChange);
@@ -286,10 +288,10 @@ pi.on("session_tree", handleSessionChange);
 
 // Cancel a switch before it happens
 pi.on("session_before_switch", async (event, ctx) => {
-	if (hasUnsavedWork()) {
-		const ok = await ctx.ui.confirm("Switch?", "You have unsaved work.");
-		if (!ok) return { cancel: true };
-	}
+ if (hasUnsavedWork()) {
+  const ok = await ctx.ui.confirm("Switch?", "You have unsaved work.");
+  if (!ok) return { cancel: true };
+ }
 });
 ```
 
@@ -299,19 +301,19 @@ pi.on("session_before_switch", async (event, ctx) => {
 
 ```typescript
 pi.on("agent_start", async (_event, ctx) => {
-	// Agent loop beginning for this prompt
+ // Agent loop beginning for this prompt
 });
 
 pi.on("agent_end", async (event, ctx) => {
-	// event.messages — all messages from this prompt
+ // event.messages — all messages from this prompt
 });
 
 pi.on("turn_start", async (event, ctx) => {
-	// event.turnIndex, event.timestamp
+ // event.turnIndex, event.timestamp
 });
 
 pi.on("turn_end", async (event, ctx) => {
-	// event.turnIndex, event.message, event.toolResults
+ // event.turnIndex, event.message, event.toolResults
 });
 ```
 
@@ -321,17 +323,18 @@ Use the `context` event to inject per-turn context that is **not persisted** to 
 
 ```typescript
 pi.on("context", async (event, ctx) => {
-	// Inject a transient system-like message that the LLM sees but isn't stored
-	const modeMessage = {
-		role: "user" as const,
-		content: [{ type: "text" as const, text: `[CURRENT MODE: ${getMode()}]` }],
-		timestamp: Date.now(),
-	};
-	return { messages: [...event.messages, modeMessage] };
+ // Inject a transient system-like message that the LLM sees but isn't stored
+ const modeMessage = {
+  role: "user" as const,
+  content: [{ type: "text" as const, text: `[CURRENT MODE: ${getMode()}]` }],
+  timestamp: Date.now(),
+ };
+ return { messages: [...event.messages, modeMessage] };
 });
 ```
 
 **When to use which:**
+
 - `before_agent_start` + `systemPrompt` — ephemeral system prompt modification, reset each turn
 - `before_agent_start` + `message` — **persistent** context stored in session JSONL (accumulates!)
 - `context` event — transient message injection, never stored, rebuilt each LLM call
@@ -342,13 +345,13 @@ Request pi to exit cleanly from any context (event handler, tool, command, short
 
 ```typescript
 pi.on("tool_call", (event, ctx) => {
-	if (isFatalCondition(event.input)) {
-		ctx.shutdown();  // Emits session_shutdown, then exits
-	}
+ if (isFatalCondition(event.input)) {
+  ctx.shutdown();  // Emits session_shutdown, then exits
+ }
 });
 
 pi.on("session_shutdown", async (_event, ctx) => {
-	// Cleanup: close connections, save state, etc.
+ // Cleanup: close connections, save state, etc.
 });
 ```
 
@@ -360,19 +363,19 @@ Command handlers receive `ExtensionCommandContext`, which extends `ExtensionCont
 
 ```typescript
 pi.registerCommand("mycommand", {
-	handler: async (args, ctx) => {
-		// ctx.waitForIdle() — wait until agent finishes current work
-		await ctx.waitForIdle();
+ handler: async (args, ctx) => {
+  // ctx.waitForIdle() — wait until agent finishes current work
+  await ctx.waitForIdle();
 
-		// ctx.reload() — hot-reload all extensions
-		await ctx.reload();  // Emits session_shutdown → session_start
+  // ctx.reload() — hot-reload all extensions
+  await ctx.reload();  // Emits session_shutdown → session_start
 
-		// ctx.compact() — trigger compaction manually
-		await ctx.compact({ customInstructions: "Focus on code changes" });
+  // ctx.compact() — trigger compaction manually
+  await ctx.compact({ customInstructions: "Focus on code changes" });
 
-		// ctx.sendUserMessage() — inject a user message
-		await ctx.sendUserMessage("Continue with the plan");
-	},
+  // ctx.sendUserMessage() — inject a user message
+  await ctx.sendUserMessage("Continue with the plan");
+ },
 });
 ```
 
