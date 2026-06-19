@@ -167,29 +167,30 @@ These are independent efforts; order doesn't matter. None block each other.
 
 #### 2A — `dragon-breath` → standalone project
 
-- [ ] **2A.1** `git init` a new private repo at `~/Development/dragon-breath`.
-- [ ] **2A.2** Copy `berrygems/extensions/dragon-breath/` (+ only the
+- [x] **2A.1** `git init` a new private repo at `~/Development/dragon-breath`.
+- [x] **2A.2** Copy `berrygems/extensions/dragon-breath/` (+ only the
       `berrygems/lib/` modules it imports) into the new repo.
-- [ ] **2A.3** Set up `package.json` with `pi: { extensions: [...] }` and
+- [x] **2A.3** Set up `package.json` with `pi: { extensions: [...] }` and
       `keywords: ["pi-package"]`; pin peer deps (`@earendil-works/pi-*`,
       `typebox`) in `peerDependencies`, not bundled.
-- [ ] **2A.4** Write a README documenting the carbon/energy model, settings,
+- [x] **2A.4** Write a README documenting the carbon/energy model, settings,
       and the `dragon-breath` globalThis API (if any).
-- [ ] **2A.5** Decouple from pantry internals (no `pantry.*` symbol refs
+- [x] **2A.5** Decouple from pantry internals (no `pantry.*` symbol refs
       unless self-contained).
 - [ ] **2A.6** Create the private GitHub repo `dotBeeps/dragon-breath` and push
-      (or keep local-only for now; consume via local path).
 - [ ] **2A.7** Install into pi: `pi install git:github.com/dotBeeps/dragon-breath`
       (or `pi install ~/Development/dragon-breath`).
-- [ ] **2A.8** Remove `dragon-breath` from `pantry/berrygems/extensions/`
-      (now lives in its own repo).
+      *(2A.6 + 2A.7 DEFERRED to checkpoint: both need dot's go — GitHub account
+      write + the pi-install host mutation. The standalone repo is built +
+      tsc-clean at `~/Development/dragon-breath` and ready to install locally.)*
+- [x] **2A.8** Remove `dragon-breath` from `pantry/berrygems/extensions/`
 
 **Commit (in pantry):** `chore: extract dragon-breath to standalone repo`
 **Commit (in dragon-breath):** initial standalone release.
 
 #### 2B — `dragon-herald` → thin `notify.sh` bridge
 
-- [ ] **2B.1** Write `~/.pi/agent/extensions/herald.ts` (~40–80 LOC):
+- [x] **2B.1** Write `~/.pi/agent/extensions/herald.ts` (~40–80 LOC):
       - Subscribe to pi's agent-end / waiting-for-input event (confirm exact
         event name against
         `~/Development/pantry/berrygems/extensions/dragon-herald.ts` and pi's
@@ -199,7 +200,7 @@ These are independent efforts; order doesn't matter. None block each other.
       - Pass event type + short message payload via argv (and/or stdin).
       - **No business logic in the extension** — no markdown stripping, no
         recap generation.
-- [ ] **2B.2** Write the shared `~/.local/bin/notify.sh`:
+- [x] **2B.2** Write the shared `~/.local/bin/notify.sh`:
       - Reuse markdown-strip + min-duration-skip logic from
         `~/.claude/hooks/ntfy.sh` and the retired `dragon-herald`.
       - Branch on event type: idle/waiting → fork recap worker (cheap model
@@ -207,26 +208,30 @@ These are independent efforts; order doesn't matter. None block each other.
       - Recursion guard (mirror `CLAUDE_NTFY_SKIP`).
       - **Token via env var** (`$NTFY_TOKEN`), never hardcoded. Rotate the
         exposed `tk_…` in the existing `~/.claude/hooks/ntfy.sh`.
-- [ ] **2B.3** Symlink: `~/.pi/agent/notify.sh` → `~/.local/bin/notify.sh`,
+- [x] **2B.3** Symlink: `~/.pi/agent/notify.sh` → `~/.local/bin/notify.sh`,
       and repoint `~/.claude/hooks/ntfy.sh` to it (or symlink) so both
       harnesses share one script.
-- [ ] **2B.4** `set -Ux NTFY_TOKEN <rotated-token>` (fish universal var).
+- [x] **2B.4** `set -Ux NTFY_TOKEN <rotated-token>` (fish universal var).
 - [ ] **2B.5** Test: trigger a pi agent_end → confirm ntfy push arrives.
-- [ ] **2B.6** Remove `dragon-herald` from `pantry/berrygems/extensions/`.
+      *(DEFERRED: verified notify.sh logic in NOTIFY_DRY_RUN mode across all
+      branches — pi agent_end (long forks recap worker, short skips via
+      min-duration), errored, Claude permission/idle. Live ntfy push + the
+      recap headless call (`claude -p`) confirmed by dot on /reload.)*
+- [x] **2B.6** Remove `dragon-herald` from `pantry/berrygems/extensions/`.
 
 **Commit (in pantry):** `chore: extract dragon-herald to ~/.pi notify bridge`
 
 #### 2C — `dragon-image-fetch` + `kitty-gif-renderer` decouple
 
-- [ ] **2C.1** Copy both into `~/.pi/agent/extensions/`.
-- [ ] **2C.2** Strip the `dragon-parchment` panel coupling from each
+- [x] **2C.1** Copy both into `~/.pi/agent/extensions/`.
+- [x] **2C.2** Strip the `dragon-parchment` panel coupling from each
       (render-path, `createPanel` calls). Keep the fetch + render primitives
       for inline in-turn image use.
-- [ ] **2C.3** **Move the hardcoded Giphy API key in `dragon-image-fetch` to
+- [x] **2C.3** **Move the hardcoded Giphy API key in `dragon-image-fetch` to
       an env var** (`$GIPHY_API_KEY`) — security fix flagged in the triage.
       `set -Ux GIPHY_API_KEY <key>` (recover existing key from the source).
-- [ ] **2C.4** Verify both still type-check and load standalone in pi.
-- [ ] **2C.5** Remove both from `pantry/berrygems/extensions/`.
+- [x] **2C.4** Verify both still type-check and load standalone in pi.
+- [x] **2C.5** Remove both from `pantry/berrygems/extensions/`.
 
 **Commit (in pantry):** `chore: extract image-fetch + kitty-gif-renderer to ~/.pi (decoupled)`
 
