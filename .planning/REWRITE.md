@@ -60,7 +60,7 @@
 `animated-image*`, `giphy-source`, `lsp-client`) — move to
 `pantry/archived/lib/`. **Keep** in `berrygems/lib/` only what the 4 survivors
 still import (likely just `settings`, `id`, `cooldown`, `pi-spawn`,
-`sse-client`, `compaction-templates` — verify during Phase 2).
+`sse-client`, `compaction-templates` — ~~verify during Phase 2~~ **VERIFIED in Phase 1:** actual survivor lib closure = `settings`, `globals`, `animated-image`, `animated-image-player` only — NOT the predicted list. The two image extensions depend on `animated-image*`. The 8 retired libs are archived in `archived/lib/`; see `archived/README.md`).
 
 ### 1.2 Skills (54 total → ~14 fold + ~12 nuggets, rest archived)
 
@@ -145,18 +145,18 @@ is the prerequisite for the kept pi-API skills.
 
 ### Phase 1 — archive non-survivors (1 commit)
 
-- [ ] **1.1** Create `pantry/archived/{extensions,skills,lib}/`.
-- [ ] **1.2** Move every extension NOT in the survivor list
+- [x] **1.1** Create `pantry/archived/{extensions,skills,lib}/` (also `archived/tests/{extensions,lib}/` for orphaned tests).
+- [x] **1.2** Move every extension NOT in the survivor list
       (§1.1) into `pantry/archived/extensions/`.
-- [ ] **1.3** Move every skill NOT in the fold/nugget lists (§1.2) into
+- [x] **1.3** Move every skill NOT in the fold/nugget lists (§1.2) into
       `pantry/archived/skills/`.
-- [ ] **1.4** Move retired-only `berrygems/lib/` modules into
+- [x] **1.4** Move retired-only `berrygems/lib/` modules into
       `pantry/archived/lib/` (verify each against the 4 survivors' imports first).
-- [ ] **1.5** Add `pantry/archived/README.md` explaining: "Retired 2026-06-19
+- [x] **1.5** Add `pantry/archived/README.md` explaining: "Retired 2026-06-19
       during pantry scatter. Kept for git history; not installed. See
       `.planning/REWRITE.md`." Include a one-line reason per archived item
       (pull from `~/pantry-triage/cluster-*.md`).
-- [ ] **1.6** Verify the survivors still type-check: `tsc --project berrygems/tsconfig.json`
+- [x] **1.6** Verify the survivors still type-check: `tsc --project berrygems/tsconfig.json`
       (may need to prune now-dangling imports into archived lib).
 
 **Commit:** `chore: archive non-survivors (pantry scatter — see .planning/REWRITE.md)`
