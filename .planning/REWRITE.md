@@ -128,17 +128,17 @@ extension survives, so keep this doc, decoupled)*, `dragon-parchment`,
 Do this first; it benefits even items being archived (in case of regret) and
 is the prerequisite for the kept pi-API skills.
 
-- [ ] **0.1** `sed` import rename across `pi-events`, `pi-sessions`, `pi-tui`,
+- [x] **0.1** `sed` import rename across `pi-events`, `pi-sessions`, `pi-tui`,
       `extension-designer` (+ `references/*.md`):
       `@mariozechner/pi-` → `@earendil-works/pi-` (covers `-coding-agent`,
       `-ai`, `-tui`).
-- [ ] **0.2** Fix `pantry/README.md` link: `github.com/badLogic/pi-mono` →
+- [x] **0.2** Fix `pantry/README.md` link: `github.com/badLogic/pi-mono` →
       `github.com/earendil-works/pi-mono`.
-- [ ] **0.3** Replace `/opt/pi-coding-agent/docs/...` paths with GitHub URLs
+- [x] **0.3** Replace `/opt/pi-coding-agent/docs/...` paths with GitHub URLs
       (so they don't rot again): `https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/...`.
-- [ ] **0.4** Remove the dangling `simplify` pointer in
+- [x] **0.4** Remove the dangling `simplify` pointer in
       `morsels/skills/refactoring/SKILL.md` (no such skill exists in pantry).
-- [ ] **0.5** Verify `tsc --project berrygems/tsconfig.json` still passes
+- [x] **0.5** Verify `tsc --project berrygems/tsconfig.json` still passes
       (Phase 0 is docs + imports only; should be safe).
 
 **Commit:** `chore: fix stale @mariozechner imports, doc paths, dangling simplify ref`
