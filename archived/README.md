@@ -9,11 +9,11 @@ only for git history and in case of regret — they are not maintained.
 
 What survived the scatter, and where it went:
 
-- **4 extensions kept** → `dragon-breath` (→ standalone repo), `dragon-herald`
-  (→ `~/.pi` notify bridge), `dragon-image-fetch` + `kitty-gif-renderer`
-  (→ `~/.pi/agent/extensions/`, decoupled — Phase 2C **done**).
-  `dragon-breath` + `dragon-herald` remain in `berrygems/extensions/` until
-  Phases 2A/2B extract them.
+- **4 extensions kept** → `dragon-breath` (→ standalone repo — Phase 2A **done**),
+  `dragon-herald` (→ `~/.pi` notify bridge), `dragon-image-fetch` +
+  `kitty-gif-renderer` (→ `~/.pi/agent/extensions/`, decoupled — Phase 2C
+  **done**). `dragon-herald` remains in `berrygems/extensions/` until Phase 2B
+  extracts it.
 - **~14 skills folded** into `~/.pi/agent/skills/` (Phase 3).
 - **Everything else is here.**
 
