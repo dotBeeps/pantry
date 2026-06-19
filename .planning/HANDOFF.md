@@ -11,17 +11,20 @@
 
 ## TL;DR — what is this
 
-`pantry` (this repo) is **retiring as a pi-package**. Survivors scatter to
-`~/.pi/agent/` (3 extensions + skills) and a standalone repo
+`pantry` (this repo) is **retired as a pi-package**. Survivors scattered to
+`~/.pi/agent/` (3 extensions + 22 skills) and a standalone repo
 (`~/Development/dragon-breath`); everything else is archived in-repo under
 `pantry/archived/`. dot's host is the only consumer; nothing is published to
-npm. **Phases 0–2 are done; Phase 3 (skills) is next.**
+npm. **Phases 0–4 are done — the scatter is complete.** Only **4.4** remains
+(dot's GitHub decision: archive the repo, or keep as a local holding pen).
 
 ---
 
-## ✅ Done (Phases 0–2, 8 commits)
+## ✅ Done (Phases 0–4, 10 commits)
 
 ```
+2663f0a chore: fold keeper skills to ~/.pi; archive the rest              (Phase 3)
+2f6d0ff docs(planning): close out Phase 2 — status → in-progress, add HANDOFF.md
 57c655d docs(planning): mark 2A.7 done (dragon-breath installed locally)
 5eb3229 chore: extract dragon-herald to ~/.pi notify bridge
 6c3065d chore: extract dragon-breath to standalone repo
@@ -39,21 +42,30 @@ a1a56e3 chore: fix stale @mariozechner imports, doc paths, dangling simplify ref
 | **2A** | `dragon-breath` → standalone repo at `~/Development/dragon-breath` (decoupled: `breath.*` namespace, `Symbol.for("dragon-breath")`, zero-dep lib). **Installed locally** by dot (`../../Development/dragon-breath` in settings.json). | ✅ committed (both repos) |
 | **2B** | `dragon-herald` → `~/.pi/agent/extensions/herald.ts` (policy-free ~60 LOC bridge) + shared `~/.local/bin/notify.sh` (normalizes pi + Claude payloads, recap, ntfy push). Claude hook → thin wrapper (orig backed up). | ✅ committed |
 | **2C** | `dragon-image-fetch` + `kitty-gif-renderer` → `~/.pi/agent/extensions/` + 4 lib deps → `~/.pi/agent/lib/`. Giphy key → `$GIPHY_API_KEY`. Neither had a real parchment import. | ✅ committed |
+| **3** | 22 keeper skills folded into `~/.pi/agent/skills/` (18 fold-standalone + `rust` + `quickshell` + 2 decoupled image-doc skills), per-skill edits applied; nuggets extracted from minecraft-modding/kotlin/java/go-check/typescript×2/pi-events/sessions/tui into keepers; all 31 remaining `morsels/skills/` → `archived/skills/` (now 54 total). | ✅ committed |
+| **4** | Retired pantry-the-package: removed `pi` manifest from `package.json`, rewrote `README.md` as a retirement notice, prepended 🪦 RETIRED banners to `PROJECT.md` + `ROADMAP.md`. | ✅ committed |
 
 ---
 
-## ⏳ dot's remaining actions (not blocking Phase 3)
+## ⏳ dot's remaining actions (post-scatter)
 
-1. **Rotate `NTFY_TOKEN`** — still the old `tk_b15q…` value (same as was exposed
-   in the original Claude hook). Mint a new one on ntfy.beepboop.dog, then
-   `set -Ux NTFY_TOKEN <new>` (fish). It propagates to **both** pi + Claude
-   automatically via the shared script. No other edits needed.
-2. **Live-verify herald** — herald.ts was created **mid-session**, so it's not
-   loaded until your **reload** (which you're doing). After reload, trigger a
-   pi turn >5s and confirm a recap push lands on your **pi** ntfy topic.
+1. **(Required) 4.4 — pantry repo fate.** Either push the 10 local commits
+   and **archive the repo on GitHub** (history preserved, clearly read-only
+   — recommended), or keep it as a local-only holding pen. This is the **only**
+   outstanding plan item.
+2. **Rotate `NTFY_TOKEN`** — still the old `tk_b15q…` value (same as was
+   exposed in the original Claude hook). Mint a new one on ntfy.beepboop.dog,
+   then `set -Ux NTFY_TOKEN <new>` (fish). Propagates to **both** pi + Claude
+   via the shared script. No edits needed.
+3. **Live-verify herald** — herald.ts was created mid-Phase-2, so it loads on
+   your reload. After reload, trigger a pi turn >5s and confirm a recap push
+   lands on your **pi** ntfy topic.
    - If no push: dry-run branches are verified, so the likely culprit is the
      `pi -p` recap call itself (model/auth/timeout) — debug from there.
-3. **(Optional) 2A.6** — push `~/Development/dragon-breath` to private
+4. **Spot-check folded skills** (Phase 3.4, deferred) — after reload,
+   `/skill:neoforge`, `/skill:extension-designer`, `/skill:git-auth` should
+   load.
+5. **(Optional) 2A.6** — push `~/Development/dragon-breath` to private
    `dotBeeps/dragon-breath` (no remote configured yet). Works fine local-only.
 
 Recap runner is **per-source** (item 4, resolved): pi herald → `pi -p` (default
@@ -97,57 +109,37 @@ either with `$NOTIFY_RECAP_MODEL`.
 
 ---
 
-## ▶️ Phase 3 pickup — fold skills into `~/.pi/agent/skills/`
+## ▶️ Phase 3 — DONE (commit `2663f0a`)
 
-**Current state:** 31 skills in `morsels/skills/`. **Target:** `~/.pi/agent/skills/`
-(currently **empty**). One commit: `chore: fold keeper skills to ~/.pi; archive the rest`.
+22 keeper skills now live in `~/.pi/agent/skills/` (host-local, untracked by
+this repo): 18 fold-standalone + `rust` + `quickshell` + 2 decoupled
+image-doc skills. All per-skill edits from REWRITE §1.2 were applied
+(neoforge absorbed minecraft-modding's stack-agnostic sections; atproto
+generalized to Go/`indigo`; extension-designer pruned pantry examples +
+rewrote `references/pi-internals.md` clean; fix de-Go-ified; dependency-
+management trimmed to command tables; github-writing salvaged the voice system
+into local `styles/` + attribution; git slimmed + added `--force-with-lease`/
+`rerere`; gdscript enriched with gdformat/gdlint/gdparse + corrected the
+GdUnit4 headless-test note; `rust` folded exactly as-is per dot's decision).
 
-**The fold manifest is REWRITE §1.2** — don't re-derive it. Summary:
+Nuggets extracted into keepers from minecraft-modding/kotlin/java/go-check/
+typescript×2/pi-events/sessions/tui. All 31 remaining `morsels/skills/` →
+`archived/skills/` (54 total); `morsels/skills/` is now empty.
 
-- **18 fold-standalone** (copy to `~/.pi/agent/skills/` with per-skill edits):
-  `agent-init, atproto, dependency-management, extension-designer, fix, gdscript,
-  git, git-auth, github-writing, go, go-testing, go-tui, neoforge, qt, qtqml,
-  qtquick, quickshell, research-and-fix, skill-designer`. Plus a slim `rust`
-  (enrich-or-drop decision still open, REWRITE §4).
-- **10 nugget-source** (extract the noted bit into a keeper, then archive the
-  source): `minecraft-modding→neoforge`, `kotlin/java→neoforge`,
-  `go-check→go`, `typescript-check/typescript→extension-designer`,
-  `pi-events/pi-sessions/pi-tui→extension-designer references`, `gdscript`
-  (expand-then-fold).
-- **The 2 decoupled-doc skills stay too:** `dragon-image-fetch` + `kitty-gif-renderer`
-  (their extensions survived in `~/.pi`; the docs should follow, decoupled).
-
-**Per-skill edits to apply (from REWRITE §1.2, the non-"as-is" ones):**
-
-| Skill | Edit |
-|---|---|
-| `neoforge` | Fold stack-agnostic MC sections from `minecraft-modding` (codecs/sided-exec/data-gen/perf/compat); drop dual-loader framing. |
-| `atproto` | Generalize client-auth bullet to mention Go/`indigo`, not just `@atproto/api`. |
-| `extension-designer` | **Imports already fixed in Phase 0.** Still: prune pantry-coupled examples (`berrygems/lib`, `dragon-parchment`, `dragon-digestion`). |
-| `fix` | De-Go-ify (`go test`→"project test command", drop `*_test.go`); keep TDD + never-mock-DB + 3-attempt-revert. |
-| `dependency-management` | Trim to command tables + prefs (bun/uv/cargo/go/gradle); compress prose. |
-| `github-writing` | Salvage berrygems styles voice system + AI attribution; drop generic PR/issue/README template bodies. |
-| `git` | Slim: keep only opinionated conventions (GitHub Flow, rebase+squash-merge, autosquash, `rerere`, `--force-with-lease`); drop command catalogs. |
-| `rust` | **Decision open (REWRITE §4):** enrich-and-fold, or drop entirely and lean on the model. |
-
-**Verification (REWRITE §3):**
-
-```fish
-# frontmatter valid: name matches dir, description + license: MIT present,
-# name ≤64 chars [a-z0-9-]
-cd ~/Development/pantry; node --experimental-strip-types scripts/lint-skills.ts
-# spot-check loads inside pi after /skill:neoforge etc. (post-reload)
-```
+**Verification:** `scripts/lint-skills.ts` is inoperative post-Phase-1 (its
+`berrygems/lib/globals.ts` dep is archived), so frontmatter was validated with
+an equivalent ad-hoc check against `~/.pi/agent/skills/` — **22/22 pass**.
+Spot-checking `/skill:<name>` loads is deferred to dot's next `/reload`.
 
 ---
 
-## 🔭 Phases 4–5 (after Phase 3)
+## 🔭 Phase 4 — DONE (commit pending this session)
 
-- **Phase 4** — retire pantry-the-package: empty the `pi` manifest in
-  `package.json`, rewrite README headline to "Retired 2026-06-19", mark
-  `.planning/PROJECT.md` + `ROADMAP.md` retired, decide GitHub-archive vs
-  holding-pen (REWRITE §4 open item). One commit.
-- **No Phase 5** — the plan is 5 phases (0–4).
+Retired pantry-the-package: removed the `pi` manifest from `package.json`,
+rewrote `README.md` as a retirement notice (survivor-destination table +
+pointers), and prepended 🪦 RETIRED banners to `.planning/PROJECT.md` +
+`ROADMAP.md` (historical content preserved below). **No Phase 5** — the plan is
+phases 0–4. Only **4.4** (dot's GitHub decision) remains.
 
 ---
 
@@ -156,16 +148,17 @@ cd ~/Development/pantry; node --experimental-strip-types scripts/lint-skills.ts
 ```fish
 cd ~/Development/pantry
 git status -s                          # clean
-git log --oneline -8                   # the scatter commits
-ls morsels/skills/ | wc -l             # 31 (awaiting Phase 3)
-ls -A ~/.pi/agent/skills/              # empty (Phase 3 target)
+git log --oneline -3                   # 2663f0a (Phase 3) + this Phase 4 commit
+ls morsels/skills/ | wc -l             # 0 (empty — all folded/archived)
+ls ~/.pi/agent/skills/ | wc -l         # 22 (the folded keepers)
+grep -c '"pi"' package.json            # 0 (manifest removed)
 ls ~/.pi/agent/extensions/             # 3 survivors + pi-tool-display
 # type-check the scattered ~/.pi extensions (use absolute paths in the file):
-tsc --project ~/.pi/agent/tsconfig.json   # once you save one there (see gotcha #3)
+tsc --project ~/.pi/agent/tsconfig.json   # if you saved one there (see gotcha #3)
 # dragon-breath standalone:
 cd ~/Development/dragon-breath; tsc --project tsconfig.json   # green
 ```
 
 ---
 
-*Authored by Ember 🐉 with dot 🐕, 2026-06-19. Phase 3 resumes after reload.*
+*Authored by Ember 🐉 with dot 🐕, 2026-06-19. Scatter complete; only 4.4 (GitHub decision) remains.*

@@ -1,3 +1,20 @@
+> # 🪦 RETIRED 2026-06-19
+>
+> **This project is retired.** This ROADMAP.md tracks the **pre-scatter**
+> v1.0 stabilization milestone (the "tests + CI + docs" plan). That milestone
+> was overtaken by the scatter: pantry retired as a package, the `pi` manifest
+> was removed, and survivors moved to `~/.pi/agent/` and
+> `~/Development/dragon-breath`. Phases 3–5 below were never completed as
+> written — they no longer apply.
+>
+> - **Authoritative retirement plan:** [`REWRITE.md`](REWRITE.md)
+> - **Live state snapshot:** [`HANDOFF.md`](HANDOFF.md)
+>
+> The historical content below is preserved as a record of what was planned.
+> Do not act on it as current.
+
+---
+
 # Roadmap: pantry v1.0 stabilization
 
 **Milestone:** v1.0 (post-amputation stabilization)

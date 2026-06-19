@@ -1,3 +1,20 @@
+> # 🪦 RETIRED 2026-06-19
+>
+> **This project is retired.** This PROJECT.md describes the **pre-scatter**
+> pantry (17 extensions / 56 skills, `pi install github:dotBeeps/pantry`) —
+> all of that is now stale. Pantry retired as a package during the scatter:
+> the `pi` manifest was removed from `package.json`, and survivors moved to
+> `~/.pi/agent/` and `~/Development/dragon-breath`.
+>
+> - **Authoritative retirement plan:** [`REWRITE.md`](REWRITE.md)
+> - **Live state snapshot:** [`HANDOFF.md`](HANDOFF.md)
+> - **What survived + why:** [`../archived/README.md`](../archived/README.md)
+>
+> The historical content below is preserved as a record of what was planned.
+> Do not act on it as current.
+
+---
+
 # pantry
 
 ## What This Is

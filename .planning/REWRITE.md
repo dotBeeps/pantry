@@ -1,7 +1,7 @@
 # Pantry Rewrite — Plan & Tracking
 
 **Created:** 2026-06-19
-**Status:** 🐣 in-progress — **Phases 0–3 complete** (repo rot fix, non-survivors archived, 4 survivors scattered, 22 skills folded into `~/.pi/agent/skills/`). **Phase 4 next** (retire pantry-the-package: empty the pi manifest, rewrite README, mark PROJECT/ROADMAP retired). For the live state snapshot + non-obvious gotchas, read [HANDOFF.md](HANDOFF.md).
+**Status:** 💎 **Scatter complete — Phases 0–4 done** (repo rot fix, non-survivors archived, 4 survivors scattered, 22 skills folded into `~/.pi/agent/skills/`, pantry-the-package retired). **Only 4.4 remains** (dot's GitHub decision: archive the repo, or keep as a local holding pen). For the live state snapshot + non-obvious gotchas, read [HANDOFF.md](HANDOFF.md).
 **Authority:** This doc governs the pantry retirement/scatter described in
 `~/pantry-triage/SYNTHESIS.md`. The full per-item evidence lives in
 `~/pantry-triage/cluster-*.md` (8 cluster reports). This doc is the
@@ -253,18 +253,28 @@ These are independent efforts; order doesn't matter. None block each other.
 
 ### Phase 4 — retire pantry-the-package (1 commit)
 
-- [ ] **4.1** Empty or remove the `pi` manifest in `pantry/package.json`
+- [x] **4.1** Empty or remove the `pi` manifest in `pantry/package.json`
       (nothing left to install).
-- [ ] **4.2** Update `pantry/README.md`: change the headline to "Retired
+      *(Removed the `pi` block entirely; updated `description` to note
+      retirement. Kept the now-inert `lint:skills` script + `yaml`/`zod`
+      devDeps — they're broken post-Phase-1 since `globals.ts` was archived,
+      but harmless once the manifest is gone.)*
+- [x] **4.2** Update `pantry/README.md`: change the headline to "Retired
       2026-06-19 — see `.planning/REWRITE.md`. Survivors scattered to
       `~/.pi/agent/` and `~/Development/dragon-breath`."
-- [ ] **4.3** Update `.planning/PROJECT.md` and `.planning/ROADMAP.md` to mark
+      *(Rewrote README as a retirement notice with a survivor-destination
+      table + pointers to REWRITE.md / HANDOFF.md / archived/README.md / ETHICS.md.)*
+- [x] **4.3** Update `.planning/PROJECT.md` and `.planning/ROADMAP.md` to mark
       the project retired (they currently describe 17 extensions / 56 skills /
       `pi install github:dotBeeps/pantry` — all now stale).
+      *(Prepended 🪦 RETIRED banners pointing to REWRITE.md as authoritative;
+      preserved the historical v1.0-stabilization content below as a record.)*
 - [ ] **4.4** Decide pantry repo fate: archive on GitHub, or keep as the
       `archived/` holding pen + `dragon-breath` history. (Recommendation:
       GitHub-archive the repo so the history is preserved but it's clearly
       read-only.)
+      *(DEFERRED to dot — requires a GitHub decision + push of the 10 local
+      commits. See HANDOFF.md.)*
 
 **Commit:** `chore: retire pantry-the-package (scatter complete)`
 
@@ -283,16 +293,24 @@ These are independent efforts; order doesn't matter. None block each other.
 
 ---
 
-## 4. Open items (none blocking Phase 0/1)
+## 4. Open items
 
-- **`dragon-breath` repo visibility:** locked = private. Confirm GitHub repo
-  name (`dotBeeps/dragon-breath`) and whether to push now or keep local.
-- **`notify.sh` recap model:** reuse `claude -p --model haiku` (existing
-  pattern, but couples pi-notifications to the Claude binary) or switch to
-  `pi -p` with a cheap model? Decide at Phase 2B.2.
-- **`rust` skill fate:** enrich-and-fold, or drop entirely and lean on the
-  model? Decide at Phase 3.2.
-- **Pantry repo fate post-retire:** GitHub-archive vs leave as-is. Decide at Phase 4.4.
+Most are **resolved** (carried to completion). Two remain for dot:
+
+- **[OPEN] Pantry repo fate (4.4):** GitHub-archive the repo (history
+  preserved, clearly read-only — recommended), or keep as a local holding
+  pen. Requires pushing the 10 local commits first either way.
+- **[OPEN] `dragon-breath` GitHub push (2A.6):** repo is local-only at
+  `~/Development/dragon-breath`; no remote configured yet. Push to private
+  `dotBeeps/dragon-breath` when ready. Works fine local-only.
+
+**Resolved during the scatter:**
+
+- ~~`dragon-breath` repo visibility~~ — locked private; name `dotBeeps/dragon-breath`.
+- ~~`notify.sh` recap model~~ — resolved at 2B.2: per-source runner (pi herald
+  → `pi -p`, Claude → `claude -p --model haiku`, raw → markdown-strip).
+  Override either with `$NOTIFY_RECAP_MODEL`.
+- ~~`rust` skill fate~~ — resolved at 3.2: folded exactly as-is per dot's decision.
 
 ---
 

@@ -1,19 +1,12 @@
 {
   "name": "pantry",
   "version": "1.0.0",
-  "description": "A dragon's pantry — extensions and skills for AI coding agents. Built by a small dog and a large dragon.",
+  "description": "Retired 2026-06-19 — survivors scattered to ~/.pi/agent/ and ~/Development/dragon-breath. This repo is now an archive/holding pen. See .planning/REWRITE.md.",
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "retired"
   ],
   "license": "MIT",
-  "pi": {
-    "extensions": [
-      "berrygems/extensions"
-    ],
-    "skills": [
-      "morsels/skills"
-    ]
-  },
   "scripts": {
     "lint:skills": "node --experimental-strip-types scripts/lint-skills.ts"
   },
