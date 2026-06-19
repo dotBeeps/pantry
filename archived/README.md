@@ -11,7 +11,9 @@ What survived the scatter, and where it went:
 
 - **4 extensions kept** → `dragon-breath` (→ standalone repo), `dragon-herald`
   (→ `~/.pi` notify bridge), `dragon-image-fetch` + `kitty-gif-renderer`
-  (→ `~/.pi`, decoupled). These remain in `berrygems/extensions/` until Phase 2.
+  (→ `~/.pi/agent/extensions/`, decoupled — Phase 2C **done**).
+  `dragon-breath` + `dragon-herald` remain in `berrygems/extensions/` until
+  Phases 2A/2B extract them.
 - **~14 skills folded** into `~/.pi/agent/skills/` (Phase 3).
 - **Everything else is here.**
 
@@ -88,9 +90,11 @@ cluster reports:
 
 ## Tests (`archived/tests/`)
 
-Orphaned tests for the retired extensions and lib modules above. Moved here so
-the surviving test tree (`berrygems/tests/`) stays self-consistent — only tests
-for the 4 surviving extensions, their 4 lib deps, the shared
+Orphaned tests for the retired extensions and lib modules above, **plus** the
+image-extension/lib tests retired in Phase 2C (those modules were *extracted*
+to `~/.pi/agent/`, not archived — their tests have no runner there). Moved here
+so the surviving test tree (`berrygems/tests/`) stays self-consistent — only
+tests for `dragon-breath`, `dragon-herald`, the `settings` lib, the shared
 `createPiTestSession` helper, and the package `smoke/` install test remain.
 
 > Note: `tsconfig.json` never included `tests/`, and `vitest` was never wired
