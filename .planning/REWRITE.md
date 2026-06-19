@@ -178,11 +178,11 @@ These are independent efforts; order doesn't matter. None block each other.
 - [x] **2A.5** Decouple from pantry internals (no `pantry.*` symbol refs
       unless self-contained).
 - [ ] **2A.6** Create the private GitHub repo `dotBeeps/dragon-breath` and push
-- [ ] **2A.7** Install into pi: `pi install git:github.com/dotBeeps/dragon-breath`
+- [x] **2A.7** Install into pi: `pi install git:github.com/dotBeeps/dragon-breath`
       (or `pi install ~/Development/dragon-breath`).
-      *(2A.6 + 2A.7 DEFERRED to checkpoint: both need dot's go — GitHub account
-      write + the pi-install host mutation. The standalone repo is built +
-      tsc-clean at `~/Development/dragon-breath` and ready to install locally.)*
+      *(2A.7 DONE: dot installed locally — `"../../Development/dragon-breath"`
+      in `~/.pi/agent/settings.json` packages. 2A.6 still open: no GitHub remote
+      configured yet; repo is local-only until dot pushes to `dotBeeps/dragon-breath`.)*
 - [x] **2A.8** Remove `dragon-breath` from `pantry/berrygems/extensions/`
 
 **Commit (in pantry):** `chore: extract dragon-breath to standalone repo`
