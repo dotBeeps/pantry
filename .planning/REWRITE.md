@@ -1,7 +1,7 @@
 # Pantry Rewrite — Plan & Tracking
 
 **Created:** 2026-06-19
-**Status:** 🥚 planned (awaiting execution)
+**Status:** 🐣 in-progress — **Phases 0–2 complete** (repo rot fix, non-survivors archived, 4 survivors scattered). **Phase 3 next** (fold ~14 skills into `~/.pi/agent/skills/`). For the live state snapshot + non-obvious gotchas, read [HANDOFF.md](HANDOFF.md).
 **Authority:** This doc governs the pantry retirement/scatter described in
 `~/pantry-triage/SYNTHESIS.md`. The full per-item evidence lives in
 `~/pantry-triage/cluster-*.md` (8 cluster reports). This doc is the
